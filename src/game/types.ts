@@ -1,0 +1,30 @@
+export type Point = { x: number; y: number };
+export type Direction = 'up' | 'right' | 'down' | 'left';
+export const VECTORS: Record<Direction, Point> = { up: { x: 0, y: -1 }, right: { x: 1, y: 0 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 } };
+export type Attribute = 'fire' | 'ice' | 'thunder' | 'earth' | 'wind' | 'neutral' | 'physical';
+export type SkillId = 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain';
+export type ItemId = 'potion' | 'ether' | 'scope' | 'summon';
+export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
+export type Actor = {
+  id: string; name: string; kind: 'player' | 'slime' | 'wolf' | 'golem' | 'boss' | 'sprite';
+  position: Point; cells: Point[]; directions: Direction[]; attackCells: Point[];
+  hp: number; maxHp: number; attack: number; attribute: Attribute; afflictions: Affliction[];
+  detectionRange: number; pattern: 'patrol' | 'wait' | 'guard'; attackRange: number;
+  priorityTarget: 'player' | 'nearest'; pursuitTurns: number;
+  mode: 'idle' | 'hostile'; lastSeen: Point | null; pursuitLeft: number;
+};
+export type Player = Actor & { mp: number; maxMp: number; criticalRate: number; criticalMultiplier: number; facing: Direction; freeCamera: boolean };
+export type BagBlock = { skillId: SkillId; position: Point | null; rotation: number };
+export type GroundObject = { id: string; position: Point; type: 'chest' | 'item' | 'skill' | 'exit'; skillId?: SkillId; itemId?: ItemId; opened?: boolean; objective?: boolean };
+export type FieldEffect = { effectId: string; position: Point; attribute: Attribute; remainingTurns: number; triggerType: 'enter' | 'turn'; damageMultiplier: number; onceOnly: boolean };
+export type MapState = { width: number; height: number; tiles: number[]; objects: GroundObject[]; fields: FieldEffect[] };
+export type SaveData = {
+  version: 1; stageId: number; randomSeed: number; initialSeed: number;
+  mapState: MapState; playerState: Player; allyStates: Actor[]; enemyStates: Actor[];
+  skillBag: BagBlock[]; skillLevels: Partial<Record<SkillId, number>>; cooldowns: Partial<Record<SkillId, number>>;
+  itemSlots: ItemId[]; exploredMap: boolean[]; turnCount: number; playerActionCount: number;
+  status: 'playing' | 'cleared' | 'defeated'; objectiveChests: number; pendingBag: boolean;
+  log: string[];
+};
+export type GameEvent = { type: 'damage' | 'heal' | 'cast' | 'defeat' | 'reaction'; position: Point; amount?: number; attribute?: Attribute; critical?: boolean; text?: string };
+export type Stage = { id: number; name: string; subtitle: string; description: string; objective: string; vision: number; width: number; height: number; enemyCount: number; goal: 'treasure' | 'exit' | 'hunt' | 'boss'; requiredChests: number };
