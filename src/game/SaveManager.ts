@@ -2,25 +2,27 @@ import { SKILLS } from '../data/skills';
 import { ITEMS } from '../data/items';
 import { validPlacement } from '../skills/SkillBag';
 import type { SaveData } from './types';
-const SAVE_KEY = 'pixel-world.save.v1', PROGRESS_KEY = 'pixel-world.progress.v1', SETTINGS_KEY = 'pixel-world.settings.v1';
-export type Settings = { grid: boolean; motion: boolean };
+export type Settings = { grid: boolean; motion: boolean; sound: boolean };
 export class SaveManager {
   error = '';
-  constructor(private storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = { getItem: key => window.localStorage.getItem(key), setItem: (key, value) => window.localStorage.setItem(key, value), removeItem: key => window.localStorage.removeItem(key) }) {}
+  constructor(private storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = { getItem: key => window.localStorage.getItem(key), setItem: (key, value) => window.localStorage.setItem(key, value), removeItem: key => window.localStorage.removeItem(key) }, private namespace = 'pixel-world') {}
+  private get saveKey() { return `${this.namespace}.save.v1`; }
+  private get progressKey() { return `${this.namespace}.progress.v1`; }
+  private get settingsKey() { return `${this.namespace}.settings.v1`; }
   private read(key: string): unknown { try { const raw = this.storage.getItem(key); return raw ? JSON.parse(raw) : null; } catch { this.error = '保存データを読み込めませんでした。'; return null; } }
   private write(key: string, value: unknown): boolean { try { this.storage.setItem(key, JSON.stringify(value)); this.error = ''; return true; } catch { this.error = '保存できません。ブラウザの空き容量・保存設定を確認してください。'; return false; } }
   load(): SaveData | null {
-    const value = this.read(SAVE_KEY);
+    const value = this.read(this.saveKey);
     if (!value) return null;
     if (!validSave(value)) { this.error = '中断データの形式が不正です。新しい冒険を開始できます。'; return null; }
     return value;
   }
-  save(state: SaveData): boolean { return this.write(SAVE_KEY, state); }
-  clear(): void { try { this.storage.removeItem(SAVE_KEY); } catch { this.error = '中断データを消去できませんでした。'; } }
-  progress(): number { const v = this.read(PROGRESS_KEY); return typeof v === 'number' && Number.isInteger(v) ? Math.max(0, Math.min(5, v)) : 0; }
-  complete(stageId: number): void { this.write(PROGRESS_KEY, Math.max(this.progress(), stageId)); }
-  settings(): Settings { const v = this.read(SETTINGS_KEY) as Partial<Settings> | null; return { grid: v?.grid === true, motion: v?.motion !== false }; }
-  saveSettings(settings: Settings): void { this.write(SETTINGS_KEY, settings); }
+  save(state: SaveData): boolean { return this.write(this.saveKey, state); }
+  clear(): void { try { this.storage.removeItem(this.saveKey); } catch { this.error = '中断データを消去できませんでした。'; } }
+  progress(): number { const v = this.read(this.progressKey); return typeof v === 'number' && Number.isInteger(v) ? Math.max(0, Math.min(5, v)) : 0; }
+  complete(stageId: number): void { this.write(this.progressKey, Math.max(this.progress(), stageId)); }
+  settings(): Settings { const v = this.read(this.settingsKey) as Partial<Settings> | null; return { grid: v?.grid === true, motion: v?.motion !== false, sound: v?.sound !== false }; }
+  saveSettings(settings: Settings): void { this.write(this.settingsKey, settings); }
 }
 function validSave(value: unknown): value is SaveData {
   try {

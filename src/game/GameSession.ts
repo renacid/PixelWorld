@@ -10,15 +10,25 @@ import type { Command } from './Command';
 import { canStand, generateMap, lineOfSight, occupied, same } from './MapState';
 import { Random } from './Random';
 import { BALANCE, endTurn } from './TurnManager';
-import { VECTORS, type Actor, type Attribute, type GameEvent, type ItemId, type Point, type SaveData, type SkillId } from './types';
+import { VECTORS, type Actor, type Attribute, type GameEvent, type ItemId, type Point, type SaveData, type SkillId, type TurnFrame } from './types';
 export class GameSession {
   events: GameEvent[] = [];
+  frames: TurnFrame[] = [];
+  private frameEventStart = 0;
   rng: Random;
-  constructor(public state: SaveData) { this.rng = new Random(state.randomSeed); }
+  constructor(public state: SaveData) {
+    this.rng = new Random(state.randomSeed);
+    // Older saves remain playable; existing hostile enemies do not alert again.
+    for (const a of this.actors) { a.facing ??= 'down'; a.alertedAt ??= -1; }
+  }
+  private capture(phase: TurnFrame['phase']): void {
+    this.frames.push({ phase, actors: structuredClone(this.actors), events: structuredClone(this.events.slice(this.frameEventStart)) });
+    this.frameEventStart = this.events.length;
+  }
   static create(stageId: number, seed: number): GameSession {
     const stage = STAGES.find(s => s.id === stageId)!;
     const rng = new Random(seed), { map, enemies } = generateMap(stage, rng);
-    const session = new GameSession({ version: 1, stageId, initialSeed: seed, randomSeed: rng.seed, mapState: map, playerState: createPlayer(), enemyStates: enemies, allyStates: [], skillBag: [], skillLevels: {}, cooldowns: {}, itemSlots: ['potion', 'ether'], exploredMap: new Array(map.width * map.height).fill(false), turnCount: 0, playerActionCount: 0, status: 'playing', objectiveChests: 0, pendingBag: false, log: ['目の前の宝箱へ進み、アタックを手に入れよう。'] });
+    const session = new GameSession({ version: 1, stageId, initialSeed: seed, randomSeed: rng.seed, mapState: map, playerState: createPlayer(), enemyStates: enemies, allyStates: [], skillBag: [], skillLevels: {}, cooldowns: {}, itemSlots: [], exploredMap: new Array(map.width * map.height).fill(false), turnCount: 0, playerActionCount: 0, status: 'playing', objectiveChests: 0, pendingBag: false, log: ['目の前の宝箱へ進み、アタックを手に入れよう。'] });
     session.explore(); return session;
   }
   get stage() { return STAGES[this.state.stageId - 1]; }
@@ -33,7 +43,7 @@ export class GameSession {
   damage = (target: Actor, amount: number, attribute: Attribute, critical = false): void => {
     const value = Math.round(amount * 10) / 10;
     target.hp = Math.max(0, Math.round((target.hp - value) * 10) / 10);
-    this.events.push({ type: 'damage', position: { ...target.position }, amount: value, attribute, critical });
+    this.events.push({ type: 'damage', position: { ...target.position }, actorId: target.id, amount: value, attribute, critical });
   };
   acquireSkill(id: SkillId): void {
     if (this.state.skillLevels[id]) { this.state.skillLevels[id]!++; this.log(`${SKILLS[id].name}の基礎レベルが${this.state.skillLevels[id]}に！`); }
@@ -46,6 +56,7 @@ export class GameSession {
       if (!same(obj.position, s.playerState.position) || obj.opened || obj.type === 'exit') continue;
       if (obj.type === 'chest') {
         obj.opened = true;
+        this.events.push({ type: 'pickup', position: { ...obj.position } });
         if (obj.objective) { s.objectiveChests++; this.log(`古代の宝箱を回収した！ ${s.objectiveChests}/${this.stage.requiredChests || 1}`); }
         if (obj.skillId) this.acquireSkill(obj.skillId);
         if (obj.itemId) this.receiveItem(obj.itemId, obj.position);
@@ -81,7 +92,7 @@ export class GameSession {
   cast(id: SkillId, direction: keyof typeof VECTORS): void {
     const s = this.state, p = s.playerState, def = SKILLS[id]; p.facing = direction; p.mp -= def.mp; s.cooldowns[id] = def.cooldown;
     const targets = previewSkill(s, id, direction);
-    for (const cell of targets.cells) this.events.push({ type: 'cast', position: cell, attribute: def.attribute });
+    this.events.push({ type: 'cast', actorId: p.id, position: { ...p.position }, target: targets.cells.at(-1) ?? { ...p.position }, path: targets.cells, skillId: id, attribute: def.attribute });
     const level = effectiveLevel(s.skillBag, s.skillLevels, id), multiplier = 1 + (level - 1) * .05;
     let total = 0;
     for (const targetId of targets.targetIds) {
@@ -106,7 +117,8 @@ export class GameSession {
       this.log(`${e.name}を倒した。`); this.events.push({ type: 'defeat', position: { ...e.position } });
       if (this.rng.next() < BALANCE.dropChance) {
         const skill = this.rng.next() < .3;
-        this.state.mapState.objects.push({ id: `drop-${e.id}`, type: skill ? 'skill' : 'item', position: { ...e.position }, ...(skill ? { skillId: (['fireball', 'thunder', 'tornado'] as SkillId[])[this.rng.int(0, 2)] } : { itemId: this.rng.next() < .5 ? 'potion' as const : 'ether' as const }) });
+        const itemId: ItemId = (['potion', 'potion', 'ether', 'ether', 'scope', 'summon'] as ItemId[])[this.rng.int(0, 5)];
+        this.state.mapState.objects.push({ id: `drop-${e.id}`, type: skill ? 'skill' : 'item', position: { ...e.position }, ...(skill ? { skillId: (['fireball', 'thunder', 'tornado'] as SkillId[])[this.rng.int(0, 2)] } : { itemId }) });
       }
     }
     this.state.enemyStates = this.state.enemyStates.filter(e => e.hp > 0);
@@ -122,6 +134,7 @@ export class GameSession {
   execute(command: Command): boolean {
     const s = this.state, p = s.playerState;
     this.events = [];
+    this.frames = []; this.frameEventStart = 0;
     if (s.status !== 'playing' || s.pendingBag) return false;
     if (command.type === 'cast') { const error = this.canCast(command.skillId); if (error) { this.log(error); return false; } }
     if (command.type === 'move') {
@@ -134,17 +147,20 @@ export class GameSession {
     s.playerActionCount++;
     if (command.type === 'cast') this.cast(command.skillId, command.direction);
     this.collect(); this.reap();
-    for (const ally of s.allyStates) { actEnemy(s.mapState, ally, s.enemyStates, this.actors, this.rng, (a, b) => this.damage(b, a.attack, a.attribute)); }
+    this.capture('player');
+    for (const ally of s.allyStates) { actEnemy(s.mapState, ally, s.enemyStates, this.actors, this.rng, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.damage(b, a.attack, a.attribute); }, s.playerActionCount); }
     this.reap();
+    this.capture('ally');
     for (const enemy of s.enemyStates) {
       if (p.hp <= 0) break;
-      actEnemy(s.mapState, enemy, [p, ...s.allyStates], this.actors, this.rng, (a, b) => { this.damage(b, a.attack, a.attribute); applyAttribute(b, a.attribute, a.attack, s.playerActionCount, [p, ...s.allyStates], this.damage, this.events); });
+      actEnemy(s.mapState, enemy, [p, ...s.allyStates], this.actors, this.rng, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.damage(b, a.attack, a.attribute); applyAttribute(b, a.attribute, a.attack, s.playerActionCount, [p, ...s.allyStates], this.damage, this.events); }, s.playerActionCount);
     }
     for (const field of s.mapState.fields) {
       const active = field.triggerType === 'turn' || command.type === 'move';
       if (active && same(field.position, p.position)) { const amount = p.attack * field.damageMultiplier; this.damage(p, amount, field.attribute); applyAttribute(p, field.attribute, amount, s.playerActionCount, [p, ...s.allyStates], this.damage, this.events); if (field.onceOnly) field.remainingTurns = 0; }
     }
     this.reap();
+    this.capture('enemy');
     endTurn(s, command.type === 'cast' ? command.skillId : undefined);
     this.explore();
     if (p.hp <= 0) { s.status = 'defeated'; s.pendingBag = false; this.log('冒険はここまで。また新しい旅へ。'); }

@@ -7,11 +7,11 @@ export type ItemId = 'potion' | 'ether' | 'scope' | 'summon';
 export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
 export type Actor = {
   id: string; name: string; kind: 'player' | 'slime' | 'wolf' | 'golem' | 'boss' | 'sprite';
-  position: Point; cells: Point[]; directions: Direction[]; attackCells: Point[];
+  position: Point; cells: Point[]; directions: Direction[]; attackCells: Point[]; facing: Direction;
   hp: number; maxHp: number; attack: number; attribute: Attribute; afflictions: Affliction[];
   detectionRange: number; pattern: 'patrol' | 'wait' | 'guard'; attackRange: number;
   priorityTarget: 'player' | 'nearest'; pursuitTurns: number;
-  mode: 'idle' | 'hostile'; lastSeen: Point | null; pursuitLeft: number;
+  mode: 'idle' | 'hostile'; lastSeen: Point | null; pursuitLeft: number; alertedAt: number;
 };
 export type Player = Actor & { mp: number; maxMp: number; criticalRate: number; criticalMultiplier: number; facing: Direction; freeCamera: boolean };
 export type BagBlock = { skillId: SkillId; position: Point | null; rotation: number };
@@ -26,5 +26,6 @@ export type SaveData = {
   status: 'playing' | 'cleared' | 'defeated'; objectiveChests: number; pendingBag: boolean;
   log: string[];
 };
-export type GameEvent = { type: 'damage' | 'heal' | 'cast' | 'defeat' | 'reaction'; position: Point; amount?: number; attribute?: Attribute; critical?: boolean; text?: string };
+export type GameEvent = { type: 'damage' | 'heal' | 'cast' | 'defeat' | 'reaction' | 'attack' | 'pickup'; position: Point; amount?: number; attribute?: Attribute; critical?: boolean; text?: string; actorId?: string; target?: Point; skillId?: SkillId; path?: Point[] };
+export type TurnFrame = { phase: 'player' | 'ally' | 'enemy'; actors: Actor[]; events: GameEvent[] };
 export type Stage = { id: number; name: string; subtitle: string; description: string; objective: string; vision: number; width: number; height: number; enemyCount: number; goal: 'treasure' | 'exit' | 'hunt' | 'boss'; requiredChests: number };

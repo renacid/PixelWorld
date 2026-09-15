@@ -1,6 +1,6 @@
 import { actor } from '../actors/Actor';
 import { Random } from './Random';
-import type { Actor, MapState, Point, Stage } from './types';
+import type { Actor, ItemId, MapState, Point, SkillId, Stage } from './types';
 export const key = (p: Point) => `${p.x},${p.y}`;
 export const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
 export const distance = (a: Point, b: Point) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
@@ -34,17 +34,15 @@ export function generateMap(stage: Stage, rng: Random): { map: MapState; enemies
   }
   map.objects.push(
     { id: 'start-attack', type: 'chest', position: { x: 3, y: 4 }, skillId: 'attack' },
-    { id: 'start-fire', type: 'chest', position: { x: 5, y: 4 }, skillId: 'fireball' },
-    { id: 'start-thunder', type: 'chest', position: { x: 5, y: 6 }, skillId: 'thunder' },
-    { id: 'start-wind', type: 'chest', position: { x: 3, y: 7 }, skillId: 'tornado' },
     { id: 'rain', type: 'chest', position: { x: width - 4, y: 4 }, skillId: 'firerain' },
     { id: 'relic-1', type: 'chest', position: { x: width - 4, y: height - 4 }, objective: true, itemId: 'ether' },
     { id: 'exit', type: 'exit', position: { x: width - 3, y: height - 3 } },
-    { id: 'lens', type: 'item', position: { x: 7, y: 3 }, itemId: 'scope' },
-    { id: 'seed', type: 'item', position: { x: 3, y: 9 }, itemId: 'summon' },
-    { id: 'potion-1', type: 'item', position: { x: 7, y: 6 }, itemId: 'potion' },
-    { id: 'ether-1', type: 'item', position: { x: 8, y: 6 }, itemId: 'ether' },
   );
+  // One rare elemental chest replaces the three clustered tutorial chests.
+  const element = (['fireball', 'thunder', 'tornado'] as SkillId[])[rng.int(0, 2)];
+  map.objects.push({ id: 'element-cache', type: 'chest', position: { x: 3, y: height - 7 }, skillId: element });
+  // No loose starting supplies. A supply cache appears in only 25% of expeditions.
+  if (rng.next() < .25) map.objects.push({ id: 'supply-cache', type: 'chest', position: { x: width - 7, y: 3 }, itemId: (['potion', 'ether', 'scope', 'summon'] as ItemId[])[rng.int(0, 3)] });
   if (stage.requiredChests > 1) map.objects.push({ id: 'relic-2', type: 'chest', position: { x: 3, y: height - 4 }, objective: true, itemId: 'potion' });
   const enemies: Actor[] = [];
   for (let i = 0; i < stage.enemyCount; i++) {
