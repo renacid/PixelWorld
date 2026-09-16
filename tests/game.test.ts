@@ -57,7 +57,7 @@ describe('attributes and sequential hits', () => {
       const s = cleanSession(), target = actor('target', 'boss', { x: 5, y: 5 });
       applyAttribute(target, pair[0], 10, 1, [target], s.damage, []);
       applyAttribute(target, pair[1], 13, 2, [target], s.damage, []);
-      expect(target.afflictions).toHaveLength(0); expect(target.hp).toBeCloseTo(125 - 15.6);
+      expect(target.afflictions).toHaveLength(0); expect(target.hp).toBe(125 - 15);
     }
   });
   it('refreshes a same-element aura and expires after 10 subsequent actions', () => {
@@ -75,7 +75,7 @@ describe('attributes and sequential hits', () => {
     const enemies = [a, b, far], events: GameEvent[] = [];
     applyAttribute(a, 'fire', 10, 1, enemies, s.damage, events); applyAttribute(b, 'thunder', 10, 1, enemies, s.damage, events);
     applyAttribute(a, 'wind', 7, 2, enemies, s.damage, events);
-    expect(b.hp).toBeCloseTo(12.5); // .7 splash + .8 rounded explosion
+    expect(b.hp).toBe(14); // Both .7 splash and .84 explosion truncate to zero.
     expect(far.hp).toBe(14); expect(a.afflictions).toHaveLength(0); expect(b.afflictions).toHaveLength(0);
     expect(events.filter(e => e.text === '風散')).toHaveLength(1); expect(events.filter(e => e.text === '爆破')).toHaveLength(1);
   });
@@ -86,9 +86,9 @@ describe('attributes and sequential hits', () => {
     expect(previewSkill(s.state, 'firerain', 'down').cells).toHaveLength(24);
     const preview = previewSkill(s.state, 'firerain', 'down'); expect(preview.targetIds).toEqual(['target']);
     s.execute({ type: 'cast', skillId: 'firerain', direction: 'down' });
-    // Auto layout keeps the fire spells separate: 3 x 3 damage plus 3.6 explosion.
+    // Auto layout keeps the fire spells separate: 3 x 3 damage plus 3 explosion.
     expect(s.events.filter(e => e.type === 'reaction' && e.text === '爆破')).toHaveLength(1);
-    expect(s.events.filter(e => e.type === 'damage' && e.position.x === 4)).toHaveLength(4);
+    expect(s.events.filter(e => e.type === 'damage' && e.actorId === target.id)).toHaveLength(4);
     expect(target.afflictions.map(a => a.attribute)).toEqual(['fire']);
     expect(target.afflictions[0].remainingTurns).toBe(10); expect(s.state.cooldowns.firerain).toBe(10); expect(s.state.playerState.mp).toBe(10);
   });
@@ -155,9 +155,9 @@ describe('maps, AI, stages and saves', () => {
       if (stage.id === 5) expect(enemies.some(e => e.kind === 'boss')).toBe(true);
     }
   });
-  it('supports footprints of 1, 2, 4, 6, 9 cells and rejects partial wall collisions', () => {
+  it('supports square footprints of 1, 4, 9 cells and rejects partial wall collisions', () => {
     const s = cleanSession();
-    for (const [w, h] of [[1, 1], [1, 2], [2, 2], [2, 3], [3, 3]]) { const a = actor('large', 'golem', { x: 4, y: 4 }); a.cells = rectangle(w, h); expect(occupied(a)).toHaveLength(w * h); expect(canStand(s.state.mapState, a, { x: 0, y: 0 })).toBe(false); }
+    for (const [w, h] of [[1, 1], [2, 2], [3, 3]]) { const a = actor('large', 'golem', { x: 4, y: 4 }); a.cells = rectangle(w, h); expect(occupied(a)).toHaveLength(w * h); expect(canStand(s.state.mapState, a, { x: 0, y: 0 })).toBe(false); }
   });
   it('AI remembers last seen location when player moves out of sight', () => {
     const s = cleanSession(), e = actor('wolf', 'wolf', { x: 8, y: 3 }), p = s.state.playerState;

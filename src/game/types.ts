@@ -1,31 +1,54 @@
+/** セーブ・ゲームロジック・描画で共通利用するデータ型。追加フィールドは旧セーブ互換に注意。 */
 export type Point = { x: number; y: number };
+import type { ActorKind, EnemyKind } from '../data/enemies';
+import type { ChestTier, Loot } from '../data/loot';
+import type { TrapInstance, TrapPlacement, TrapVisual, SoundCue } from '../data/traps';
 export type Direction = 'up' | 'right' | 'down' | 'left';
 export const VECTORS: Record<Direction, Point> = { up: { x: 0, y: -1 }, right: { x: 1, y: 0 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 } };
-export type Attribute = 'fire' | 'ice' | 'thunder' | 'earth' | 'wind' | 'neutral' | 'physical';
-export type SkillId = 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain';
-export type ItemId = 'potion' | 'ether' | 'scope' | 'summon';
+export type Attribute = 'fire' | 'ice' | 'thunder' | 'earth' | 'wind' | 'neutral' | 'physical' | 'nature';
+export type SkillId = 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
+export type ItemId = 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
 export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
 export type Actor = {
-  id: string; name: string; kind: 'player' | 'slime' | 'wolf' | 'golem' | 'boss' | 'sprite';
+  experienceMultiplier?: number;
+  criticalRate?: number; criticalMultiplier?: number;
+  immobile?: boolean; skillChances?: Record<string, number>;
+  buffs?: { id: string; remainingTurns: number; appliedAt: number; attackMultiplier: number; detectionBonus: number }[];
+  id: string; name: string; kind: ActorKind;
   position: Point; cells: Point[]; directions: Direction[]; attackCells: Point[]; facing: Direction;
   hp: number; maxHp: number; attack: number; attribute: Attribute; afflictions: Affliction[];
   detectionRange: number; pattern: 'patrol' | 'wait' | 'guard'; attackRange: number;
   priorityTarget: 'player' | 'nearest'; pursuitTurns: number;
   mode: 'idle' | 'hostile'; lastSeen: Point | null; pursuitLeft: number; alertedAt: number;
+  chaseMoveLimit?: number; chaseMoves?: number; chaseSkipLeft?: number; chaseRecoveryChance?: number;
+  mp?: number; maxMp?: number; enemySkillIds?: string[];
 };
-export type Player = Actor & { mp: number; maxMp: number; criticalRate: number; criticalMultiplier: number; facing: Direction; freeCamera: boolean };
-export type BagBlock = { skillId: SkillId; position: Point | null; rotation: number };
-export type GroundObject = { id: string; position: Point; type: 'chest' | 'item' | 'skill' | 'exit'; skillId?: SkillId; itemId?: ItemId; opened?: boolean; objective?: boolean };
+export type Player = Actor & { mp: number; maxMp: number; criticalRate: number; criticalMultiplier: number; facing: Direction; freeCamera: boolean; visionBonus?: number; movementLockedUntil?: number };
+export type BagBlock = { isNew?: boolean; skillId: SkillId; position: Point | null; rotation: number };
+export type GroundObject = { id: string; position: Point; type: 'chest' | 'item' | 'skill' | 'exit' | 'gem'; skillId?: SkillId; skillIds?: SkillId[]; itemId?: ItemId; chestTier?: ChestTier; fullNotified?: boolean; contents?: Loot[]; opened?: boolean; objective?: boolean };
 export type FieldEffect = { effectId: string; position: Point; attribute: Attribute; remainingTurns: number; triggerType: 'enter' | 'turn'; damageMultiplier: number; onceOnly: boolean };
-export type MapState = { width: number; height: number; tiles: number[]; objects: GroundObject[]; fields: FieldEffect[] };
+export type MapState = { width: number; height: number; tiles: number[]; objects: GroundObject[]; playerTraps?: { id: string; position: Point; damage: number }[]; traps?: TrapInstance[]; fields: FieldEffect[] };
 export type SaveData = {
   version: 1; stageId: number; randomSeed: number; initialSeed: number;
   mapState: MapState; playerState: Player; allyStates: Actor[]; enemyStates: Actor[];
   skillBag: BagBlock[]; skillLevels: Partial<Record<SkillId, number>>; cooldowns: Partial<Record<SkillId, number>>;
   itemSlots: ItemId[]; exploredMap: boolean[]; turnCount: number; playerActionCount: number;
+  /** スキル以外の行動だけを数えるMP回復用カウンター。旧セーブでは未定義。 */
+  mpRecoveryActions?: number;
+  playerLevel?: number; experience?: number; bagCells?: Point[];
+  skillWear?: Partial<Record<SkillId, { uses: number; extraMp: number }>>;
+  pendingGemChoices?: string[][];
+  daylightCount?: number;
+  floorNumber?: number; floorCount?: number; nightRevived?: number; nightWave?: number; nightTarget?: number;
+  defeatedEnemies?: Actor[];
   status: 'playing' | 'cleared' | 'defeated'; objectiveChests: number; pendingBag: boolean;
   log: string[];
 };
-export type GameEvent = { type: 'damage' | 'heal' | 'cast' | 'defeat' | 'reaction' | 'attack' | 'pickup'; position: Point; amount?: number; attribute?: Attribute; critical?: boolean; text?: string; actorId?: string; target?: Point; skillId?: SkillId; path?: Point[] };
+export type GameEvent = { type: 'damage' | 'heal' | 'cast' | 'defeat' | 'reaction' | 'attack' | 'pickup' | 'trap' | 'levelup'; position: Point; amount?: number; attribute?: Attribute; critical?: boolean; text?: string; actorId?: string; target?: Point; skillId?: SkillId; enemySkillId?: string; visual?: TrapVisual | 'stone' | 'strike'; sound?: SoundCue; delayMs?: number; durationMs?: number; path?: Point[] };
 export type TurnFrame = { phase: 'player' | 'ally' | 'enemy'; actors: Actor[]; events: GameEvent[] };
-export type Stage = { id: number; name: string; subtitle: string; description: string; objective: string; vision: number; width: number; height: number; enemyCount: number; goal: 'treasure' | 'exit' | 'hunt' | 'boss'; requiredChests: number };
+/** 出現順と個数を定義。固定配置の敵はpositionを指定します。 */
+export type EnemySpawn = { kind: EnemyKind; count: number; position?: Point };
+export type FloorRules = { gemCount: number; extraPassages: number; enemyVariance: number; nightRevival: { min: number; max: number } };
+export type Stage = { dungeon?: FloorRules & { floors: number; enemyScaling?: { everyFloors: number; multiplier: number }; overrides?: Record<number, Partial<FloorRules>> }; id: number; name: string; subtitle: string; description: string; objective: string; vision: number; width: number; height: number; enemyCount: number; enemySpawns?: EnemySpawn[]; trapPlacements?: TrapPlacement[]; goal: 'treasure' | 'exit' | 'hunt' | 'boss'; requiredChests: number; sleepRespawnCount?: number };
+/** ASCII文字と地形IDを対応させ、手作りダンジョンを定義できます。 */
+export type StageLayout = { randomEnemies?: EnemySpawn[]; randomChests?: number; gemCount?: number; rows: string[]; legend: Record<string, number>; spawn: Point; objects: GroundObject[]; enemies: { kind: EnemyKind; position: Point }[]; fields?: FieldEffect[]; trapPlacements?: TrapPlacement[]; traps?: TrapInstance[] };

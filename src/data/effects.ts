@@ -1,0 +1,15 @@
+/** 演出名はモンスター・罠の名前から独立させ、複数の効果で共有します。 */
+export type TrapVisual = 'chestBurst' | 'snare' | 'fireBlast' | 'fallingRocks' | 'healingGlow' | 'summonRing';
+export type SoundCue = 'treasure' | 'snap' | 'explosion' | 'rocks' | 'healing' | 'stone' | 'strike' | 'ice' | 'howl';
+export type Tone = { from: number; to: number; duration: number; wave: OscillatorType; delay?: number; volume?: number };
+export const SOUND_CUES: Record<SoundCue, Tone[]> = {
+  ice: [{ from: 1600, to: 500, duration: .35, wave: 'triangle', volume: .3 }, { from: 900, to: 2200, duration: .2, wave: 'sine', delay: .25 }],
+  howl: [{ from: 220, to: 460, duration: .25, wave: 'sine' }, { from: 460, to: 180, duration: .5, wave: 'sine', delay: .23 }],
+  treasure: [523, 659, 784, 1046].map((frequency, i) => ({ from: frequency, to: frequency, duration: .16, wave: 'sine', delay: i * .07 })),
+  snap: [{ from: 850, to: 80, duration: .08, wave: 'square', volume: .3 }, { from: 190, to: 60, duration: .13, wave: 'triangle', delay: .06 }],
+  explosion: [{ from: 120, to: 35, duration: .35, wave: 'sawtooth', volume: .4 }],
+  rocks: [{ from: 180, to: 50, duration: .12, wave: 'square', volume: .25 }],
+  healing: [{ from: 480, to: 960, duration: .35, wave: 'sine' }, { from: 720, to: 1440, duration: .3, wave: 'sine', delay: .1, volume: .35 }],
+  stone: [{ from: 480, to: 130, duration: .13, wave: 'triangle' }],
+  strike: [{ from: 250, to: 80, duration: .13, wave: 'triangle' }],
+};

@@ -1,11 +1,18 @@
+/** 占有・通行・視線判定とマップ生成。手作り地形はstages/layouts.tsへ登録します。 */
+import { floorRules } from '../stages/DungeonRules';
 import { actor } from '../actors/Actor';
+import { terrain, TERRAIN } from '../data/terrain';
+import { upperFloorLayout } from '../stages/upperFloors';
+import { CUSTOM_LAYOUTS } from '../stages/layouts';
 import { Random } from './Random';
-import type { Actor, ItemId, MapState, Point, SkillId, Stage } from './types';
+import { initializeChests, weighted } from './LootSystem';
+import { placeTraps } from './TrapSystem';
+import type { Actor, EnemySpawn, ItemId, MapState, Point, SkillId, Stage } from './types';
 export const key = (p: Point) => `${p.x},${p.y}`;
 export const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
 export const distance = (a: Point, b: Point) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 export function occupied(a: Actor, position = a.position): Point[] { return a.cells.map(c => ({ x: position.x + c.x, y: position.y + c.y })); }
-export function wall(map: MapState, p: Point): boolean { return p.x < 0 || p.y < 0 || p.x >= map.width || p.y >= map.height || map.tiles[p.y * map.width + p.x] === 1; }
+export function wall(map: MapState, p: Point): boolean { return p.x < 0 || p.y < 0 || p.x >= map.width || p.y >= map.height || terrain(map.tiles[p.y * map.width + p.x]).solid; }
 export function canStand(map: MapState, a: Actor, p: Point, actors: Actor[] = []): boolean {
   const cells = occupied(a, p);
   return cells.every(c => !wall(map, c)) && !actors.some(other => other.id !== a.id && other.hp > 0 && occupied(other).some(c => cells.some(t => same(c, t))));
@@ -19,12 +26,59 @@ export function lineOfSight(map: MapState, from: Point, to: Point): boolean {
     if (e2 > -dy) { error -= dy; x += sx; }
     if (e2 < dx) { error += dx; y += sy; }
     if (x === to.x && y === to.y) return true;
-    if (wall(map, { x, y })) return false;
+    if (terrain(map.tiles[y * map.width + x]).blocksSight) return false;
   }
   return true;
 }
-export function generateMap(stage: Stage, rng: Random): { map: MapState; enemies: Actor[] } {
+export function generateMap(stage: Stage, rng: Random, floor = 1): { map: MapState; enemies: Actor[]; spawn: Point } {
   const { width, height } = stage;
+  const rules = floorRules(stage, floor);
+  const varyCount = (count: number) => Math.max(0, count + rng.int(-rules.enemyVariance, rules.enemyVariance));
+  // 既存の床に接した壁だけを開くので、通路の接続と固定配置を壊さず形が変わる。
+  const varyShape = (map: MapState, floorTile: number) => {
+    for (let n = 0; n < rules.extraPassages; n++) {
+      const cells: Point[] = [];
+      for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
+        const p = { x, y };
+        if (wall(map, p) && [{ x: x - 1, y }, { x: x + 1, y }, { x, y: y - 1 }, { x, y: y + 1 }].some(c => !wall(map, c))) cells.push(p);
+      }
+      if (!cells.length) break; const p = cells[rng.int(0, cells.length - 1)]; map.tiles[p.y * width + p.x] = floorTile;
+    }
+  };
+  const layout = floor > 1 ? upperFloorLayout(stage, floor) : CUSTOM_LAYOUTS[stage.id];
+  if (layout) {
+    if (layout.rows.length !== height || layout.rows.some(row => row.length !== width)) throw new Error(`${stage.name}: 地形の行数・列数がステージサイズと一致しません`);
+    const tiles = layout.rows.flatMap(row => [...row].map(char => { const id = layout.legend[char]; if (!(id in TERRAIN)) throw new Error(`未定義の地形文字: ${char}`); return id; }));
+    const map: MapState = { width, height, tiles, objects: structuredClone(layout.objects), fields: structuredClone(layout.fields ?? []), traps: structuredClone(layout.traps ?? []) };
+    varyShape(map, layout.legend['.'] ?? 0);
+    const enemies = layout.enemies.map((entry, i) => actor(`enemy-${i}`, entry.kind, { ...entry.position }, stage.id, floor));
+    if (wall(map, layout.spawn) || enemies.some(e => !canStand(map, e, e.position, enemies)) || map.objects.some(o => wall(map, o.position))) throw new Error(`${stage.name}: 配置が壁または他のキャラクターと重なっています`);
+    // 手作り地形にもシード付きのランダム配置を追加。全候補から選ぶため配置失敗が隠れない。
+    const freeCell = (body: Actor) => {
+      const candidates: Point[] = [];
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const p = { x, y };
+        if (distance(p, layout.spawn) < 6 || !canStand(map, body, p, enemies)) continue;
+        if (occupied(body, p).some(c => map.objects.some(o => same(c, o.position)) || map.fields.some(f => same(c, f.position)) || map.traps?.some(t => same(c, t.position)))) continue;
+        candidates.push(p);
+      }
+      if (!candidates.length) throw new Error(`${stage.name}: ランダム配置用の空き床が不足しています`);
+      return candidates[rng.int(0, candidates.length - 1)];
+    };
+    for (const entry of (layout.randomEnemies ?? []).map(e => ({ ...e, count: varyCount(e.count) }))) for (let i = 0; i < entry.count; i++) {
+      const enemy = actor(`enemy-${enemies.length}`, entry.kind, { x: 0, y: 0 }, stage.id, floor);
+      enemy.position = freeCell(enemy); enemies.push(enemy);
+    }
+    const gemLimit = Math.min(1, Math.max(0, stage.dungeon?.overrides?.[floor]?.gemCount ?? layout.gemCount ?? rules.gemCount));
+    let fixedGems = 0; map.objects = map.objects.filter(o => o.type !== 'gem' || fixedGems++ < gemLimit);
+    const token = actor('placement-token', 'slime', { x: 0, y: 0 });
+    for (let i = 0; i < (layout.randomChests ?? 0); i++) map.objects.push({ id: `random-chest-${i}`, type: 'chest', position: freeCell(token), chestTier: weighted([{ value: 'wood' as const, weight: 4 }, { value: 'iron' as const, weight: 3 }, { value: 'silver' as const, weight: 2 }, { value: 'gold' as const, weight: 1 }], rng) });
+    const missingGems = gemLimit - map.objects.filter(o => o.type === 'gem').length;
+    for (let i = 0; i < missingGems; i++) map.objects.push({ id: `gem-${i}`, type: 'gem', position: freeCell(token) });
+    initializeChests(map, rng);
+    placeTraps(map, layout.trapPlacements ?? stage.trapPlacements ?? [], rng, layout.spawn, enemies);
+    return { map, enemies, spawn: { ...layout.spawn } };
+  }
   const map: MapState = { width, height, tiles: new Array(width * height).fill(0), objects: [], fields: [] };
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     // Islands of ruins leave a connected network of wide horizontal/vertical lanes.
@@ -32,30 +86,46 @@ export function generateMap(stage: Stage, rng: Random): { map: MapState; enemies
     const ruin = x > 6 && y > 6 && x < width - 5 && y < height - 5 && x % 7 >= 3 && x % 7 <= 4 && y % 7 >= 3 && y % 7 <= 4;
     map.tiles[y * width + x] = border || ruin ? 1 : rng.next() < .1 ? 2 : 0;
   }
+  varyShape(map, 0);
   map.objects.push(
-    { id: 'start-attack', type: 'chest', position: { x: 3, y: 4 }, skillId: 'attack' },
-    { id: 'rain', type: 'chest', position: { x: width - 4, y: 4 }, skillId: 'firerain' },
-    { id: 'relic-1', type: 'chest', position: { x: width - 4, y: height - 4 }, objective: true, itemId: 'ether' },
+    { id: 'start-attack', type: 'chest', chestTier: 'gold', position: { x: 3, y: 4 }, skillId: 'attack', skillIds: ['warp'] },
+    { id: 'rain', type: 'chest', chestTier: 'silver', position: { x: width - 4, y: 4 }, skillId: 'firerain' },
+    { id: 'relic-1', type: 'chest', chestTier: 'iron', position: { x: width - 4, y: height - 4 }, objective: true, itemId: 'ether' },
     { id: 'exit', type: 'exit', position: { x: width - 3, y: height - 3 } },
   );
   // One rare elemental chest replaces the three clustered tutorial chests.
   const element = (['fireball', 'thunder', 'tornado'] as SkillId[])[rng.int(0, 2)];
-  map.objects.push({ id: 'element-cache', type: 'chest', position: { x: 3, y: height - 7 }, skillId: element });
+  map.objects.push({ id: 'element-cache', type: 'chest', chestTier: 'silver', position: { x: 3, y: height - 7 }, skillId: element });
   // No loose starting supplies. A supply cache appears in only 25% of expeditions.
-  if (rng.next() < .25) map.objects.push({ id: 'supply-cache', type: 'chest', position: { x: width - 7, y: 3 }, itemId: (['potion', 'ether', 'scope', 'summon'] as ItemId[])[rng.int(0, 3)] });
+  if (rng.next() < .25) map.objects.push({ id: 'supply-cache', type: 'chest', chestTier: 'wood', position: { x: width - 7, y: 3 } });
   if (stage.requiredChests > 1) map.objects.push({ id: 'relic-2', type: 'chest', position: { x: 3, y: height - 4 }, objective: true, itemId: 'potion' });
   const enemies: Actor[] = [];
-  for (let i = 0; i < stage.enemyCount; i++) {
-    const kind = i === 0 && stage.id === 5 ? 'boss' : i === 0 && stage.id === 4 ? 'golem' : stage.id > 1 && i % 3 === 1 ? 'wolf' : 'slime';
-    const enemy = actor(`enemy-${i}`, kind, { x: 0, y: 0 }, stage.id);
-    if (i === 0 && stage.id >= 4) for (const c of occupied(enemy, { x: width - 7, y: height - 7 })) map.tiles[c.y * width + c.x] = 0;
+  // 出現表は型付きの敵IDを参照。種類別の分岐をここへ追加する必要はありません。
+  const entries: EnemySpawn[] = stage.enemySpawns ?? [{ kind: 'slime', count: stage.enemyCount }];
+  if (entries.some(e => !Number.isInteger(e.count) || e.count < 0 || e.position && e.count > 1)) throw new Error(`${stage.name}: 敵の個数は非負整数、固定座標には1体だけ指定してください`);
+  const spawns = entries.map(e => ({ ...e, count: e.position ? e.count : varyCount(e.count) })).flatMap(entry => Array.from({ length: entry.count }, () => entry));
+  for (const [i, spawn] of spawns.entries()) {
+    const kind = spawn.kind;
+    const enemy = actor(`enemy-${i}`, kind, { x: 0, y: 0 }, stage.id, floor);
+    if (spawn.position) for (const c of occupied(enemy, spawn.position)) {
+      if (c.x <= 0 || c.y <= 0 || c.x >= width - 1 || c.y >= height - 1) throw new Error(`${stage.name}: 固定敵の配置がマップ境界外です`);
+      map.tiles[c.y * width + c.x] = 0;
+    }
     for (let tries = 0; tries < 300; tries++) {
-      const p = i === 0 && stage.id >= 4 ? { x: width - 7, y: height - 7 } : { x: rng.int(2, width - 4), y: rng.int(9, height - 4) };
+      const p = spawn.position ? { ...spawn.position } : { x: rng.int(2, width - 4), y: rng.int(9, height - 4) };
       if (canStand(map, enemy, p, enemies) && !occupied(enemy, p).some(c => map.objects.some(o => same(c, o.position)))) { enemy.position = p; enemies.push(enemy); break; }
     }
+    if (!enemies.includes(enemy)) throw new Error(`${stage.name}: ${enemy.name}の配置場所がありません`);
   }
   if (stage.id >= 4) for (const p of [{ x: 8, y: 9 }, { x: 9, y: 9 }, { x: width - 5, y: height - 8 }]) {
     map.fields.push({ effectId: `ember-${key(p)}`, position: p, attribute: 'fire', remainingTurns: 999, triggerType: 'enter', damageMultiplier: .3, onceOnly: false });
   }
-  return { map, enemies };
+  if (rules.gemCount) {
+    const cells: Point[] = [];
+    for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) { const p = { x, y }; if (!wall(map, p) && distance(p, { x: 3, y: 3 }) > 5 && !map.objects.some(o => same(o.position, p)) && !enemies.some(a => occupied(a).some(c => same(c, p))) && !map.fields.some(f => same(f.position, p))) cells.push(p); }
+    if (cells.length) map.objects.push({ id: 'gem-floor', type: 'gem', position: cells[rng.int(0, cells.length - 1)] });
+  }
+  initializeChests(map, rng);
+  placeTraps(map, stage.trapPlacements ?? [], rng, { x: 3, y: 3 }, enemies);
+  return { map, enemies, spawn: { x: 3, y: 3 } };
 }

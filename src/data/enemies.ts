@@ -1,0 +1,51 @@
+import type { Attribute, Direction, Point } from '../game/types';
+import { ENEMY_SKILLS } from './enemySkills';
+import type { DropEntry } from './loot';
+
+/** 絵の種類は敵の種類から独立。新しい敵でも既存の絵を再利用できます。 */
+export type SpriteId = 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'boss' | 'sprite' | 'treant';
+export type ActorDefinition = {
+  experience: number;
+  criticalRate: number; criticalMultiplier: number; immobile: boolean;
+  skillChances: Record<string, number>; innateAttribute?: Attribute;
+  name: string; hp: number; hpPerStage: number; attack: number; size: 1 | 2 | 3;
+  mp: number; skills: string[]; drops: DropEntry[]; attribute: Attribute; detectionRange: number;
+  pattern: 'patrol' | 'wait' | 'guard'; attackRange: number; priorityTarget: 'nearest' | 'player';
+  pursuitTurns: number; chaseMoveLimit: number; chaseRecoveryChance: number;
+  directions: Direction[]; attackCells: Point[];
+  sprite: SpriteId; renderScale: number; bob: boolean; idleStep: boolean;
+};
+/** 共通値。各敵の項目で上書きできます。sizeは一辺のマス数です。 */
+function define(config: Pick<ActorDefinition, 'name' | 'hp' | 'attack' | 'sprite'> & Partial<ActorDefinition>): ActorDefinition {
+  for (const id of config.skills ?? []) if (!Object.hasOwn(ENEMY_SKILLS, id)) throw new Error(`${config.name}: 未定義の敵スキル ${id}`);
+  for (const drop of config.drops ?? []) if (!Number.isFinite(drop.chance) || drop.chance < 0 || drop.chance > 1 || !Number.isInteger(drop.count ?? 1) || (drop.count ?? 1) < 1) throw new Error(`${config.name}: ドロップ確率は0〜1、個数は正の整数で指定してください`);
+  return {
+    experience: 2, criticalRate: .05, criticalMultiplier: 1.5, immobile: false, skillChances: {},
+    hpPerStage: 0, size: 1, mp: 0, skills: [], drops: [], attribute: 'physical', detectionRange: 4,
+    pattern: 'guard', attackRange: 1, priorityTarget: 'nearest', pursuitTurns: 6,
+    chaseMoveLimit: 12, chaseRecoveryChance: .3,
+    directions: ['up', 'right', 'down', 'left'],
+    attackCells: [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }],
+    renderScale: 2, bob: false, idleStep: false, ...config,
+  };
+}
+
+/** 敵の追加はこの一覧から。IDの型もこのキーから自動生成されます。 */
+export const ENEMIES = {
+  treant: define({ experience: 5, name: 'トレント', hp: 35, attack: 5, sprite: 'treant', immobile: true, attribute: 'nature', innateAttribute: 'nature', mp: 20, detectionRange: 5, skills: ['forestBlessing', 'stoneThrow'], skillChances: { stoneThrow: .5, forestBlessing: .2 }, drops: [{ loot: { type: 'item', id: 'potion' }, chance: .7 }] }),
+  slime: define({ experience: 2, name: 'スライム', hp: 12, hpPerStage: 2, attack: 2, sprite: 'slime', pattern: 'patrol', bob: true, drops: [{ loot: { type: 'item', id: 'potion' }, chance: .08 }, { loot: { type: 'skill', id: 'fireball' }, chance: .02 }] }),
+  goblin: define({ experience: 3, name: 'ゴブリン', hp: 15, hpPerStage: 2, attack: 3, sprite: 'goblin', detectionRange: 4, mp: 5, skills: ['stoneThrow'], drops: [{ loot: { type: 'item', id: 'ether' }, chance: .07 }, { loot: { type: 'item', id: 'potion' }, chance: .03 }, { loot: { type: 'skill', id: 'thunder' }, chance: .02 }] }),
+  wolf: define({ experience: 3, name: '森の狼', hp: 17, hpPerStage: 2, attack: 3, sprite: 'wolf', detectionRange: 6, mp: 5, skills: ['lunge'], drops: [{ loot: { type: 'item', id: 'potion' }, chance: .06 }, { loot: { type: 'item', id: 'ether' }, chance: .03 }, { loot: { type: 'skill', id: 'tornado' }, chance: .02 }] }),
+  golem: define({ experience: 8, name: '守護岩', hp: 45, attack: 4, size: 2, sprite: 'golem', renderScale: 3, drops: [{ loot: { type: 'item', id: 'summon' }, chance: .05 }, { loot: { type: 'item', id: 'potion' }, chance: .1 }] }),
+  boss: define({ experience: 15, name: '草原の王', hp: 60, attack: 5, size: 3, sprite: 'boss', renderScale: 5, detectionRange: 7, drops: [{ loot: { type: 'item', id: 'scope' }, chance: .25 }, { loot: { type: 'skill', id: 'firerain' }, chance: .5 }] }),
+};
+// プレイヤーと味方も同じ生成・描画インターフェースを利用します。
+export const SUPPORT_ACTORS = {
+  player: define({ name: '旅人', criticalRate: .15, criticalMultiplier: 1.5, hp: 30, attack: 10, sprite: 'player', mp: 20, idleStep: true }),
+  sprite: define({ name: '森の精霊', hp: 16, attack: 4, sprite: 'sprite', bob: true }),
+};
+export type EnemyKind = keyof typeof ENEMIES;
+export type ActorKind = EnemyKind | keyof typeof SUPPORT_ACTORS;
+const ACTOR_DEFINITIONS = { ...ENEMIES, ...SUPPORT_ACTORS };
+export function actorDefinition(kind: ActorKind): ActorDefinition { return ACTOR_DEFINITIONS[kind]; }
+export function isActorKind(value: unknown): value is ActorKind { return typeof value === 'string' && Object.hasOwn(ACTOR_DEFINITIONS, value); }
