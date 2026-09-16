@@ -1,5 +1,6 @@
+import { chainHitLimit, nextChainTarget } from '../skills/SkillResolver';
 import { PROGRESSION, requiredExperience, expandBag } from './Progression';
-import { initialBagCells } from '../skills/SkillBag';
+import { blockCells, initialBagCells } from '../skills/SkillBag';
 /** 1プレイの進行役。コマンドを処理し、描画用イベントと保存可能な状態を生成します。 */
 import { actor, createPlayer } from '../actors/Actor';
 import { actSummon } from '../ai/SummonAI';
@@ -9,7 +10,7 @@ import { actEnemy } from '../ai/EnemyAI';
 import { actorDefinition } from '../data/enemies';
 import { ENEMY_SKILLS, canonicalEnemySkillId } from '../data/enemySkills';
 import { CHESTS } from '../data/loot';
-import { floorLoot, legacyLoot, rollDrops } from './LootSystem';
+import { makeChest, weighted, floorLoot, legacyLoot, rollDrops } from './LootSystem';
 import { triggerPlayerTraps } from './TrapSystem';
 import { tryEnemySkill } from '../skills/EnemySkillResolver';
 import { ITEMS } from '../data/items';
@@ -34,9 +35,15 @@ export class GameSession {
   private groupingDamage = false;
   constructor(public state: SaveData) {
     this.rng = new Random(state.randomSeed);
-    state.playerLevel ??= 1; state.experience ??= 0; state.bagCells ??= initialBagCells(5);
+    state.playerLevel ??= 1; state.experience = Math.ceil(state.experience ?? 0); state.bagCells ??= initialBagCells(5);
     state.floorNumber ??= 1; state.floorCount = Math.max(state.floorNumber, this.stage.dungeon?.floors ?? 1); state.nightRevived ??= (state.daylightCount ?? 0) >= 100 ? floorRules(this.stage).nightRevival.min : 0;
     // 旧セーブは過去のスキル使用回数を復元できないため回復カウントを0から開始。
+    // 旧セーブの固定ダメージ罠も新しい経過ターン方式へ移行。
+    for (const trap of state.mapState.playerTraps ?? []) {
+      trap.sourceSkillId ??= 'groundbreak';
+      if (trap.placedAt === undefined) { const oldTurn = Number(trap.id.replace('groundbreak-', '')); trap.placedAt = Number.isInteger(oldTurn) && oldTurn >= 0 ? Math.min(oldTurn, state.playerActionCount) : state.playerActionCount; trap.damage = attackPower(state.playerState); }
+    }
+    state.mapState.playerTraps = (state.mapState.playerTraps ?? []).filter(t => !!state.skillLevels[t.sourceSkillId!]);
     state.mpRecoveryActions ??= 0; state.daylightCount ??= 0; state.defeatedEnemies ??= []; state.skillWear ??= {}; state.pendingGemChoices ??= []; state.mapState.playerTraps ??= []; state.playerState.visionBonus ??= state.playerState.freeCamera ? 2 : 0;
     // Older saves remain playable; existing hostile enemies do not alert again.
     for (const a of this.actors) {
@@ -119,14 +126,51 @@ export class GameSession {
     finally { this.groupingDamage = false; }
     this.logHits(a.name + 'の' + label, start);
   }
+  /** スキル喪失時の後始末を集約。今後の設置効果も生成元IDで撤去できる。 */
+  loseSkill(id: SkillId): void {
+    const s = this.state;
+    delete s.skillLevels[id]; delete s.cooldowns[id]; delete s.skillWear?.[id];
+    s.skillBag = s.skillBag.filter(b => b.skillId !== id);
+    s.mapState.playerTraps = (s.mapState.playerTraps ?? []).filter(t => t.sourceSkillId !== id);
+    s.mapState.fields = s.mapState.fields.filter(f => f.sourceSkillId !== id);
+  }
   acquireSkill(id: SkillId): void {
     this.state.skillWear![id] = { uses: 0, extraMp: 0 };
     if (this.state.skillLevels[id]) { this.state.skillLevels[id]!++; this.log(`${SKILLS[id].name}の基礎レベルが${this.state.skillLevels[id]}に！`); }
     else { this.state.skillLevels[id] = 1; this.state.skillBag.unshift({ skillId: id, position: null, rotation: 0, isNew: true }); autoPlace(this.state.skillBag, id, this.state.bagCells); this.log(`${SKILLS[id].name}を手に入れた。`); this.state.pendingBag = true; }
   }
+  /** バッグを隙間なく埋めた報酬。配置できる床がない場合は次回へ持ち越す。 */
+  rewardFullBag(): void {
+    const s = this.state, p = s.playerState.position;
+    if (s.fullBagRewardClaimed || s.status !== 'playing') return;
+    const filled = new Set(s.skillBag.flatMap(blockCells).map(c => c.x + ',' + c.y));
+    if (!s.bagCells?.every(c => filled.has(c.x + ',' + c.y))) return;
+    // 壁越しではなく、旅人から歩いて届く付近の床を探す。
+    const queue = [{ ...p }], seen = new Set([p.x + ',' + p.y]), candidates: Point[] = [];
+    for (let i = 0; i < queue.length && i < 81; i++) for (const v of Object.values(VECTORS)) {
+      const c = { x: queue[i].x + v.x, y: queue[i].y + v.y }, key = c.x + ',' + c.y;
+      if (seen.has(key) || Math.max(Math.abs(c.x - p.x), Math.abs(c.y - p.y)) > 4 || wall(s.mapState, c)) continue;
+      seen.add(key); queue.push(c);
+      if (!s.mapState.objects.some(o => same(o.position, c)) && !this.actors.some(a => occupied(a).some(t => same(t, c))) && !s.mapState.traps?.some(t => same(t.position, c)) && !s.mapState.playerTraps?.some(t => same(t.position, c)) && !s.mapState.fields.some(t => same(t.position, c))) candidates.push(c);
+    }
+    if (!candidates.length) return;
+    candidates.sort((a,b) => Math.abs(a.x-p.x)+Math.abs(a.y-p.y)-Math.abs(b.x-p.x)-Math.abs(b.y-p.y));
+    const tier = weighted([{value:'iron' as const,weight:6},{value:'silver' as const,weight:3},{value:'gold' as const,weight:1}], this.rng);
+    s.mapState.objects.push(makeChest('full-bag-' + s.floorNumber, candidates[0], tier, this.rng, [], s.floorNumber));
+    s.fullBagRewardClaimed = true; s.randomSeed = this.rng.seed;
+    this.log('バッグをぴったり埋めた！ 近くに' + CHESTS[tier].name + 'が出現！');
+  }
+  /** 捨てた道具はそのマスから離れるまで自動取得しない。ターンは消費しない。 */
+  dropItem(slot: number): boolean {
+    const s = this.state, id = s.itemSlots[slot]; if (!id || s.status !== 'playing') return false;
+    s.itemSlots.splice(slot, 1);
+    s.mapState.objects.push({ ...floorLoot('discard-' + s.playerActionCount + '-' + s.mapState.objects.length, s.playerState.position, {type:'item',id}), waitForLeave: true });
+    this.log(ITEMS[id].name + 'を足元に置いた。'); return true;
+  }
   collect(): void {
     const s = this.state;
     for (const obj of [...s.mapState.objects]) {
+      if (obj.waitForLeave) { if (same(obj.position, s.playerState.position)) continue; obj.waitForLeave = false; }
       if (!same(obj.position, s.playerState.position) || obj.opened || obj.type === 'exit') continue;
       if (obj.type === 'gem') {
         const pool = Object.keys(GEM_REWARDS), choices: string[] = [];
@@ -168,9 +212,9 @@ export class GameSession {
   useItem(slot: number, skillId?: SkillId): boolean {
     const s = this.state, p = s.playerState, id = s.itemSlots[slot]; if (!id) return false;
     if (id === 'hourglass') { if (!skillId || !s.skillLevels[skillId] || !(s.cooldowns[skillId]! > 0)) { this.log('再使用待ちのスキルを選んでください。'); return false; } s.cooldowns[skillId] = Math.max(0, s.cooldowns[skillId]! - 10); this.log(SKILLS[skillId].name + 'のクールタイムを短縮！'); }
-    if (id === 'potion' && p.hp >= p.maxHp || id === 'ether' && p.mp >= p.maxMp) { this.log('今は使う必要がありません。'); return false; }
-    if (id === 'potion') { p.hp = Math.min(p.maxHp, p.hp + 15); this.events.push({ type: 'heal', position: { ...p.position }, text: '+HP' }); }
-    if (id === 'ether') p.mp = Math.min(p.maxMp, p.mp + 10);
+    if (ITEMS[id].restoreHp && p.hp >= p.maxHp || ITEMS[id].restoreMp && p.mp >= p.maxMp) { this.log('今は使う必要がありません。'); return false; }
+    if (ITEMS[id].restoreHp) { p.hp = Math.min(p.maxHp, p.hp + ITEMS[id].restoreHp!); this.events.push({ type: 'heal', position: { ...p.position }, text: '+HP' }); }
+    if (ITEMS[id].restoreMp) p.mp = Math.min(p.maxMp, p.mp + ITEMS[id].restoreMp!);
     if (id === 'scope') this.gainVision();
     if (id === 'summon') {
       let id = `ally-${s.playerActionCount}-${s.allyStates.length}`; while (this.actors.some(a => a.id === id)) id += '-new';
@@ -197,9 +241,27 @@ export class GameSession {
   cast(id: SkillId, direction: keyof typeof VECTORS, aim?: Point): void {
     const s = this.state, p = s.playerState, def = SKILLS[id]; p.facing = direction; p.mp -= skillMp(s, id); s.cooldowns[id] = def.cooldown;
     if (wearSkill(s, id, this.rng)) this.log(def.name + 'が劣化し、次回からの消費MPが増えた。');
+    if (id === 'chainLightning') {
+      let origins=occupied(p), source={...p.position}; const hit=new Set<string>(), start=this.events.length;
+      const level=effectiveLevel(s.skillBag,s.skillLevels,id), levelScale=1+(level-1)*.05;
+      this.groupingDamage=true;
+      for(let n=0;n<chainHitLimit(s);n++) {
+        const enemy=nextChainTarget(s,origins,hit);if(!enemy)break;
+        hit.add(enemy.id); const cells=occupied(enemy), impact={...enemy.position};
+        this.events.push({type:'cast',actorId:p.id,position:source,target:impact,skillId:id,attribute:'thunder',sound:n===0?'magicCast':undefined,delayMs:n*160,durationMs:300});
+        const critical=this.rng.next()<criticalChance(p,enemy,'thunder');
+        const before=this.events.length;
+        dealAttributeHit(enemy,attackPower(p)*(1-n*.1)*levelScale*(critical?p.criticalMultiplier:1),'thunder',s.playerActionCount,s.enemyStates,this.damage,this.events,()=>this.rng.next(),critical);
+        for(const event of this.events.slice(before))event.delayMs=n*160+100;
+        origins=cells;source=impact;
+      }
+      this.groupingDamage=false;this.logHits(def.name,start);
+      if(!hit.size)this.log(def.name+'！ 対象の敵がいなかった。');
+      return;
+    }
     if (id === 'groundbreak') {
-      const damage = effectiveLevel(s.skillBag, s.skillLevels, id) >= 3 ? 12 : 7;
-      s.mapState.playerTraps!.push({ id: 'groundbreak-' + s.playerActionCount, position: { ...p.position }, damage });
+      const damage = attackPower(p) * (1 + (effectiveLevel(s.skillBag, s.skillLevels, id) - 1) * .05);
+      s.mapState.playerTraps!.push({ id: 'groundbreak-' + s.playerActionCount, position: { ...p.position }, damage, sourceSkillId: id, placedAt: s.playerActionCount });
       this.events.push({ type: 'trap', actorId: p.id, position: { ...p.position }, visual: 'fallingRocks', sound: 'rocks' });
       this.log('地砕き！ 足元に自然の罠を設置した。'); return;
     }
@@ -232,13 +294,14 @@ export class GameSession {
   private gainExperience(amount: number): void {
     const s = this.state, p = s.playerState;
     if (s.playerLevel! >= PROGRESSION.maxLevel || p.hp <= 0) return;
-    s.experience! += amount;
+    s.experience! += Math.ceil(amount);
     while (s.playerLevel! < PROGRESSION.maxLevel && s.experience! >= requiredExperience(s.playerLevel!)) {
       s.experience! -= requiredExperience(s.playerLevel!); s.playerLevel!++;
       const hp = Math.ceil(p.maxHp * PROGRESSION.statGrowth), mp = Math.ceil(p.maxMp * PROGRESSION.statGrowth);
       p.maxHp += hp; p.hp += hp; p.maxMp += mp; p.mp += mp;
+      if (s.playerLevel! % 3 === 0) p.attack++;
       expandBag(s, this.rng);
-      this.log('旅人がLv.' + s.playerLevel + 'に！ 最大HP+' + hp + '・最大MP+' + mp + '、バッグが1マス拡張！');
+      this.log('旅人がLv.' + s.playerLevel + 'に！ 最大HP+' + hp + '・最大MP+' + mp + (s.playerLevel! % 3 === 0 ? '・基礎攻撃力+1' : '') + '、バッグが1マス拡張！');
       this.events.push({ type: 'levelup', actorId: p.id, position: { ...p.position }, text: '✦ LEVEL UP! Lv.' + s.playerLevel, durationMs: 2200 });
     }
     if (s.playerLevel === PROGRESSION.maxLevel) s.experience = 0;
@@ -248,7 +311,7 @@ export class GameSession {
       this.state.defeatedEnemies!.push(structuredClone(e));
       this.gainExperience(actorDefinition(e.kind).experience * (e.experienceMultiplier ?? 1));
       this.log(`${e.name}を倒した。`); this.events.push({ type: 'defeat', position: { ...e.position } });
-      rollDrops(actorDefinition(e.kind).drops, this.rng).forEach((loot, index) => this.state.mapState.objects.push(floorLoot(`drop-${e.id}-${index}`, e.position, loot)));
+      rollDrops(actorDefinition(e.kind).drops, this.rng, this.state.floorNumber).forEach((loot, index) => this.state.mapState.objects.push(floorLoot(`drop-${e.id}-${index}`, e.position, loot)));
     }
     this.state.enemyStates = this.state.enemyStates.filter(e => e.hp > 0);
     this.state.allyStates = this.state.allyStates.filter(a => a.hp > 0);
@@ -268,7 +331,7 @@ export class GameSession {
     const s = this.state, next = s.floorNumber! + 1;
     const { map, enemies, spawn } = generateMap(this.stage, this.rng, next);
     s.floorNumber = next; s.mapState = map; map.playerTraps = []; s.enemyStates = enemies;
-    s.playerState.position = { ...spawn }; s.objectiveChests = 0; s.defeatedEnemies = []; s.nightRevived = 0; s.nightWave = undefined; s.nightTarget = undefined;
+    s.playerState.position = { ...spawn }; s.objectiveChests = 0; s.fullBagRewardClaimed = false; s.defeatedEnemies = []; s.nightRevived = 0; s.nightWave = undefined; s.nightTarget = undefined;
     s.exploredMap = new Array(map.width * map.height).fill(false);
     const placed: Actor[] = [s.playerState, ...enemies];
     for (const ally of s.allyStates) {
@@ -370,6 +433,7 @@ export class GameSession {
       if (innate) { enemy.afflictions = enemy.afflictions.filter(f => f.attribute !== innate); if (enemy.afflictions.length >= 2) enemy.afflictions.shift(); enemy.afflictions.push({ attribute: innate, remainingTurns: 10, appliedAt: s.playerActionCount }); }
       const skillContext = { action: s.playerActionCount, allies: s.enemyStates, map: s.mapState, actors: this.actors, rng: this.rng, events: this.events, damage: (target: Actor, amount: number, attribute: Attribute, _critical?: boolean, label?: string) => this.strike(enemy, target, amount, attribute, label), log: (message: string) => { if (this.inPlayerScreen(enemy.position) || this.events.at(-1)?.path?.some(p => this.inPlayerScreen(p))) this.log(message); } };
       // 支援は敵を見つけていなくても使用可能。攻撃スキルは通常AIの索敵後に試す。
+      enemy.enemyCooldownUntil ??= {};
       const support = { ...enemy, enemySkillIds: (enemy.enemySkillIds ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type === 'allyBuff') };
       if (tryEnemySkill(support, [], skillContext)) { enemy.mp = support.mp; continue; }
       actEnemy(s.mapState, enemy, [p, ...s.allyStates], this.actors, this.rng, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, s.playerActionCount, (caster, targets) => { const ids = caster.enemySkillIds; caster.enemySkillIds = (ids ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type !== 'allyBuff'); try { return tryEnemySkill(caster, targets, skillContext); } finally { caster.enemySkillIds = ids; } });
@@ -377,7 +441,8 @@ export class GameSession {
         if (enemy.hp <= 0 || !occupied(enemy).some(c => same(c, trap.position))) continue;
         s.mapState.playerTraps = s.mapState.playerTraps!.filter(t => t.id !== trap.id);
         const start = this.events.length; this.groupingDamage = true;
-        dealAttributeHit(enemy, trap.damage, 'nature', s.playerActionCount, s.enemyStates, this.damage, this.events, () => this.rng.next());
+        const elapsed = Math.min(10, Math.max(0, s.playerActionCount - (trap.placedAt ?? s.playerActionCount)));
+        dealAttributeHit(enemy, trap.damage * (1 + elapsed * .05), 'nature', s.playerActionCount, s.enemyStates, this.damage, this.events, () => this.rng.next());
         this.groupingDamage = false; this.logHits('地砕きの罠', start);
         this.events.push({ type: 'trap', position: { ...trap.position }, visual: 'fallingRocks', sound: 'rocks' });
       }

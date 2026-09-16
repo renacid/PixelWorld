@@ -1,8 +1,9 @@
 /** 演出名はモンスター・罠の名前から独立させ、複数の効果で共有します。 */
 export type TrapVisual = 'chestBurst' | 'snare' | 'fireBlast' | 'fallingRocks' | 'healingGlow' | 'summonRing';
-export type SoundCue = 'treasure' | 'snap' | 'explosion' | 'rocks' | 'healing' | 'stone' | 'strike' | 'ice' | 'howl';
+export type SoundCue = 'magicCast' | 'treasure' | 'snap' | 'explosion' | 'rocks' | 'healing' | 'stone' | 'strike' | 'ice' | 'howl';
 export type Tone = { from: number; to: number; duration: number; wave: OscillatorType; delay?: number; volume?: number };
 export const SOUND_CUES: Record<SoundCue, Tone[]> = {
+  magicCast: [{from:330,to:660,duration:.2,wave:'sine',volume:.45},{from:494,to:988,duration:.22,wave:'sine',delay:.08,volume:.35},{from:784,to:1568,duration:.25,wave:'triangle',delay:.16,volume:.25}],
   ice: [{ from: 1600, to: 500, duration: .35, wave: 'triangle', volume: .3 }, { from: 900, to: 2200, duration: .2, wave: 'sine', delay: .25 }],
   howl: [{ from: 220, to: 460, duration: .25, wave: 'sine' }, { from: 460, to: 180, duration: .5, wave: 'sine', delay: .23 }],
   treasure: [523, 659, 784, 1046].map((frequency, i) => ({ from: frequency, to: frequency, duration: .16, wave: 'sine', delay: i * .07 })),

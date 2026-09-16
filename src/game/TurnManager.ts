@@ -15,5 +15,10 @@ export function endTurn(state: SaveData, castId?: SkillId): void {
     state.mpRecoveryActions = 0;
     state.playerState.mp = Math.min(state.playerState.maxMp, state.playerState.mp + Math.floor(state.playerState.maxMp * BALANCE.mpRecoveryFraction));
   }
+  // 敵は出現後の経過ターンを個別に数える。MP0の敵も安全に扱う。
+  for (const enemy of state.enemyStates) {
+    enemy.mpRecoveryTurns = (enemy.mpRecoveryTurns ?? 0) + 1;
+    if (enemy.mpRecoveryTurns >= 10) { enemy.mpRecoveryTurns = 0; enemy.mp = Math.min(enemy.maxMp ?? 0, (enemy.mp ?? 0) + Math.ceil((enemy.maxMp ?? 0) / 10)); }
+  }
   state.turnCount++;
 }

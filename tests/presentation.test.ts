@@ -1,3 +1,4 @@
+import { actorDefinition } from '../src/data/enemies';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { actor } from '../src/actors/Actor';
 import { actEnemy } from '../src/ai/EnemyAI';
@@ -43,7 +44,7 @@ describe('movement and turn presentation', () => {
   });
   it('has distinct 16×16 art for all 4 directions of every character', () => {
     for (const kind of ['player', 'slime', 'wolf', 'golem', 'boss', 'sprite'] as Actor['kind'][]) {
-      const images = (['up', 'down', 'left', 'right'] as Direction[]).map(d => spritePixels(kind, d));
+      const images = (['up', 'down', 'left', 'right'] as Direction[]).map(d => spritePixels(actorDefinition(kind).sprite, d));
       expect(new Set(images.map(image => image.join('\n'))).size).toBe(4);
       for (const image of images) { expect(image).toHaveLength(16); expect(image.every(row => row.length === 16)).toBe(true); }
     }

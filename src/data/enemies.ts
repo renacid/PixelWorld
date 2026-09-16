@@ -3,7 +3,7 @@ import { ENEMY_SKILLS } from './enemySkills';
 import type { DropEntry } from './loot';
 
 /** 絵の種類は敵の種類から独立。新しい敵でも既存の絵を再利用できます。 */
-export type SpriteId = 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'boss' | 'sprite' | 'treant';
+export type SpriteId = 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'boss' | 'sprite' | 'treant';
 export type ActorDefinition = {
   experience: number;
   criticalRate: number; criticalMultiplier: number; immobile: boolean;
@@ -32,8 +32,10 @@ function define(config: Pick<ActorDefinition, 'name' | 'hp' | 'attack' | 'sprite
 
 /** 敵の追加はこの一覧から。IDの型もこのキーから自動生成されます。 */
 export const ENEMIES = {
+  goblinArcher: define({ name: 'ゴブリン・アーチャー', hp: 10, attack: 2, detectionRange: 4, mp: 3, experience: 4, sprite: 'archer', skills: ['arrowShot'] }),
+  goblinMage: define({ name: 'ゴブリン・メイジ', hp: 20, attack: 3, detectionRange: 3, mp: 15, experience: 5, sprite: 'mage', skills: ['fireball', 'teleport', 'prayer'] }),
   treant: define({ experience: 5, name: 'トレント', hp: 35, attack: 5, sprite: 'treant', immobile: true, attribute: 'nature', innateAttribute: 'nature', mp: 20, detectionRange: 5, skills: ['forestBlessing', 'stoneThrow'], skillChances: { stoneThrow: .5, forestBlessing: .2 }, drops: [{ loot: { type: 'item', id: 'potion' }, chance: .7 }] }),
-  slime: define({ experience: 2, name: 'スライム', hp: 12, hpPerStage: 2, attack: 2, sprite: 'slime', pattern: 'patrol', bob: true, drops: [{ loot: { type: 'item', id: 'potion' }, chance: .08 }, { loot: { type: 'skill', id: 'fireball' }, chance: .02 }] }),
+  slime: define({ experience: 2, name: 'スライム', hp: 12, hpPerStage: 2, attack: 2, sprite: 'slime',　detectionRange: 3, pattern: 'patrol', bob: true, drops: [{ loot: { type: 'item', id: 'potion' }, chance: .08 }, { loot: { type: 'skill', id: 'fireball' }, chance: .02 }] }),
   goblin: define({ experience: 3, name: 'ゴブリン', hp: 15, hpPerStage: 2, attack: 3, sprite: 'goblin', detectionRange: 4, mp: 5, skills: ['stoneThrow'], drops: [{ loot: { type: 'item', id: 'ether' }, chance: .07 }, { loot: { type: 'item', id: 'potion' }, chance: .03 }, { loot: { type: 'skill', id: 'thunder' }, chance: .02 }] }),
   wolf: define({ experience: 3, name: '森の狼', hp: 17, hpPerStage: 2, attack: 3, sprite: 'wolf', detectionRange: 6, mp: 5, skills: ['lunge'], drops: [{ loot: { type: 'item', id: 'potion' }, chance: .06 }, { loot: { type: 'item', id: 'ether' }, chance: .03 }, { loot: { type: 'skill', id: 'tornado' }, chance: .02 }] }),
   golem: define({ experience: 8, name: '守護岩', hp: 45, attack: 4, size: 2, sprite: 'golem', renderScale: 3, drops: [{ loot: { type: 'item', id: 'summon' }, chance: .05 }, { loot: { type: 'item', id: 'potion' }, chance: .1 }] }),

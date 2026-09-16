@@ -15,13 +15,15 @@ function make(kind: SpriteId, facing: 'down' | 'up' | 'left'): string[] {
     if (facing === 'down') { rect(5, 10, 2, 2, 'k'); rect(10, 10, 2, 2, 'k'); rect(8, 12, 1, 1, 'G'); }
     else if (facing === 'left') { rect(3, 10, 2, 2, 'k'); rect(6, 10, 1, 2, 'k'); rect(10, 9, 3, 3, 'G'); }
     else { rect(7, 8, 4, 1, 'p'); rect(5, 11, 7, 2, 'G'); }
-  } else if (kind === 'goblin') {
+  } else if (kind === 'goblin' || kind === 'archer' || kind === 'mage') {
     // 緑の耳と茶色の服、手に持った石でスライムと見分けられるようにします。
     rect(4, 3, 8, 7, 'g'); rect(1, 4, 3, 3, 'G'); rect(12, 4, 3, 3, 'G');
     rect(5, 10, 6, 3, 'O'); rect(4, 13, 3, 2, 'k'); rect(9, 13, 3, 2, 'k');
     if (facing === 'down') { rect(5, 5, 2, 2, 'k'); rect(9, 5, 2, 2, 'k'); rect(6, 8, 4, 1, 'w'); rect(12, 10, 3, 3, 'o'); }
     else if (facing === 'up') { rect(5, 4, 6, 2, 'G'); rect(6, 10, 4, 3, 'o'); rect(2, 10, 3, 3, 'o'); }
     else { rect(3, 5, 2, 2, 'k'); rect(2, 7, 3, 2, 'g'); rect(1, 10, 3, 3, 'o'); rect(9, 4, 2, 4, 'G'); }
+    if (kind === 'archer') { rect(12, 8, 1, 7, 'w'); rect(13, 9, 1, 5, 'O'); rect(14, 10, 1, 3, 'O'); }
+    if (kind === 'mage') { rect(5, 1, 6, 3, 'B'); rect(3, 3, 10, 1, 'b'); rect(5, 10, 6, 3, 'B'); rect(13, 8, 1, 7, 'O'); rect(12, 7, 3, 2, 'r'); }
   } else if (kind === 'wolf') {
     // Top-down quadruped: muzzle on the left, body in the middle, tail on the right.
     rect(4, 4, 8, 8, 'B'); rect(5, 5, 7, 6, 'b'); rect(3, 2, 2, 3, 'k'); rect(3, 11, 2, 3, 'k');

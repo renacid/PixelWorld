@@ -44,6 +44,11 @@ function validSave(value: unknown): value is SaveData {
     if (s.skillWear !== undefined && !Object.entries(s.skillWear).every(([id, w]) => id in SKILLS && w && Number.isInteger(w.uses) && w.uses >= 0 && Number.isInteger(w.extraMp) && w.extraMp >= 0)) return false;
     if (s.pendingGemChoices !== undefined && (!Array.isArray(s.pendingGemChoices) || !s.pendingGemChoices.every(options => Array.isArray(options) && options.length === 3 && new Set(options).size === 3 && options.every(id => id in GEM_REWARDS)))) return false;
     if (s.playerState.visionBonus !== undefined && (!Number.isInteger(s.playerState.visionBonus) || s.playerState.visionBonus < 0)) return false;
+    for (const a of s.enemyStates) {
+      if (a.mpRecoveryTurns !== undefined && (!Number.isInteger(a.mpRecoveryTurns) || a.mpRecoveryTurns < 0 || a.mpRecoveryTurns > 9)) return false;
+      if (a.enemyCooldownUntil !== undefined && !Object.values(a.enemyCooldownUntil).every(n => Number.isInteger(n) && n >= 0)) return false;
+    }
+    if (s.fullBagRewardClaimed !== undefined && typeof s.fullBagRewardClaimed !== 'boolean') return false;
     if (s.nightWave !== undefined && (!Number.isInteger(s.nightWave) || s.nightWave < 0)) return false;
     if (s.nightTarget !== undefined && (!Number.isInteger(s.nightTarget) || s.nightTarget < 0)) return false;
     if ([s.playerState, ...s.allyStates, ...s.enemyStates].some(a => a.experienceMultiplier !== undefined && (!Number.isFinite(a.experienceMultiplier) || a.experienceMultiplier < 0))) return false;
@@ -61,7 +66,7 @@ function validSave(value: unknown): value is SaveData {
     if (!Number.isInteger(m.width) || !Number.isInteger(m.height) || m.width < 9 || m.height < 9 || m.width > 100 || m.height > 100 || m.tiles.length !== m.width * m.height || s.exploredMap.length !== m.tiles.length) return false;
     if (!m.tiles.every(t => t in TERRAIN) || !s.exploredMap.every(t => typeof t === 'boolean')) return false;
     const point = (p: { x: number; y: number }) => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.y >= 0 && p.x < m.width && p.y < m.height;
-    if (m.playerTraps !== undefined && (!Array.isArray(m.playerTraps) || m.playerTraps.length > 2 || !m.playerTraps.every(t => typeof t.id === 'string' && point(t.position) && Number.isInteger(t.damage) && t.damage > 0))) return false;
+    if (m.playerTraps !== undefined && (!Array.isArray(m.playerTraps) || m.playerTraps.length > 2 || !m.playerTraps.every(t => typeof t.id === 'string' && point(t.position) && Number.isFinite(t.damage) && t.damage > 0 && (t.placedAt === undefined || Number.isInteger(t.placedAt) && t.placedAt >= 0 && t.placedAt <= s.playerActionCount) && (t.sourceSkillId === undefined || t.sourceSkillId in SKILLS)))) return false;
     if (s.playerState.movementLockedUntil !== undefined && (!Number.isInteger(s.playerState.movementLockedUntil) || s.playerState.movementLockedUntil < 0)) return false;
     if (m.traps !== undefined && (!Array.isArray(m.traps) || !m.traps.every(t => typeof t.id === 'string' && t.trapId in TRAPS && point(t.position) && typeof t.triggered === 'boolean') || new Set(m.traps.map(t => t.id)).size !== m.traps.length)) return false;
     const attributes = ['fire', 'ice', 'thunder', 'earth', 'wind', 'neutral', 'physical', 'nature'];

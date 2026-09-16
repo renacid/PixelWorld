@@ -2,11 +2,15 @@ import type { SoundCue } from './effects';
 import type { Attribute } from '../game/types';
 /** 敵専用スキル定義。発動範囲・確率・MPと効果をデータで変更できます。 */
 export type EnemySkillDefinition = {
-  visual: 'stone' | 'strike' | 'healingGlow'; sound: SoundCue; name: string; mpCost: number; chance: number; minRange: number; maxRange: number;
+  cooldown?: number; diagonalRange?: number; visual: 'stone' | 'strike' | 'healingGlow'; sound: SoundCue; name: string; mpCost: number; chance: number; minRange: number; maxRange: number;
   target: 'player' | 'any'; cardinalOnly: boolean; requiresSight: boolean;
-  effect: (({ type: 'approachStrike'; steps: number } | { type: 'projectile' }) & { damageMin: number; damageMax: number; attribute: Attribute }) | { type: 'allyBuff'; radius: number; duration: number; attackMultiplier: number; detectionBonus: number };
+  effect: (({ type: 'approachStrike'; steps: number } | { type: 'projectile' }) & { damageMin: number; damageMax: number; attribute: Attribute }) | { type: 'teleport'; radius: number } | { type: 'restoreMp'; amount: number } | { type: 'allyBuff'; radius: number; duration: number; attackMultiplier: number; detectionBonus: number };
 };
 export const ENEMY_SKILLS: Record<string, EnemySkillDefinition> = {
+  arrowShot: { name: '弓矢射出', visual: 'strike', sound: 'strike', mpCost: 1, cooldown: 1, chance: .5, minRange: 2, maxRange: 3, diagonalRange: 2, target: 'any', cardinalOnly: false, requiresSight: true, effect: { type: 'projectile', damageMin: 1.3, damageMax: 1.5, attribute: 'physical' } },
+  fireball: { name: 'ファイアボール', visual: 'stone', sound: 'magicCast', mpCost: 3, cooldown: 1, chance: .3, minRange: 1, maxRange: 4, target: 'any', cardinalOnly: true, requiresSight: true, effect: { type: 'projectile', damageMin: 1.3, damageMax: 1.3, attribute: 'fire' } },
+  teleport: { name: 'テレポート', visual: 'healingGlow', sound: 'healing', mpCost: 2, cooldown: 10, chance: .1, minRange: 0, maxRange: 2, target: 'any', cardinalOnly: false, requiresSight: false, effect: { type: 'teleport', radius: 2 } },
+  prayer: { name: 'お祈り', visual: 'healingGlow', sound: 'healing', mpCost: 0, cooldown: 5, chance: .2, minRange: 0, maxRange: 0, target: 'any', cardinalOnly: false, requiresSight: false, effect: { type: 'restoreMp', amount: 3 } },
   forestBlessing: { name: '森の加護', visual: 'healingGlow', sound: 'healing', mpCost: 3, chance: .2, minRange: 0, maxRange: 2, target: 'any', cardinalOnly: false, requiresSight: false, effect: { type: 'allyBuff', radius: 2, duration: 10, attackMultiplier: 1.3, detectionBonus: 2 } },
   stoneThrow: {
     name: '投石', visual: 'stone', sound: 'stone', mpCost: 1, chance: .25, minRange: 1, maxRange: 3,

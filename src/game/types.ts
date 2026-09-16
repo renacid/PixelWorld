@@ -6,10 +6,11 @@ import type { TrapInstance, TrapPlacement, TrapVisual, SoundCue } from '../data/
 export type Direction = 'up' | 'right' | 'down' | 'left';
 export const VECTORS: Record<Direction, Point> = { up: { x: 0, y: -1 }, right: { x: 1, y: 0 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 } };
 export type Attribute = 'fire' | 'ice' | 'thunder' | 'earth' | 'wind' | 'neutral' | 'physical' | 'nature';
-export type SkillId = 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
-export type ItemId = 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
+export type SkillId = 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
+export type ItemId = 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
 export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
 export type Actor = {
+  enemyCooldownUntil?: Record<string, number>; mpRecoveryTurns?: number;
   experienceMultiplier?: number;
   criticalRate?: number; criticalMultiplier?: number;
   immobile?: boolean; skillChances?: Record<string, number>;
@@ -25,9 +26,9 @@ export type Actor = {
 };
 export type Player = Actor & { mp: number; maxMp: number; criticalRate: number; criticalMultiplier: number; facing: Direction; freeCamera: boolean; visionBonus?: number; movementLockedUntil?: number };
 export type BagBlock = { isNew?: boolean; skillId: SkillId; position: Point | null; rotation: number };
-export type GroundObject = { id: string; position: Point; type: 'chest' | 'item' | 'skill' | 'exit' | 'gem'; skillId?: SkillId; skillIds?: SkillId[]; itemId?: ItemId; chestTier?: ChestTier; fullNotified?: boolean; contents?: Loot[]; opened?: boolean; objective?: boolean };
-export type FieldEffect = { effectId: string; position: Point; attribute: Attribute; remainingTurns: number; triggerType: 'enter' | 'turn'; damageMultiplier: number; onceOnly: boolean };
-export type MapState = { width: number; height: number; tiles: number[]; objects: GroundObject[]; playerTraps?: { id: string; position: Point; damage: number }[]; traps?: TrapInstance[]; fields: FieldEffect[] };
+export type GroundObject = { id: string; position: Point; type: 'chest' | 'item' | 'skill' | 'exit' | 'gem'; skillId?: SkillId; skillIds?: SkillId[]; itemId?: ItemId; chestTier?: ChestTier; waitForLeave?: boolean; fullNotified?: boolean; contents?: Loot[]; opened?: boolean; objective?: boolean };
+export type FieldEffect = { sourceSkillId?: SkillId; effectId: string; position: Point; attribute: Attribute; remainingTurns: number; triggerType: 'enter' | 'turn'; damageMultiplier: number; onceOnly: boolean };
+export type MapState = { width: number; height: number; tiles: number[]; objects: GroundObject[]; playerTraps?: { id: string; position: Point; damage: number; sourceSkillId?: SkillId; placedAt?: number }[]; traps?: TrapInstance[]; fields: FieldEffect[] };
 export type SaveData = {
   version: 1; stageId: number; randomSeed: number; initialSeed: number;
   mapState: MapState; playerState: Player; allyStates: Actor[]; enemyStates: Actor[];
@@ -39,6 +40,7 @@ export type SaveData = {
   skillWear?: Partial<Record<SkillId, { uses: number; extraMp: number }>>;
   pendingGemChoices?: string[][];
   daylightCount?: number;
+  fullBagRewardClaimed?: boolean;
   floorNumber?: number; floorCount?: number; nightRevived?: number; nightWave?: number; nightTarget?: number;
   defeatedEnemies?: Actor[];
   status: 'playing' | 'cleared' | 'defeated'; objectiveChests: number; pendingBag: boolean;

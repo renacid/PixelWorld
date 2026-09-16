@@ -33,7 +33,7 @@ let screen: 'home' | 'stages' | 'game' = 'home';
 let modal: HTMLElement | null = null;
 let actionLocked = false;
 let lastOutcome = '';
-const icons: Record<SkillId, string> = { attack: '⚔', fireball: '♨', thunder: 'ϟ', tornado: '≋', firerain: '☄', warp: '◎', icestone: '❄', groundbreak: '♧' };
+const icons: Record<SkillId, string> = { chainLightning: 'ϟϟ', attack: '⚔', fireball: '♨', thunder: 'ϟ', tornado: '≋', firerain: '☄', warp: '◎', icestone: '❄', groundbreak: '♧' };
 function selectSkill(id: SkillId): void {
   selected = selected === id ? null : id; aim = undefined;
   if (renderer && selected && SKILLS[selected].target === 'pointArea') renderer.camera = null;
@@ -62,7 +62,7 @@ function dialog(content: string, className = ''): HTMLElement {
 }
 function persist(): void { if (session) { saves.save(session.state); if (session.state.status === 'cleared') saves.complete(session.state.stageId); } }
 function header(label: string, back = true): string { return `<header class="page-header">${back ? '<button id="back" class="icon-button" aria-label="戻る">←</button>' : '<span class="brand-mark">✦</span>'}<span>${label}</span><span class="tiny">PIXEL WORLD</span></header>`; }
-function stopRenderer(): void { renderer?.destroy(); renderer = null; }
+function stopRenderer(): void { document.body.classList.remove('critical-health'); renderer?.destroy(); renderer = null; }
 function home(): void {
   stopRenderer(); closeModal(); screen = 'home';
   const saved = saves.load(), progress = saves.progress();
@@ -103,12 +103,12 @@ function startStage(id: number): void {
 function showGame(): void {
   stopRenderer(); screen = 'game'; const s = session!;
   app.innerHTML = `<main class="game-shell"><header class="game-header"><div><span class="eyebrow">THE GREEN EXPANSE / 0${s.state.stageId}</span><h1>${s.stage.name} <small>${s.state.floorNumber ?? 1}/${s.state.floorCount ?? 1}層</small><span>${s.stage.subtitle}</span></h1></div><button id="pause" class="icon-button" aria-label="中断メニュー">Ⅱ</button></header>
-    <section class="hud"><button id="map-button" class="minimap-button" aria-label="全体マップを開く"><canvas id="minimap"></canvas><span>MAP ↗</span></button><div class="vitals"><div class="vital"><label>HP <strong id="hp-label"></strong></label><div class="meter"><i id="hp-bar"></i></div></div><div class="vital mp"><label>MP <strong id="mp-label"></strong></label><div class="meter"><i id="mp-bar"></i></div></div></div><div class="turn-counter"><small>ACTION</small><strong id="turn-label">00</strong><span id="regen-label"></span></div></section>
+    <section class="hud"><button id="map-button" class="minimap-button" aria-label="全体マップを開く"><canvas id="minimap"></canvas><span>MAP ↗</span></button><div class="vitals"><div class="vital"><span class="vital-title">HP</span><div class="meter"><i id="hp-bar"></i></div><strong id="hp-label"></strong></div><div class="vital mp"><span class="vital-title">MP</span><div class="meter"><i id="mp-bar"></i></div><strong id="mp-label"></strong></div><div class="vital exp"><span class="vital-title" id="level-label"></span><div class="meter"><i id="exp-bar"></i></div><strong id="exp-label"></strong></div></div><div class="turn-counter"><small>ACTION</small><strong id="turn-label">00</strong><span id="regen-label"></span></div></section>
     <section class="map-viewport"><canvas id="game-canvas" aria-label="周囲11×11、外周が半マス見切れるダンジョンマップ"></canvas><div class="map-objective" id="objective-text"></div><div id="phase-label" hidden></div><button id="camera-reset" hidden>◎ プレイヤーへ</button><div id="event-feed" aria-live="polite"></div><div class="map-tools"><button id="day-clock" aria-label="昼夜の状態"></button><button id="log-button">ログ</button><button id="bag-button" aria-label="スキルバッグを開く">▦ バッグ</button></div><div class="cast-slot"><button id="cast" class="cast-button" hidden></button></div></section>
     <section class="controls"><div id="skill-buttons" class="skill-buttons" tabindex="0" aria-label="配置済みスキル。左右にスクロールできます"></div>
       <div class="control-bottom"><div class="dpad" aria-label="方向操作"><button data-dir="up" class="up" aria-label="上へ移動、スキル選択中は上を向く">↑</button><button data-dir="left" class="left" aria-label="左へ移動、スキル選択中は左を向く">←</button><button id="wait" class="wait" aria-label="1行動待機">待機</button><button data-dir="right" class="right" aria-label="右へ移動、スキル選択中は右を向く">→</button><button data-dir="down" class="down" aria-label="下へ移動、スキル選択中は下を向く">↓</button></div>
       <div class="action-column"><div class="items-label">道具 <small>3枠</small></div><div id="items" class="items"></div></div></div>
-    </section><footer class="game-footer"><span id="player-growth"></span><span id="save-label">● 自動保存</span><span>一歩ずつ、ゆっくりと。</span></footer></main>`;
+    </section><footer class="game-footer"><span id="save-label">● 自動保存</span><span>一歩ずつ、ゆっくりと。</span></footer></main>`;
   renderer = new GameCanvas(document.querySelector<HTMLCanvasElement>('#game-canvas')!, document.querySelector<HTMLCanvasElement>('#minimap')!); renderer.session = s; renderer.settings = settings; renderer.selected = selected; renderer.start();
   renderer.onSound = event => sound.play(event);
   s.isOnScreen = point => renderer?.onScreen(point) ?? false;
@@ -158,6 +158,11 @@ function showGame(): void {
       return;
     }
     const cell = renderer!.mapPoint(e.clientX, e.clientY);
+    if (occupied(s.state.playerState).some(p => same(p, cell))) {
+      const p = s.state.playerState;
+      dialog('<div class="dialog-heading"><h2>旅人 Lv.' + s.state.playerLevel + '</h2><button id="close-player" class="icon-button">×</button></div><p>HP ' + p.hp + ' / ' + p.maxHp + '<br>MP ' + p.mp + ' / ' + p.maxMp + '<br>基礎攻撃力 ' + p.attack + '（現在 ' + attackPower(p) + '）<br>会心率 ' + Math.round(p.criticalRate * 100) + '%<br>会心ダメージ ' + Math.round(p.criticalMultiplier * 100) + '%</p><h3>バフ・状態</h3><p>' + ((p.buffs ?? []).filter(b => b.remainingTurns > 0).map(b => '攻撃×' + b.attackMultiplier + '・索敵+' + b.detectionBonus + '：残り' + b.remainingTurns + 'ターン').concat(p.afflictions.map(a => ATTRIBUTE_NAMES[a.attribute] + '：残り' + a.remainingTurns + 'ターン'), (p.movementLockedUntil ?? 0) > s.state.playerActionCount ? ['移動不可'] : [], p.visionBonus ? ['視野+' + p.visionBonus] : []).join('<br>') || 'なし') + '</p>');
+      on('close-player', closeModal); return;
+    }
     const ally = s.state.allyStates.find(a => a.hp > 0 && s.visible(a.position) && occupied(a).some(p => same(p, cell)));
     if (ally) {
       dialog('<div class="dialog-heading"><h2>' + escape(ally.name) + '</h2><button id="close-ally" class="icon-button" aria-label="閉じる">×</button></div><p>HP ' + ally.hp + ' / ' + ally.maxHp + '<br>攻撃力 ' + attackPower(ally) + '<br>索敵範囲 ' + detection(ally) + 'マス<br>会心率 ' + Math.round((ally.criticalRate ?? .05) * 100) + '%<br>会心ダメージ ' + Math.round((ally.criticalMultiplier ?? 1.5) * 100) + '%</p><p class="footnote">旅人から周囲9×9の外へ離れると、最優先で近くへワープします。</p>');
@@ -179,6 +184,8 @@ function update(): void {
   const text = (id: string, value: string) => { const el = document.getElementById(id); if (el) el.textContent = value; };
   text('hp-label', `${Math.ceil(p.hp)} / ${p.maxHp}`); text('mp-label', `${p.mp} / ${p.maxMp}`); text('turn-label', String(s.playerActionCount).padStart(2, '0'));
   const clock = document.querySelector<HTMLButtonElement>('#day-clock')!;
+  document.body.classList.toggle('critical-health', p.hp > 0 && p.hp / p.maxHp <= .1);
+  document.body.classList.toggle('still-effects', !settings.motion);
   const tod = timeOfDay(s), count = s.daylightCount ?? 0;
   clock.textContent = session.canSleep() ? '☾ 睡眠' : (tod === 'night' ? (count >= 150 ? '☾ 深夜' : '☾ 夜') : tod === 'evening' ? '◒ 夕' : '☀ 昼') + ' ' + count;
   clock.style.setProperty('--day-progress', Math.min(100, count) + '%');
@@ -188,7 +195,7 @@ function update(): void {
   text('regen-label', (p.movementLockedUntil ?? -1) > s.playerActionCount ? '移動不可 · 1行動' : `MP回復まで${BALANCE.mpRecoveryInterval - (s.mpRecoveryActions ?? 0)}`);
   document.getElementById('hp-bar')!.style.width = `${p.hp / p.maxHp * 100}%`; document.getElementById('mp-bar')!.style.width = `${p.mp / p.maxMp * 100}%`;
   text('objective-text', `${session.goalReady() ? '出口へ向かおう' : session.stage.objective}${session.stage.goal === 'treasure' ? ` (${s.objectiveChests}/${session.stage.requiredChests})` : ''}`);
-  text('player-growth', `Lv.${s.playerLevel} · ${s.playerLevel === 20 ? 'MAX' : `EXP ${s.experience}/${requiredExperience(s.playerLevel!)}`}`); text('message-text', s.log.at(-1) ?? ''); text('bag-count', `${s.skillBag.filter(b => b.position).flatMap(blockCells).length}/${s.bagCells!.length}`);
+  text('level-label', `Lv.${s.playerLevel}`); text('exp-label', s.playerLevel === 20 ? 'MAX' : `${s.experience}/${requiredExperience(s.playerLevel!)}`); document.getElementById('exp-bar')!.style.width = `${s.playerLevel === 20 ? 100 : s.experience! / requiredExperience(s.playerLevel!) * 100}%`; document.getElementById('exp-bar')!.parentElement!.setAttribute('aria-label', '経験値'); text('message-text', s.log.at(-1) ?? ''); text('bag-count', `${s.skillBag.filter(b => b.position).flatMap(blockCells).length}/${s.bagCells!.length}`);
   text('save-label', saves.error ? `⚠ ${saves.error}` : '● 自動保存');
   const buttons = document.getElementById('skill-buttons')!;
   const scrollLeft = buttons.scrollLeft;
@@ -255,13 +262,14 @@ function openGem(): void {
 function itemDialog(slot: number): void {
   if (actionLocked) return;
   const id = session!.state.itemSlots[slot]; if (!id) return;
+  const drop = () => { if (session!.dropItem(slot)) { persist(); closeModal(); update(); } };
   if (id === 'hourglass') {
     const choices = session!.state.skillBag.filter(b => (session!.state.cooldowns[b.skillId] ?? 0) > 0);
-    dialog('<h2>砂時計（小）</h2><p>短縮するスキルを選択</p>' + choices.map(b => '<button class="secondary gem-choice" data-hourglass="' + b.skillId + '">' + SKILLS[b.skillId].name + ' CT ' + session!.state.cooldowns[b.skillId] + ' → ' + Math.max(0, session!.state.cooldowns[b.skillId]! - 10) + '</button>').join('') + (choices.length ? '' : '<p>再使用待ちのスキルはありません。</p>') + '<button id="close-item" class="text-button">戻る</button>');
-    modal!.querySelectorAll<HTMLElement>('[data-hourglass]').forEach(b => b.addEventListener('click', () => { closeModal(); act({ type: 'item', slot, skillId: b.dataset.hourglass as SkillId }); })); on('close-item', closeModal); return;
+    dialog('<h2>砂時計（小）</h2><p>短縮するスキルを選択</p>' + choices.map(b => '<button class="secondary gem-choice" data-hourglass="' + b.skillId + '">' + SKILLS[b.skillId].name + ' CT ' + session!.state.cooldowns[b.skillId] + ' → ' + Math.max(0, session!.state.cooldowns[b.skillId]! - 10) + '</button>').join('') + (choices.length ? '' : '<p>再使用待ちのスキルはありません。</p>') + '<button id="drop-item" class="secondary">その場に捨てる</button><button id="close-item" class="text-button">戻る</button>');
+    modal!.querySelectorAll<HTMLElement>('[data-hourglass]').forEach(b => b.addEventListener('click', () => { closeModal(); act({ type: 'item', slot, skillId: b.dataset.hourglass as SkillId }); })); on('drop-item', drop); on('close-item', closeModal); return;
   }
-  dialog(`<div class="eyebrow">ITEM / ${slot + 1}</div><h2>${ITEMS[id].icon} ${ITEMS[id].name}</h2><p>${ITEMS[id].description}。使用してもターンは経過しません。</p><button class="primary" id="use-item">使用する</button><button class="secondary" id="close-item">戻る</button>`);
-  on('use-item', () => { closeModal(); act({ type: 'item', slot }); }); on('close-item', closeModal);
+  dialog(`<div class="eyebrow">ITEM / ${slot + 1}</div><h2>${ITEMS[id].icon} ${ITEMS[id].name}</h2><p>レアランク ${ITEMS[id].rareRank} · ${ITEMS[id].description}。使用してもターンは経過しません。</p><button class="primary" id="use-item">使用する</button><button class="secondary" id="drop-item">その場に捨てる</button><button class="secondary" id="close-item">戻る</button>`);
+  on('drop-item', drop); on('use-item', () => { closeModal(); act({ type: 'item', slot }); }); on('close-item', closeModal);
 }
 function pause(): void {
   if (actionLocked) return;
@@ -400,9 +408,9 @@ function openBag(acquisition: boolean): void {
   on('close-bag', () => {
     const discarded = draft.filter(b => !b.position);
     if (discarded.length && !window.confirm('未配置のスキルは消滅します。\n' + discarded.map(b => SKILLS[b.skillId].name).join('、') + '\n破棄して閉じますか？')) return;
-    for (const b of discarded) { delete session!.state.skillLevels[b.skillId]; delete session!.state.cooldowns[b.skillId]; delete session!.state.skillWear?.[b.skillId]; }
+    for (const b of discarded) { session!.loseSkill(b.skillId); }
     if (discarded.length) session!.log(discarded.map(b => SKILLS[b.skillId].name).join('、') + 'は未配置のため消滅した。');
-    if (editable) { session!.state.skillBag = draft.filter(b => b.position).map(b => ({ ...b, isNew: false })); session!.state.pendingBag = false; persist(); } if (selected && !draft.find(b => b.skillId === selected)?.position) selected = null; closeModal(); update(); });
+    if (editable) { session!.state.skillBag = draft.filter(b => b.position).map(b => ({ ...b, isNew: false })); session!.state.pendingBag = false; session!.rewardFullBag(); persist(); } if (selected && !draft.find(b => b.skillId === selected)?.position) selected = null; closeModal(); update(); });
   drawBag();
 }
 document.addEventListener('keydown', event => {

@@ -125,8 +125,8 @@ export class GameCanvas {
       ctx.fillStyle = timeOfDay(state) === 'night' ? '#17263870' : '#eea14c18';
       if (timeOfDay(state) === 'evening') ctx.fillRect(0, 0, VIEW_SIZE, VIEW_SIZE);
       else { const top = screen({ x: viewPlayer.x - 4, y: viewPlayer.y - 4 });
-        ctx.fillRect(0, 0, VIEW_SIZE, Math.max(0, top.y)); ctx.fillRect(0, top.y + 9 * TILE, VIEW_SIZE, VIEW_SIZE);
-        ctx.fillRect(0, Math.max(0, top.y), Math.max(0, top.x), 9 * TILE); ctx.fillRect(top.x + 9 * TILE, Math.max(0, top.y), VIEW_SIZE, 9 * TILE);
+        // くり抜いた1つのパスで塗る。四隅へ半透明色が重なることを防ぐ。
+        ctx.beginPath(); ctx.rect(0, 0, VIEW_SIZE, VIEW_SIZE); ctx.rect(top.x, top.y, 9 * TILE, 9 * TILE); ctx.fill('evenodd');
       }
     }
     for (const f of state.mapState.fields) if (visible(f.position)) { const p = screen(f.position); ctx.fillStyle = '#ffad7070'; ctx.fillRect(p.x + 3, p.y + 3, 26, 26); ctx.fillStyle = '#ff755c'; ctx.fillRect(p.x + 11, p.y + 15, 10, 8); ctx.fillStyle = '#fff295'; ctx.fillRect(p.x + 14, p.y + 9, 5, 11); }
@@ -191,7 +191,10 @@ export class GameCanvas {
   private popup(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, bold: boolean): void { ctx.font = `${bold ? 'bold ' : ''}${bold ? 14 : 12}px monospace`; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = '#fffaf0'; ctx.fillStyle = color; ctx.strokeText(text, x, y); ctx.fillText(text, x, y); }
   private skillEffect(ctx: CanvasRenderingContext2D, e: GameEvent, age: number, screen: (p: Point) => Point): void {
     const from = screen(e.position), to = screen(e.target ?? e.position), x = from.x + 16 + (to.x - from.x) * Math.min(1, age * 1.5), y = from.y + 16 + (to.y - from.y) * Math.min(1, age * 1.5); ctx.globalAlpha = Math.min(1, (1 - age) * 3);
-    if (e.visual === 'stone') { ctx.fillStyle = '#5e7359'; ctx.fillRect(x - 4, y - 4, 8, 8); ctx.fillStyle = '#d1d8b7'; ctx.fillRect(x - 3, y - 3, 5, 3); }
+    if (e.skillId === 'chainLightning') { ctx.strokeStyle='#a776ed';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(from.x+16,from.y+16);ctx.lineTo((from.x+to.x)/2+22,(from.y+to.y)/2+7);ctx.lineTo((from.x+to.x)/2+9,(from.y+to.y)/2+22);ctx.lineTo(to.x+16,to.y+16);ctx.stroke();ctx.strokeStyle='#fffbd1';ctx.lineWidth=2;ctx.stroke(); }
+    else if (e.enemySkillId === 'arrowShot') { const angle = Math.atan2(to.y - from.y, to.x - from.x); ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.strokeStyle = '#715237'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(9,0); ctx.moveTo(4,-4); ctx.lineTo(9,0); ctx.lineTo(4,4); ctx.stroke(); ctx.restore(); }
+    else if (e.enemySkillId === 'fireball') { for (let i=1;i<=5;i++) { const t=Math.max(0, Math.min(1,age*1.5)-i*.055); ctx.fillStyle=i%2?'#f6854288':'#ffc866bb'; ctx.fillRect(from.x+16+(to.x-from.x)*t-3,from.y+16+(to.y-from.y)*t-3,6,6); } ctx.fillStyle = '#fa773e'; ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fill(); ctx.fillStyle = '#ffe59b'; ctx.fillRect(x-3,y-3,6,6); }
+    else if (e.visual === 'stone') { ctx.fillStyle = '#5e7359'; ctx.fillRect(x - 4, y - 4, 8, 8); ctx.fillStyle = '#d1d8b7'; ctx.fillRect(x - 3, y - 3, 5, 3); }
     else if (e.skillId === 'warp') { ctx.strokeStyle = '#a481e8'; ctx.lineWidth = 3; for (const p of [from, to]) { ctx.beginPath(); ctx.ellipse(p.x + 16, p.y + 16, 8 + age * 15, 17 * (1 - age) + 3, age * 5, 0, Math.PI * 2); ctx.stroke(); } }
     else if (e.skillId === 'fireball') { for (let i = 4; i >= 0; i--) { const t = Math.max(0, age * 1.5 - i * .035); ctx.fillStyle = i ? '#ff9868' : '#fff19b'; const size = i ? 4 : 10; ctx.fillRect(from.x + 16 + (to.x - from.x) * Math.min(1, t) - size / 2, from.y + 16 + (to.y - from.y) * Math.min(1, t) - size / 2, size, size); } }
     else if (e.skillId === 'thunder') { if (age > .15) { ctx.strokeStyle = '#b887f9'; ctx.lineWidth = 6; const path = () => { ctx.beginPath(); ctx.moveTo(to.x + 20, to.y - 27); ctx.lineTo(to.x + 9, to.y - 5); ctx.lineTo(to.x + 22, to.y - 5); ctx.lineTo(to.x + 13, to.y + 19); ctx.stroke(); }; path(); ctx.strokeStyle = '#fffde4'; ctx.lineWidth = 2; path(); } }
@@ -209,7 +212,7 @@ export class GameCanvas {
   drawMini(target?: CanvasRenderingContext2D): void {
     const ctx = target ?? this.miniCtx, s = this.session; if (!ctx || !s) return;
     const map = s.state.mapState, size = ctx.canvas.width, scale = size / Math.max(map.width, map.height); ctx.fillStyle = '#dae9df'; ctx.fillRect(0, 0, size, size); ctx.imageSmoothingEnabled = false;
-    for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) if (s.state.exploredMap[y * map.width + x]) { ctx.fillStyle = terrain(map.tiles[y * map.width + x]).color; ctx.fillRect(x * scale, y * scale, Math.ceil(scale), Math.ceil(scale)); }
+    for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) if (s.state.exploredMap[y * map.width + x]) { ctx.fillStyle = terrain(map.tiles[y * map.width + x]).solid ? '#172724' : terrain(map.tiles[y * map.width + x]).color; ctx.fillRect(x * scale, y * scale, Math.ceil(scale), Math.ceil(scale)); }
     for (const obj of map.objects) if ((timeOfDay(s.state) !== 'night' || s.visible(obj.position)) && s.state.exploredMap[obj.position.y * map.width + obj.position.x] && (obj.type === 'exit' || obj.type === 'gem' || obj.type === 'chest' && !obj.opened)) { ctx.fillStyle = '#ecab3e'; ctx.fillRect(obj.position.x * scale, obj.position.y * scale, Math.max(2, scale), Math.max(2, scale)); }
     for (const e of s.state.enemyStates) for (const p of occupied(e)) if (s.visible(p)) { ctx.fillStyle = '#ec6d83'; ctx.fillRect(p.x * scale, p.y * scale, Math.max(2, scale), Math.max(2, scale)); }
     ctx.fillStyle = '#3487c6'; const p = s.state.playerState.position; ctx.fillRect(p.x * scale, p.y * scale, Math.max(3, scale), Math.max(3, scale));

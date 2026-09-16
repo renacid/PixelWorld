@@ -47,7 +47,7 @@ export function triggerPlayerTraps(state: SaveData, context: Context): void {
     };
     if (effect.type === 'chest') {
       const cells = area(1).filter(c => !same(c, p.position) && !actors.some(a => a.hp > 0 && occupied(a).some(t => same(c, t))) && !map.objects.some(o => same(o.position, c)) && !(map.traps ?? []).some(t => !t.triggered && same(t.position, c)) && !map.fields.some(f => same(f.position, c)));
-      if (cells.length) { const cell = cells[context.rng.int(0, cells.length - 1)], tier = weighted(effect.tiers, context.rng); map.objects.push(makeChest(`chest-${trap.id}`, cell, tier, context.rng)); emit([cell]); context.log(`${CHESTS[tier].name}が出現した！`); }
+      if (cells.length) { const cell = cells[context.rng.int(0, cells.length - 1)], tier = weighted(effect.tiers, context.rng); map.objects.push(makeChest(`chest-${trap.id}`, cell, tier, context.rng, [], state.floorNumber)); emit([cell]); context.log(`${CHESTS[tier].name}が出現した！`); }
       else { emit([p.position]); context.log('宝箱が現れる空きマスがなかった。'); }
     } else if (effect.type === 'summonPerimeter') {
       // 外周だけを抽出。キャラサイズを考慮し、同じマスへの重複召喚を防ぎます。

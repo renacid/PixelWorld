@@ -17,7 +17,11 @@ export function validSkillTarget(state: SaveData, id: SkillId, target?: Point): 
 export function previewSkill(state: SaveData, id: SkillId, direction: Direction, target?: Point): TargetPreview {
   const definition = SKILLS[id], p = state.playerState.position;
   const result: TargetPreview = { cells: [], blocked: null, targetIds: [] };
-  if (definition.target === 'groundTrap') {
+  if (definition.target === 'chain') {
+    let origins = occupied(state.playerState); const hit = new Set<string>();
+    for (let i=0;i<chainHitLimit(state);i++) { const enemy = nextChainTarget(state, origins, hit); if (!enemy) break; hit.add(enemy.id); result.targetIds.push(enemy.id); result.cells.push({...enemy.position}); origins=occupied(enemy); }
+    if (!result.cells.length) for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++)if(x||y){const c={x:p.x+x,y:p.y+y};if(!wall(state.mapState,c))result.cells.push(c);}
+  } else if (definition.target === 'groundTrap') {
     result.cells.push({ ...p });
   } else if (definition.target === 'pointArea') {
     if (!validSkillTarget(state, id, target)) return result;
@@ -51,4 +55,10 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
     }
   }
   return result;
+}
+
+/** 一発につき一体へ連鎖。大型敵は占有セルの外周から距離を測る。 */
+export function chainHitLimit(state: SaveData): number { const level=effectiveLevel(state.skillBag,state.skillLevels,'chainLightning');return level>=5?5:level>=3?3:2; }
+export function nextChainTarget(state: SaveData, origins: Point[], hit: Set<string>) {
+  return state.enemyStates.filter(e=>e.hp>0&&!hit.has(e.id)).map(e=>({e,d:Math.min(...occupied(e).flatMap(c=>origins.map(p=>Math.max(Math.abs(p.x-c.x),Math.abs(p.y-c.y)))))})).filter(t=>t.d===1).sort((a,b)=>a.d-b.d||a.e.id.localeCompare(b.e.id))[0]?.e;
 }

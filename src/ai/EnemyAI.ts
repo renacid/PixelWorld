@@ -14,8 +14,10 @@ function turn(map: MapState, a: Actor, facing: Direction, blockers: Actor[]): vo
   if (canStand(map, rotated, a.position, blockers)) { a.facing = facing; a.cells = rotated.cells; }
 }
 function sees(map: MapState, a: Actor, b: Actor): boolean { return occupied(a).some(c => occupied(b).some(t => Math.max(Math.abs(c.x - t.x), Math.abs(c.y - t.y)) <= detection(a) && lineOfSight(map, c, t))); }
-export function moveToward(map: MapState, a: Actor, target: Point, blockers: Actor[]): void {
+export function moveToward(map: MapState, a: Actor, target: Point, blockers: Actor[], rng?: Random): void {
   if (a.immobile) return;
+  const directions = [...a.directions];
+  if (rng) for (let i = directions.length - 1; i > 0; i--) { const j = rng.int(0, i); [directions[i], directions[j]] = [directions[j], directions[i]]; }
   const queue: { p: Point; first: Point | null; facing: Direction; firstDir: Direction }[] = [{ p: a.position, first: null, facing: a.facing, firstDir: a.facing }];
   const visited = new Set([`${a.position.x},${a.position.y}`]);
   let best = distance(a.position, target), chosen: Point | null = null, chosenDir = a.facing;
@@ -23,7 +25,7 @@ export function moveToward(map: MapState, a: Actor, target: Point, blockers: Act
     const { p, first, firstDir } = queue[i];
     if (distance(p, target) < best) { best = distance(p, target); chosen = first; chosenDir = firstDir; }
     if (same(p, target)) break;
-    for (const dir of a.directions) {
+    for (const dir of directions) {
       const v = VECTORS[dir], next = { x: p.x + v.x, y: p.y + v.y }, k = `${next.x},${next.y}`, rotated = oriented(a, dir);
       if (visited.has(k) || !canStand(map, rotated, p, blockers) || !canStand(map, rotated, next, blockers)) continue;
       visited.add(k); queue.push({ p: next, first: first ?? next, facing: dir, firstDir: first ? firstDir : dir });
@@ -52,11 +54,11 @@ export function actEnemy(map: MapState, enemy: Actor, targets: Actor[], blockers
     if (skill?.(enemy, visible)) { enemy.chaseMoves = 0; return; }
     const inAttackCell = occupied(enemy).some(c => enemy.attackCells.some(offset => occupied(target).some(t => same(t, { x: c.x + offset.x, y: c.y + offset.y }))));
     if (actorDistance(enemy, target) <= enemy.attackRange && inAttackCell) { enemy.chaseMoves = 0; attack(enemy, target); }
-    else { const before = enemy.position; moveToward(map, enemy, target.position, blockers); if (!same(before, enemy.position)) enemy.chaseMoves++; }
+    else { const before = enemy.position; moveToward(map, enemy, target.position, blockers, rng); if (!same(before, enemy.position)) enemy.chaseMoves++; }
     return;
   }
   if (enemy.mode === 'hostile' && enemy.lastSeen && enemy.pursuitLeft > 0) {
-    enemy.pursuitLeft--; moveToward(map, enemy, enemy.lastSeen, blockers); enemy.chaseMoves++;
+    enemy.pursuitLeft--; moveToward(map, enemy, enemy.lastSeen, blockers, rng); enemy.chaseMoves++;
     if (same(enemy.position, enemy.lastSeen)) enemy.pursuitLeft = 0;
   } else {
     enemy.mode = 'idle'; enemy.lastSeen = null; enemy.chaseMoves = 0;

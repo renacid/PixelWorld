@@ -1,3 +1,4 @@
+import { forest03 } from '../stages/forest03';
 /** 占有・通行・視線判定とマップ生成。手作り地形はstages/layouts.tsへ登録します。 */
 import { floorRules } from '../stages/DungeonRules';
 import { actor } from '../actors/Actor';
@@ -45,7 +46,7 @@ export function generateMap(stage: Stage, rng: Random, floor = 1): { map: MapSta
       if (!cells.length) break; const p = cells[rng.int(0, cells.length - 1)]; map.tiles[p.y * width + p.x] = floorTile;
     }
   };
-  const layout = floor > 1 ? upperFloorLayout(stage, floor) : CUSTOM_LAYOUTS[stage.id];
+  const layout = stage.id === 8 ? forest03(floor) : floor > 1 ? upperFloorLayout(stage, floor) : CUSTOM_LAYOUTS[stage.id];
   if (layout) {
     if (layout.rows.length !== height || layout.rows.some(row => row.length !== width)) throw new Error(`${stage.name}: 地形の行数・列数がステージサイズと一致しません`);
     const tiles = layout.rows.flatMap(row => [...row].map(char => { const id = layout.legend[char]; if (!(id in TERRAIN)) throw new Error(`未定義の地形文字: ${char}`); return id; }));
@@ -75,7 +76,7 @@ export function generateMap(stage: Stage, rng: Random, floor = 1): { map: MapSta
     for (let i = 0; i < (layout.randomChests ?? 0); i++) map.objects.push({ id: `random-chest-${i}`, type: 'chest', position: freeCell(token), chestTier: weighted([{ value: 'wood' as const, weight: 4 }, { value: 'iron' as const, weight: 3 }, { value: 'silver' as const, weight: 2 }, { value: 'gold' as const, weight: 1 }], rng) });
     const missingGems = gemLimit - map.objects.filter(o => o.type === 'gem').length;
     for (let i = 0; i < missingGems; i++) map.objects.push({ id: `gem-${i}`, type: 'gem', position: freeCell(token) });
-    initializeChests(map, rng);
+    initializeChests(map, rng, floor);
     placeTraps(map, layout.trapPlacements ?? stage.trapPlacements ?? [], rng, layout.spawn, enemies);
     return { map, enemies, spawn: { ...layout.spawn } };
   }
@@ -125,7 +126,7 @@ export function generateMap(stage: Stage, rng: Random, floor = 1): { map: MapSta
     for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) { const p = { x, y }; if (!wall(map, p) && distance(p, { x: 3, y: 3 }) > 5 && !map.objects.some(o => same(o.position, p)) && !enemies.some(a => occupied(a).some(c => same(c, p))) && !map.fields.some(f => same(f.position, p))) cells.push(p); }
     if (cells.length) map.objects.push({ id: 'gem-floor', type: 'gem', position: cells[rng.int(0, cells.length - 1)] });
   }
-  initializeChests(map, rng);
+  initializeChests(map, rng, floor);
   placeTraps(map, stage.trapPlacements ?? [], rng, { x: 3, y: 3 }, enemies);
   return { map, enemies, spawn: { x: 3, y: 3 } };
 }

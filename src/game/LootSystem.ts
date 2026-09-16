@@ -1,3 +1,4 @@
+import { ITEMS } from '../data/items';
 import { CHESTS, COMMON_ITEMS, RARE_ITEMS, type ChestTier, type DropEntry, type Loot, type Weighted } from '../data/loot';
 import type { GroundObject, MapState, Point } from './types';
 import type { Random } from './Random';
@@ -10,10 +11,10 @@ export function weighted<T>(entries: Weighted<T>[], rng: Random): T {
   for (const entry of entries) { cursor -= entry.weight; if (cursor < 0) return entry.value; }
   return entries[entries.length - 1].value;
 }
-export function rollDrops(entries: DropEntry[], rng: Random): Loot[] {
-  return entries.flatMap(e => rng.next() < e.chance ? Array.from({ length: e.count ?? 1 }, () => ({ ...e.loot })) : []);
+export function rollDrops(entries: DropEntry[], rng: Random, floor = 1): Loot[] {
+  return entries.flatMap(e => rng.next() < e.chance * (e.loot.type === 'item' ? rarityFactor(e.loot.id, floor) : 1) ? Array.from({ length: e.count ?? 1 }, () => ({ ...e.loot })) : []);
 }
-export function rollChest(tier: ChestTier, rng: Random, guaranteed: Loot[] = []): Loot[] {
+export function rollChest(tier: ChestTier, rng: Random, guaranteed: Loot[] = [], floor = 1): Loot[] {
   const d = CHESTS[tier], result: Loot[] = guaranteed.map(e => ({ ...e }));
   const skillIds = new Set(result.filter(e => e.type === 'skill').map(e => e.id));
   if (rng.next() < d.skills.chance) {
@@ -23,12 +24,12 @@ export function rollChest(tier: ChestTier, rng: Random, guaranteed: Loot[] = [])
   }
   if (rng.next() < d.items.chance) {
     const count = rng.int(d.items.min, d.items.max), existing = result.filter(e => e.type === 'item').length;
-    for (let i = existing; i < count; i++) result.push({ type: 'item', id: weighted(rng.next() < d.items.rareChance ? RARE_ITEMS : COMMON_ITEMS, rng) });
+    for (let i = existing; i < count; i++) result.push({ type: 'item', id: weighted((rng.next() < d.items.rareChance * Math.min(1, .25 + (floor - 1) * .375) ? RARE_ITEMS : COMMON_ITEMS).map(e => ({ ...e, weight: e.weight * rarityFactor(e.value, floor) })), rng) });
   }
   return result;
 }
-export function makeChest(id: string, position: Point, tier: ChestTier, rng: Random, guaranteed: Loot[] = []): GroundObject {
-  return { id, type: 'chest', position: { ...position }, chestTier: tier, contents: rollChest(tier, rng, guaranteed) };
+export function makeChest(id: string, position: Point, tier: ChestTier, rng: Random, guaranteed: Loot[] = [], floor = 1): GroundObject {
+  return { id, type: 'chest', position: { ...position }, chestTier: tier, contents: rollChest(tier, rng, guaranteed, floor) };
 }
 export function floorLoot(id: string, position: Point, loot: Loot): GroundObject {
   return { id, position: { ...position }, type: loot.type, ...(loot.type === 'item' ? { itemId: loot.id } : { skillId: loot.id }) };
@@ -42,10 +43,13 @@ export function legacyLoot(object: GroundObject): Loot[] {
   return result;
 }
 /** 新しいマップ用。固定報酬を優先し、不足分を箱の定義で生成して保存します。 */
-export function initializeChests(map: MapState, rng: Random): void {
+export function initializeChests(map: MapState, rng: Random, floor = 1): void {
   for (const obj of map.objects.filter(o => o.type === 'chest')) {
     const fixed = legacyLoot(obj), skills = fixed.filter(e => e.type === 'skill').length;
     obj.chestTier ??= skills >= 2 ? 'gold' : skills ? 'silver' : 'wood';
-    obj.contents ??= rollChest(obj.chestTier, rng, fixed);
+    obj.contents ??= rollChest(obj.chestTier, rng, fixed, floor);
   }
 }
+
+/** 上位ランクほど浅層の抽選を抑制。3層以降は段階的に解放する。 */
+export function rarityFactor(id: import('./types').ItemId, floor: number): number { return Math.min(1, (.25 + (floor - 1) * .375) ** (ITEMS[id].rareRank - 1)); }

@@ -133,3 +133,13 @@ button{font-weight:600}button:disabled{opacity:.5}button:focus-visible,input:foc
 .bag-piece .piece-cell{box-shadow:none;border-width:1px;clip-path:inset(1px);opacity:.85}
 .bag-piece.active .piece-cell{opacity:1;outline:none;border:2px solid #ec873d;background:color-mix(in srgb,var(--skill-color) 50%,#fff)}
 .dismiss-ally{color:#a13931;background:#ffe3d8;border:1px solid #d87863;padding:10px;border-radius:8px}
+
+/* HP・MP・経験値を横一列ずつ。小さい画面でも数値を省略しない。 */
+.hud .vitals{gap:8px;min-width:0}.hud .vital{display:grid;grid-template-columns:32px minmax(24px,1fr) 61px;gap:5px;align-items:center}
+.hud .vital-title{font:bold 10px monospace;color:#4c7550}.hud .vital strong{font:10px monospace;text-align:right;color:#3e594a;white-space:nowrap}
+.hud .vital .meter{height:8px;margin:0;border-radius:4px}.hud .mp .vital-title{color:#43839a}.hud .exp .vital-title{color:#977123}.hud .exp .meter i{background:#edbd4c}
+
+body.critical-health::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:2000;background:#ff4536;animation:critical-pulse 1.8s ease-in-out infinite}
+@keyframes critical-pulse{0%,100%{opacity:.035}50%{opacity:.16}}
+body.critical-health.still-effects::after{animation:none;opacity:.09}
+@media(prefers-reduced-motion:reduce){body.critical-health::after{animation:none;opacity:.09}}
