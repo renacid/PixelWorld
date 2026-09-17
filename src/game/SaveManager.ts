@@ -49,18 +49,20 @@ function validSave(value: unknown): value is SaveData {
       if (a.enemyCooldownUntil !== undefined && !Object.values(a.enemyCooldownUntil).every(n => Number.isInteger(n) && n >= 0)) return false;
     }
     if (s.fullBagRewardClaimed !== undefined && typeof s.fullBagRewardClaimed !== 'boolean') return false;
+    if (s.allyStates.some(a=>a.remainingLife!==undefined&&(!Number.isInteger(a.remainingLife)||a.remainingLife<1))) return false;
+    if (s.reinforcementKinds!==undefined&&(!Array.isArray(s.reinforcementKinds)||!s.reinforcementKinds.every(k=>isActorKind(k)&&!['player','sprite'].includes(k)))) return false;
     if (s.nightWave !== undefined && (!Number.isInteger(s.nightWave) || s.nightWave < 0)) return false;
     if (s.nightTarget !== undefined && (!Number.isInteger(s.nightTarget) || s.nightTarget < 0)) return false;
     if ([s.playerState, ...s.allyStates, ...s.enemyStates].some(a => a.experienceMultiplier !== undefined && (!Number.isFinite(a.experienceMultiplier) || a.experienceMultiplier < 0))) return false;
     if (s.playerLevel !== undefined && (!Number.isInteger(s.playerLevel) || s.playerLevel < 1 || s.playerLevel > 20)) return false;
     if (s.experience !== undefined && (!Number.isFinite(s.experience) || s.experience < 0)) return false;
-    if (s.bagCells !== undefined && (!Array.isArray(s.bagCells) || s.bagCells.length < 16 || s.bagCells.length > 44 || !s.bagCells.every(p => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.y >= 0 && p.x < 25 && p.y < 25) || new Set(s.bagCells.map(p => p.x + ',' + p.y)).size !== s.bagCells.length)) return false;
+    if (s.bagCells !== undefined && (!Array.isArray(s.bagCells) || s.bagCells.length < 16 || s.bagCells.length > 48 || !s.bagCells.every(p => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.y >= 0 && p.x < 30 && p.y < 30) || new Set(s.bagCells.map(p => p.x + ',' + p.y)).size !== s.bagCells.length)) return false;
     if (s.daylightCount !== undefined && (!Number.isInteger(s.daylightCount) || s.daylightCount < 0)) return false;
     if (s.defeatedEnemies !== undefined && (!Array.isArray(s.defeatedEnemies) || !s.defeatedEnemies.every(a => isActorKind(a.kind) && typeof a.id === 'string' && Number.isInteger(a.position.x) && Number.isInteger(a.position.y)))) return false;
     for (const a of [s.playerState, ...s.allyStates, ...s.enemyStates]) {
       if (a.criticalRate !== undefined && (!Number.isFinite(a.criticalRate) || a.criticalRate < 0 || a.criticalRate > 1)) return false;
       if (a.criticalMultiplier !== undefined && (!Number.isFinite(a.criticalMultiplier) || a.criticalMultiplier < 1)) return false;
-      if (a.buffs !== undefined && (!Array.isArray(a.buffs) || !a.buffs.every(b => typeof b.id === 'string' && Number.isInteger(b.remainingTurns) && b.remainingTurns > 0 && Number.isInteger(b.appliedAt) && Number.isFinite(b.attackMultiplier) && b.attackMultiplier >= 1 && Number.isInteger(b.detectionBonus) && b.detectionBonus >= 0))) return false;
+      if (a.buffs !== undefined && (!Array.isArray(a.buffs) || !a.buffs.every(b => typeof b.id === 'string' && (b.attackBonus === undefined || Number.isFinite(b.attackBonus)) && Number.isInteger(b.remainingTurns) && b.remainingTurns > 0 && Number.isInteger(b.appliedAt) && Number.isFinite(b.attackMultiplier) && b.attackMultiplier >= 1 && Number.isInteger(b.detectionBonus) && b.detectionBonus >= 0))) return false;
     }
     if (s.mpRecoveryActions !== undefined && (!Number.isInteger(s.mpRecoveryActions) || s.mpRecoveryActions < 0)) return false;
     if (!Number.isInteger(m.width) || !Number.isInteger(m.height) || m.width < 9 || m.height < 9 || m.width > 100 || m.height > 100 || m.tiles.length !== m.width * m.height || s.exploredMap.length !== m.tiles.length) return false;

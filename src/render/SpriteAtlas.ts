@@ -31,10 +31,11 @@ function make(kind: SpriteId, facing: 'down' | 'up' | 'left'): string[] {
     rect(2, 5, 1, 1, 'k'); rect(2, 10, 1, 1, 'k'); rect(12, 6, 2, 3, 'B'); rect(14, 4, 1, 4, 'b'); rect(15, 3, 1, 3, 'w');
     if (facing !== 'left') { const original = pixels.map(row => [...row]); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) pixels[y][x] = facing === 'up' ? original[15 - x][y] : original[x][15 - y]; }
   } else if (kind === 'treant') {
-    rect(6, 7, 5, 7, 'O'); rect(4, 13, 3, 2, 'o'); rect(10, 13, 3, 2, 'o');
-    rect(2, 4, 12, 5, 'G'); rect(4, 2, 9, 6, 'g'); rect(6, 1, 5, 3, 'p');
-    rect(2, 9, 3, 2, 'O'); rect(12, 8, 2, 4, 'O');
-    if (facing !== 'up') { rect(facing === 'left' ? 5 : 6, 9, 1, 2, 'k'); rect(facing === 'left' ? 7 : 9, 9, 1, 2, 'k'); rect(7, 12, 2, 1, 'k'); }
+    // 枯れ枝・裂けた幹・赤い目。足元の根を描画基準にする。
+    rect(6,4,5,10,'O');rect(7,5,2,9,'o');rect(4,14,9,1,'O');rect(2,15,4,1,'O');rect(12,15,3,1,'O');
+    rect(3,5,3,2,'O');rect(2,2,2,4,'O');rect(0,1,3,1,'O');rect(10,3,3,2,'O');rect(12,0,2,4,'O');rect(14,2,2,1,'O');rect(7,1,2,4,'O');rect(5,0,3,1,'O');
+    rect(3,10,3,2,'O');rect(1,8,2,3,'O');rect(11,9,3,2,'O');rect(14,7,1,3,'O');rect(8,11,1,3,'k');
+    if(facing!=='up'){rect(facing==='left'?5:6,7,2,1,'r');rect(facing==='left'?8:10,7,2,1,'r');rect(7,10,3,2,'k');rect(8,10,1,1,'w');}
   } else if (kind === 'sprite') {
     // 薄緑の丸い傘と長い触手。描画側で上下に漂わせる。
     rect(6, 2, 4, 1, 'p'); rect(4, 3, 8, 2, 'p'); rect(3, 5, 10, 4, 'p'); rect(2, 7, 12, 3, 'g'); rect(3, 7, 10, 2, 'p');

@@ -6,15 +6,16 @@ import type { TrapInstance, TrapPlacement, TrapVisual, SoundCue } from '../data/
 export type Direction = 'up' | 'right' | 'down' | 'left';
 export const VECTORS: Record<Direction, Point> = { up: { x: 0, y: -1 }, right: { x: 1, y: 0 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 } };
 export type Attribute = 'fire' | 'ice' | 'thunder' | 'earth' | 'wind' | 'neutral' | 'physical' | 'nature';
-export type SkillId = 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
-export type ItemId = 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
+export type SkillId = 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
+export type ItemId = 'powerPotion' | 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
 export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
 export type Actor = {
   enemyCooldownUntil?: Record<string, number>; mpRecoveryTurns?: number;
+  remainingLife?: number;
   experienceMultiplier?: number;
   criticalRate?: number; criticalMultiplier?: number;
   immobile?: boolean; skillChances?: Record<string, number>;
-  buffs?: { id: string; remainingTurns: number; appliedAt: number; attackMultiplier: number; detectionBonus: number }[];
+  buffs?: { id: string; remainingTurns: number; appliedAt: number; attackBonus?: number; attackMultiplier: number; detectionBonus: number }[];
   id: string; name: string; kind: ActorKind;
   position: Point; cells: Point[]; directions: Direction[]; attackCells: Point[]; facing: Direction;
   hp: number; maxHp: number; attack: number; attribute: Attribute; afflictions: Affliction[];
@@ -42,6 +43,7 @@ export type SaveData = {
   daylightCount?: number;
   fullBagRewardClaimed?: boolean;
   floorNumber?: number; floorCount?: number; nightRevived?: number; nightWave?: number; nightTarget?: number;
+  reinforcementKinds?: EnemyKind[];
   defeatedEnemies?: Actor[];
   status: 'playing' | 'cleared' | 'defeated'; objectiveChests: number; pendingBag: boolean;
   log: string[];

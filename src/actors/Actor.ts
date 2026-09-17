@@ -19,7 +19,7 @@ export function actor(id: string, kind: Actor['kind'], position: Point, stage = 
     immobile: d.immobile, skillChances: { ...d.skillChances }, buffs: [],
     id, kind, name: d.name, position: { ...position }, facing: 'down', alertedAt: -1,
     hp, maxHp: hp, attack: Math.floor(d.attack * multiplier), cells: rectangle(d.size, d.size),
-    mp, maxMp: mp, enemySkillIds: [...d.skills], attribute: d.attribute === 'earth' ? 'nature' : d.attribute, afflictions: d.innateAttribute ? [{ attribute: d.innateAttribute, remainingTurns: 10, appliedAt: 0 }] : [],
+    mp, maxMp: mp, enemySkillIds: [...d.skills], attribute: d.attribute === 'earth' ? 'nature' : d.attribute, afflictions: d.innateAttribute && d.innateAttribute !== 'wind' ? [{ attribute: d.innateAttribute, remainingTurns: 10, appliedAt: 0 }] : [],
     directions: [...d.directions], attackCells: d.attackCells.map(c => ({ ...c })),
     detectionRange: d.detectionRange, pattern: d.pattern, attackRange: d.attackRange,
     priorityTarget: d.priorityTarget, pursuitTurns: d.pursuitTurns,

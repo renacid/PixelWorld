@@ -52,17 +52,18 @@ export class GameCanvas {
   }
   private sprite(ctx: CanvasRenderingContext2D, a: Actor, x: number, y: number, clock: number): void {
     const width = (Math.max(...a.cells.map(c => c.x)) + 1) * TILE, height = (Math.max(...a.cells.map(c => c.y)) + 1) * TILE;
-    const cx = x + width / 2, cy = y + height / 2;
+    const cx = x + width / 2;
     ctx.fillStyle = '#315d5c36'; ctx.beginPath(); ctx.ellipse(cx, y + height - 4, width * .3, 4, 0, 0, Math.PI * 2); ctx.fill();
     const definition = actorDefinition(a.kind), pixels = spritePixels(definition.sprite, a.facing ?? 'down'), scale = definition.renderScale;
-    const scaleX = scale, scaleY = scale;
+    const scaleX = scale, scaleY = (definition.renderHeight ?? scale * 16) / 16;
+    const spriteCenterY = y + height - scaleY * 8;
     const step = this.settings.motion ? Math.floor(clock / (this.animation ? 110 : 230)) % 2 : 0;
     const bob = this.settings.motion && definition.bob ? Math.sin(clock / (a.kind === 'sprite' ? 400 : 200) + a.position.x) * (a.kind === 'sprite' ? 2.5 : 1.3) : 0;
     const flash = this.effects.some(e => e.type === 'damage' && e.actorId === a.id && clock >= e.born && clock - e.born < 140);
     for (let py = 0; py < 16; py++) for (let px = 0; px < 16; px++) {
       const color = PIXEL_COLORS[pixels[py][px]]; if (!color) continue;
       const foot = py >= 12 && (definition.idleStep || this.animation) ? (px < 8 ? step : 1 - step) * (this.settings.motion ? 1 : 0) : 0;
-      ctx.fillStyle = flash ? '#fffcef' : color; ctx.fillRect(Math.round(cx - scaleX * 8 + px * scaleX), Math.round(cy - scaleY * 8 + py * scaleY + bob - foot), scaleX, scaleY);
+      ctx.fillStyle = flash ? '#fffcef' : color; ctx.fillRect(Math.round(cx - scaleX * 8 + px * scaleX), Math.round(spriteCenterY - scaleY * 8 + py * scaleY + bob - foot), scaleX, scaleY);
     }
     if (a.kind !== 'player' && a.hp < a.maxHp) { ctx.fillStyle = '#fffefa'; ctx.fillRect(cx - 12, y, 24, 4); ctx.fillStyle = '#f27276'; ctx.fillRect(cx - 11, y + 1, 22 * a.hp / a.maxHp, 2); }
     if (a.buffs?.some(b => b.remainingTurns > 0)) {
@@ -151,7 +152,7 @@ export class GameCanvas {
     }
     if (this.selected && !sample) {
       const target = previewSkill(state, this.selected, state.playerState.facing, this.aim), color = ATTRIBUTE_COLORS[SKILLS[this.selected].attribute];
-      if (SKILLS[this.selected].target === 'pointArea') {
+      if (['pointArea','enemyWarp'].includes(SKILLS[this.selected].target)) {
         const r = selectionRange(state, this.selected), center = state.playerState.position;
         ctx.strokeStyle = color; ctx.lineWidth = 1;
         for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
@@ -167,10 +168,10 @@ export class GameCanvas {
       });
       if (target.blocked) { const p = screen(target.blocked); ctx.fillStyle = '#e86c7d99'; ctx.fillRect(p.x + 1, p.y + 1, 30, 30); ctx.fillStyle = '#fff9eb'; ctx.textAlign = 'center'; ctx.fillText('×', p.x + 16, p.y + 22); }
     }
-    for (const a of [...actors].sort((a, b) => a.position.y - b.position.y)) {
+    for (const a of [...actors].sort((a, b) => (a.position.y + Math.max(...a.cells.map(c=>c.y))) - (b.position.y + Math.max(...b.cells.map(c=>c.y))))) {
       if (a.hp <= 0 || !occupied(a).some(p => visible(p))) continue;
       // 視界に入ったキャラは一体として描画。セル単位の切り抜きによる大型絵の欠けを防ぐ。
-      const p = screen(a.position); ctx.save(); this.sprite(ctx, a, p.x, p.y, clock); ctx.restore();
+      const p = screen(a.position); ctx.save(); if(a.remainingLife!==undefined&&a.remainingLife<=5&&this.settings.motion)ctx.globalAlpha=.35+.65*(.5+.5*Math.sin(clock/140)); this.sprite(ctx, a, p.x, p.y, clock); ctx.restore();
     }
     this.effects = this.effects.filter(e => clock - e.born < e.duration);
     for (const e of this.effects) {

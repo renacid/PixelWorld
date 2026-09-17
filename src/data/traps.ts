@@ -1,7 +1,7 @@
 import type { Point } from '../game/types';
 import type { ChestTier, Weighted } from './loot';
 
-export type TrapId = 'treasure' | 'bearTrap' | 'fireMine' | 'rockfall' | 'healing' | 'wolfTerritory';
+export type TrapId = 'manaHealing' | 'treasure' | 'bearTrap' | 'fireMine' | 'rockfall' | 'healing' | 'wolfTerritory';
 import type { EnemyKind } from './enemies';
 import type { TrapVisual, SoundCue } from './effects';
 export type { TrapVisual, SoundCue } from './effects';
@@ -9,9 +9,10 @@ export type TrapDefinition = {
   name: string; visual: TrapVisual; sound: SoundCue;
   effect: { type: 'chest'; tiers: Weighted<ChestTier>[] } | { type: 'root'; turns: number } |
     { type: 'blast'; radius: number; damage: number } | { type: 'rocks'; radius: number; tiles: number; hits: number; damage: number } |
-    { type: 'heal'; amount: number } | { type: 'summonPerimeter'; radius: number; count: number; enemy: EnemyKind };
+    { type: 'heal'; amount: number } | { type: 'restoreMp'; amount: number } | { type: 'summonPerimeter'; radius: number; count: number; enemy: EnemyKind };
 };
 export const TRAPS: Record<TrapId, TrapDefinition> = {
+  manaHealing: { name:'魔力回復トラップ',visual:'healingGlow',sound:'healing',effect:{type:'restoreMp',amount:5} },
   wolfTerritory: { name: '狼の縄張り', visual: 'summonRing', sound: 'howl', effect: { type: 'summonPerimeter', radius: 4, count: 3, enemy: 'wolf' } },
   treasure: { name: '宝箱トラップ', visual: 'chestBurst', sound: 'treasure', effect: { type: 'chest', tiers: [{ value: 'wood', weight: 60 }, { value: 'iron', weight: 25 }, { value: 'silver', weight: 12 }, { value: 'gold', weight: 3 }] } },
   bearTrap: { name: 'トラばさみ', visual: 'snare', sound: 'snap', effect: { type: 'root', turns: 1 } },
@@ -24,5 +25,5 @@ export type TrapInstance = { id: string; trapId: TrapId; position: Point; trigge
 export type TrapPlacement = { region?: { x: number; y: number; width: number; height: number }; count: number; pool: Weighted<TrapId>[] };
 export const DEFAULT_TRAP_POOL: Weighted<TrapId>[] = [
   { value: 'treasure', weight: 2 }, { value: 'bearTrap', weight: 2 }, { value: 'fireMine', weight: 2 },
-  { value: 'rockfall', weight: 1 }, { value: 'healing', weight: 2 }, { value: 'wolfTerritory', weight: 1 },
+  { value: 'rockfall', weight: 1 }, { value: 'healing', weight: 2 }, { value: 'manaHealing', weight: 2 }, { value: 'wolfTerritory', weight: 1 },
 ];

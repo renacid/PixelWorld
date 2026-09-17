@@ -11,8 +11,8 @@ export type ChestDefinition = {
   skills: { chance: number; min: number; max: number; pool: Weighted<SkillId>[] };
 };
 export const COMMON_ITEMS: Weighted<ItemId>[] = [{ value: 'potion', weight: 1 }, { value: 'ether', weight: 1 }, { value: 'hourglass', weight: 1 }];
-export const RARE_ITEMS: Weighted<ItemId>[] = [{ value: 'healingPotion', weight: 2 }, { value: 'etherMedium', weight: 2 }, { value: 'scope', weight: 1 }, { value: 'summon', weight: 1 }];
-const skillPool: Weighted<SkillId>[] = ['chainLightning', 'fireball', 'thunder', 'tornado', 'firerain', 'warp', 'icestone', 'groundbreak'].map(value => ({ value: value as SkillId, weight: 1 }));
+export const RARE_ITEMS: Weighted<ItemId>[] = [{ value: 'powerPotion', weight: 1 },{ value: 'healingPotion', weight: 2 }, { value: 'etherMedium', weight: 2 }, { value: 'scope', weight: 1 }, { value: 'summon', weight: 1 }];
+const skillPool: Weighted<SkillId>[] = ['sweep', 'vacuumSlash', 'chainLightning', 'fireball', 'thunder', 'tornado', 'firerain', 'warp', 'icestone', 'groundbreak'].map(value => ({ value: value as SkillId, weight: 1 }));
 /** 個数・追加確率・レア抽選をここで調整。金のスキル抽選は重複なしです。 */
 export const CHESTS: Record<ChestTier, ChestDefinition> = {
   wood: { name: '宝箱(木)', color: '#c68a4d', trim: '#f1c58a', items: { chance: 1, min: 1, max: 2, rareChance: 0 }, skills: { chance: 0, min: 0, max: 0, pool: skillPool } },

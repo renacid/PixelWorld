@@ -31,8 +31,15 @@ export function connectionBonus(bag: BagBlock[], skillId: SkillId): number {
   }
   return group.size - 1;
 }
-export function effectiveLevel(bag: BagBlock[], levels: Partial<Record<SkillId, number>>, id: SkillId, passiveBonus = 0): number { return (levels[id] ?? 1) + connectionBonus(bag, id) + passiveBonus; }
+export function effectiveLevel(_bag: BagBlock[], levels: Partial<Record<SkillId, number>>, id: SkillId, passiveBonus = 0): number { return (levels[id] ?? 1) + passiveBonus; }
 export function autoPlace(bag: BagBlock[], id: SkillId, available: Point[] = initialBagCells(5)): void {
   const block = bag.find(b => b.skillId === id)!;
   for (const p of available) if (validPlacement(bag, id, p, block.rotation, available)) { block.position = { ...p }; return; }
+}
+
+/** 接続グループの他ブロック数に応じた別枠乗算。未指定の連結4以上は20%で上限。 */
+export const CONNECTION_DAMAGE_BONUSES = [0, .05, .10, .20] as const;
+export function connectionDamageMultiplier(bag: BagBlock[], id: SkillId): number {
+  const count = connectionBonus(bag, id);
+  return 1 + CONNECTION_DAMAGE_BONUSES[Math.min(count, CONNECTION_DAMAGE_BONUSES.length - 1)];
 }

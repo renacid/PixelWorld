@@ -33,6 +33,6 @@ export function forestLayout(deep: boolean): StageLayout {
     enemies: gates.map(position => ({ kind: 'treant', position })),
     randomEnemies: [{ kind: 'wolf', count: deep ? 7 : 5 }, { kind: 'goblin', count: deep ? 6 : 4 }, { kind: 'slime', count: 3 }, { kind: 'treant', count: deep ? 4 : 2 }],
     randomChests: deep ? 9 : 7, gemCount: 1,
-    trapPlacements: [{ region: { x: 4, y: 8, width: width - 8, height: height - 14 }, count: deep ? 22 : 16, pool: [{ value: 'healing', weight: 3 }, { value: 'treasure', weight: 2 }, { value: 'bearTrap', weight: 2 }, { value: 'rockfall', weight: 1 }, { value: 'fireMine', weight: 1 }, { value: 'wolfTerritory', weight: 1 }] }],
+    trapPlacements: [{ region: { x: 4, y: 8, width: width - 8, height: height - 14 }, count: deep ? 22 : 16, pool: [{ value: 'healing', weight: 3 }, { value: 'manaHealing', weight: 2 }, { value: 'treasure', weight: 2 }, { value: 'bearTrap', weight: 2 }, { value: 'rockfall', weight: 1 }, { value: 'fireMine', weight: 1 }, { value: 'wolfTerritory', weight: 1 }] }],
   };
 }

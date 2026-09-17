@@ -64,6 +64,8 @@ export function triggerPlayerTraps(state: SaveData, context: Context): void {
       emit(spawned); context.log(`森の狼が${spawned.length}体現れた！${spawned.length < effect.count ? '外周の空きマスが足りなかった。' : ''}`);
     } else if (effect.type === 'root') {
       p.movementLockedUntil = state.playerActionCount + effect.turns; emit([p.position]); context.log(`${effect.turns}行動の間、移動できない。`);
+    } else if (effect.type === 'restoreMp') {
+      const amount=Math.min(effect.amount,p.maxMp-p.mp);p.mp+=amount;emit([p.position]);context.events.push({type:'heal',position:{...p.position},text:'MP+'+amount,delayMs:450});context.log('MPが'+amount+'回復した。');
     } else if (effect.type === 'heal') {
       const amount = Math.min(effect.amount, p.maxHp - p.hp); p.hp += amount; emit([p.position]);
       context.events.push({ type: 'heal', position: { ...p.position }, amount, text: `+${amount}`, delayMs: 450 }); context.log(`HPが${amount}回復した。`);

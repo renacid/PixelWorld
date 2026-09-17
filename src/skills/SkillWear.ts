@@ -1,4 +1,4 @@
-/** 使用6回目以降に劣化抽選。基礎MPを基準に加算し、重複取得で全回復する。 */
+/** 使用6回目以降に劣化抽選。基礎MPを基準に加算し、重複取得・レベルアップでも劣化は維持する。 */
 import { SKILLS } from '../data/skills';
 import type { SaveData, SkillId } from '../game/types';
 import type { Random } from '../game/Random';

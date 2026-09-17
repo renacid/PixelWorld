@@ -2,7 +2,7 @@ import { ENEMY_SKILLS, type EnemySkillDefinition } from '../data/enemySkills';
 import { canStand, distance, lineOfSight, occupied, same, wall } from '../game/MapState';
 import type { Random } from '../game/Random';
 import { VECTORS, type Actor, type Direction, type GameEvent, type MapState, type Point } from '../game/types';
-import { attackPower } from '../game/ActorStats';
+import { applyBuff, attackPower } from '../game/ActorStats';
 
 type Context = { action: number; allies: Actor[]; map: MapState; actors: Actor[]; rng: Random; events: GameEvent[]; damage: (target: Actor, amount: number, attribute: import("../game/types").Attribute, critical?: boolean, label?: string) => void; log: (message: string) => void };
 type PreparedAction = { position: Point; facing: Direction; origin?: Point; impact?: Point; path?: Point[] };
@@ -74,7 +74,7 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
       consume();
       for (const ally of allies) {
         ally.buffs = (ally.buffs ?? []).filter(b => b.id !== id);
-        ally.buffs.push({ id, remainingTurns: effect.duration, appliedAt: context.action, attackMultiplier: effect.attackMultiplier, detectionBonus: effect.detectionBonus });
+        applyBuff(ally, { id, remainingTurns: effect.duration, appliedAt: context.action, attackMultiplier: effect.attackMultiplier, detectionBonus: effect.detectionBonus });
       }
       context.events.push({ type: 'trap', actorId: caster.id, position: { ...caster.position }, path: allies.map(a => ({ ...a.position })), visual: 'healingGlow', sound: skill.sound });
       context.log(caster.name + 'の' + skill.name + '！ 周囲の味方' + allies.length + '体を' + effect.duration + 'ターン強化！');

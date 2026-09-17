@@ -37,7 +37,7 @@ export class SoundManager {
     else if (event.type === 'pickup') { [523, 659, 784].forEach((f, i) => this.tone(f, f, .14, 'sine', t + i * .09)); }
     else if (event.type === 'cast') {
       if (event.skillId === 'warp') { this.tone(160, 1400, .22, 'sine', t); this.tone(1400, 350, .25, 'sine', t + .25); }
-      if (event.skillId === 'attack') this.tone(550, 90, .15, 'triangle', t);
+      if (event.skillId === 'attack' || event.skillId === 'sweep') this.tone(550, 90, .15, 'triangle', t);
       if (event.skillId === 'fireball') this.tone(150, 650, .26, 'sawtooth', t, .3);
       if (event.skillId === 'thunder') { this.tone(1100, 60, .22, 'square', t, .3); this.tone(180, 50, .25, 'sawtooth', t + .12, .3); }
       if (event.skillId === 'tornado') this.tone(280, 900, .4, 'sine', t, .5);

@@ -1,4 +1,5 @@
-import { chainHitLimit, nextChainTarget } from '../skills/SkillResolver';
+import { applyBuff } from './ActorStats';
+import { vacuumDestinations, chainHitLimit, nextChainTarget } from '../skills/SkillResolver';
 import { PROGRESSION, requiredExperience, expandBag } from './Progression';
 import { blockCells, initialBagCells } from '../skills/SkillBag';
 /** 1プレイの進行役。コマンドを処理し、描画用イベントと保存可能な状態を生成します。 */
@@ -18,7 +19,7 @@ import { GEM_REWARDS } from '../data/gems';
 import { skillMp, wearSkill } from '../skills/SkillWear';
 import { SKILLS } from '../data/skills';
 import { dealAttributeHit } from '../skills/AttributeSystem';
-import { autoPlace, effectiveLevel } from '../skills/SkillBag';
+import { autoPlace, connectionDamageMultiplier, effectiveLevel } from '../skills/SkillBag';
 import { previewSkill, validSkillTarget } from '../skills/SkillResolver';
 import { floorRules } from '../stages/DungeonRules';
 import { STAGES } from '../stages';
@@ -36,6 +37,8 @@ export class GameSession {
   constructor(public state: SaveData) {
     this.rng = new Random(state.randomSeed);
     state.playerLevel ??= 1; state.experience = Math.ceil(state.experience ?? 0); state.bagCells ??= initialBagCells(5);
+    state.reinforcementKinds ??= [...new Set(state.enemyStates.map(e=>e.kind))].filter(k=>k!=='player'&&k!=='sprite');
+    state.allyStates.forEach(a=>{a.remainingLife ??= actorDefinition(a.kind).lifetime ?? 30;});
     state.floorNumber ??= 1; state.floorCount = Math.max(state.floorNumber, this.stage.dungeon?.floors ?? 1); state.nightRevived ??= (state.daylightCount ?? 0) >= 100 ? floorRules(this.stage).nightRevival.min : 0;
     // 旧セーブは過去のスキル使用回数を復元できないため回復カウントを0から開始。
     // 旧セーブの固定ダメージ罠も新しい経過ターン方式へ移行。
@@ -56,6 +59,7 @@ export class GameSession {
       a.criticalRate ??= loadout.criticalRate; a.criticalMultiplier ??= loadout.criticalMultiplier;
       a.immobile ??= loadout.immobile; a.skillChances ??= { ...loadout.skillChances }; a.buffs ??= [];
       if (a.attribute === 'earth') a.attribute = 'nature';
+      a.afflictions = a.afflictions.filter(f => f.attribute !== 'wind');
       for (const f of a.afflictions) if (f.attribute === 'earth') f.attribute = 'nature';
       // 旧セーブの連続停止タイマーは破棄し、新しいスキップ状態だけを利用。
       const legacy = a as typeof a & { disengageTurns?: number; disengageLeft?: number };
@@ -78,7 +82,7 @@ export class GameSession {
   static create(stageId: number, seed: number): GameSession {
     const stage = STAGES.find(s => s.id === stageId)!;
     const rng = new Random(seed); const floorCount = stage.dungeon?.floors ?? 1; const { map, enemies, spawn } = generateMap(stage, rng);
-    const session = new GameSession({ version: 1, stageId, playerLevel: 1, experience: 0, bagCells: initialBagCells(), floorNumber: 1, floorCount, nightRevived: 0, initialSeed: seed, randomSeed: rng.seed, mapState: map, playerState: createPlayer(), enemyStates: enemies, allyStates: [], skillBag: [], skillLevels: {}, cooldowns: {}, itemSlots: [], exploredMap: new Array(map.width * map.height).fill(false), turnCount: 0, playerActionCount: 0, status: 'playing', objectiveChests: 0, pendingBag: false, log: ['目の前の宝箱へ進み、アタックを手に入れよう。'] });
+    const session = new GameSession({ version: 1, stageId, playerLevel: 1, experience: 0, bagCells: initialBagCells(), floorNumber: 1, floorCount, nightRevived: 0, initialSeed: seed, randomSeed: rng.seed, mapState: map, playerState: createPlayer(), enemyStates: enemies, allyStates: [], skillBag: [], skillLevels: {}, cooldowns: {}, itemSlots: [], exploredMap: new Array(map.width * map.height).fill(false), turnCount: 0, playerActionCount: 0, status: 'playing', objectiveChests: 0, pendingBag: false, log: ['目の前の宝箱へ進み、斬撃を手に入れよう。'] });
     session.state.playerState.position = { ...spawn };
     session.state.log = []; session.explore(); return session;
   }
@@ -135,7 +139,7 @@ export class GameSession {
     s.mapState.fields = s.mapState.fields.filter(f => f.sourceSkillId !== id);
   }
   acquireSkill(id: SkillId): void {
-    this.state.skillWear![id] = { uses: 0, extraMp: 0 };
+    this.state.skillWear![id] ??= { uses: 0, extraMp: 0 };
     if (this.state.skillLevels[id]) { this.state.skillLevels[id]!++; this.log(`${SKILLS[id].name}の基礎レベルが${this.state.skillLevels[id]}に！`); }
     else { this.state.skillLevels[id] = 1; this.state.skillBag.unshift({ skillId: id, position: null, rotation: 0, isNew: true }); autoPlace(this.state.skillBag, id, this.state.bagCells); this.log(`${SKILLS[id].name}を手に入れた。`); this.state.pendingBag = true; }
   }
@@ -211,6 +215,7 @@ export class GameSession {
   }
   useItem(slot: number, skillId?: SkillId): boolean {
     const s = this.state, p = s.playerState, id = s.itemSlots[slot]; if (!id) return false;
+    if (id === 'powerPotion') { applyBuff(p,{id:'item:powerPotion',attackBonus:5,attackMultiplier:1,detectionBonus:0,remainingTurns:10,appliedAt:s.playerActionCount});this.events.push({type:'heal',position:{...p.position},text:'攻撃力+5',sound:'healing'}); }
     if (id === 'hourglass') { if (!skillId || !s.skillLevels[skillId] || !(s.cooldowns[skillId]! > 0)) { this.log('再使用待ちのスキルを選んでください。'); return false; } s.cooldowns[skillId] = Math.max(0, s.cooldowns[skillId]! - 10); this.log(SKILLS[skillId].name + 'のクールタイムを短縮！'); }
     if (ITEMS[id].restoreHp && p.hp >= p.maxHp || ITEMS[id].restoreMp && p.mp >= p.maxMp) { this.log('今は使う必要がありません。'); return false; }
     if (ITEMS[id].restoreHp) { p.hp = Math.min(p.maxHp, p.hp + ITEMS[id].restoreHp!); this.events.push({ type: 'heal', position: { ...p.position }, text: '+HP' }); }
@@ -218,7 +223,7 @@ export class GameSession {
     if (id === 'scope') this.gainVision();
     if (id === 'summon') {
       let id = `ally-${s.playerActionCount}-${s.allyStates.length}`; while (this.actors.some(a => a.id === id)) id += '-new';
-      const ally = actor(id, 'sprite', { ...p.position });
+      const ally = actor(id, 'sprite', { ...p.position }); ally.remainingLife=actorDefinition('sprite').lifetime ?? 30;
       const point = Object.values(VECTORS).map(v => ({ x: p.position.x + v.x, y: p.position.y + v.y })).find(pos => canStand(s.mapState, ally, pos, this.actors));
       if (!point) { this.log('精霊が現れる空きマスがありません。'); return false; }
       ally.position = point; ally.detectionRange = 7; ally.pattern = 'patrol'; s.allyStates.push(ally);
@@ -231,7 +236,7 @@ export class GameSession {
       if ((map.playerTraps?.length ?? 0) >= 2) return '地砕きは同時に2個までです。';
       if (map.objects.some(o => same(o.position, pos)) || map.fields.some(f => same(f.position, pos)) || map.traps?.some(t => !t.triggered && same(t.position, pos)) || map.playerTraps?.some(t => same(t.position, pos))) return '足元に物や罠があるため設置できません。';
     }
-    if (id === 'warp' && (this.state.playerState.movementLockedUntil ?? -1) > this.state.playerActionCount) return 'トラばさみで移動できません。';
+    if ((id === 'warp' || id === 'vacuumSlash') && (this.state.playerState.movementLockedUntil ?? -1) > this.state.playerActionCount) return 'トラばさみで移動できません。';
     if (id === 'warp' && !previewSkill(this.state, id, this.state.playerState.facing).cells.length) return 'ワープ先の空きマスがありません。';
     if (!this.state.skillBag.some(b => b.skillId === id && b.position)) return 'バッグに配置されていません。';
     if ((this.state.cooldowns[id] ?? 0) > 0) return `あと${this.state.cooldowns[id]}行動で使用できます。`;
@@ -243,7 +248,7 @@ export class GameSession {
     if (wearSkill(s, id, this.rng)) this.log(def.name + 'が劣化し、次回からの消費MPが増えた。');
     if (id === 'chainLightning') {
       let origins=occupied(p), source={...p.position}; const hit=new Set<string>(), start=this.events.length;
-      const level=effectiveLevel(s.skillBag,s.skillLevels,id), levelScale=1+(level-1)*.05;
+      const level=effectiveLevel(s.skillBag,s.skillLevels,id), levelScale=(1+(level-1)*.05)*connectionDamageMultiplier(s.skillBag,id);
       this.groupingDamage=true;
       for(let n=0;n<chainHitLimit(s);n++) {
         const enemy=nextChainTarget(s,origins,hit);if(!enemy)break;
@@ -271,14 +276,15 @@ export class GameSession {
       this.events.push({ type: 'cast', actorId: p.id, position: { ...p.position }, target: destination, skillId: id, attribute: def.attribute });
       p.position = { ...destination }; this.log('ランダムワープを発動！'); return;
     }
-    this.events.push({ type: 'cast', actorId: p.id, position: { ...p.position }, target: aim ?? targets.cells.at(-1) ?? { ...p.position }, path: targets.cells, skillId: id, attribute: def.attribute, sound: id === 'icestone' ? 'ice' : undefined });
-    const level = effectiveLevel(s.skillBag, s.skillLevels, id), multiplier = 1 + (level - 1) * .05;
+    const relocation = id === 'vacuumSlash' ? vacuumDestinations(s,s.enemyStates.find(e=>e.id===targets.targetIds[0])!) : [];
+    this.events.push({ type: 'cast', actorId: p.id, position: { ...p.position }, target: aim ?? targets.cells.at(-1) ?? { ...p.position }, path: targets.cells, skillId: id, attribute: def.attribute, sound: id === 'icestone' ? 'ice' : id === 'vacuumSlash' ? 'magicCast' : id === 'sweep' ? 'strike' : undefined });
+    const level = effectiveLevel(s.skillBag, s.skillLevels, id), multiplier = (1 + (level - 1) * .05) * connectionDamageMultiplier(s.skillBag, id);
     const hitStart = this.events.length; this.groupingDamage = true;
     for (const targetId of targets.targetIds) {
       const target = s.enemyStates.find(e => e.id === targetId)!;
       for (let hit = 0; hit < def.hits && target.hp > 0; hit++) {
         const critical = this.rng.next() < criticalChance(p, target, def.attribute);
-        const power = id === 'attack' ? .5 + this.rng.next() * .2 : def.multiplier;
+        const power = id === 'attack' ? .5 + this.rng.next() * .2 : id === 'sweep' ? .4 + this.rng.next() * .2 : def.multiplier;
         const amount = attackPower(p) * power * multiplier * (critical ? p.criticalMultiplier : 1);
         dealAttributeHit(target, amount, def.attribute, s.playerActionCount, s.enemyStates, this.damage, this.events, () => this.rng.next(), critical);
       }
@@ -287,6 +293,7 @@ export class GameSession {
         if (canStand(s.mapState, target, pos, this.actors)) target.position = pos;
       }
     }
+    if (relocation.length) { const from={...p.position}; p.position={...relocation[this.rng.int(0,relocation.length-1)]};this.events.push({type:'cast',actorId:p.id,position:from,target:{...p.position},skillId:'warp',attribute:'wind',delayMs:250,durationMs:250}); }
     this.groupingDamage = false; this.logHits(def.name, hitStart, def.hits > 1);
     for (const event of this.events.filter(e => e.type === 'reaction')) this.log(`${event.text}が発生！`);
   }
@@ -300,8 +307,9 @@ export class GameSession {
       const hp = Math.ceil(p.maxHp * PROGRESSION.statGrowth), mp = Math.ceil(p.maxMp * PROGRESSION.statGrowth);
       p.maxHp += hp; p.hp += hp; p.maxMp += mp; p.mp += mp;
       if (s.playerLevel! % 3 === 0) p.attack++;
-      expandBag(s, this.rng);
-      this.log('旅人がLv.' + s.playerLevel + 'に！ 最大HP+' + hp + '・最大MP+' + mp + (s.playerLevel! % 3 === 0 ? '・基礎攻撃力+1' : '') + '、バッグが1マス拡張！');
+      const expansion=s.playerLevel!%5===0?2:1;
+      for(let n=0;n<expansion;n++)expandBag(s, this.rng);
+      this.log('旅人がLv.' + s.playerLevel + 'に！ 最大HP+' + hp + '・最大MP+' + mp + (s.playerLevel! % 3 === 0 ? '・基礎攻撃力+1' : '') + '、バッグが'+expansion+'マス拡張！');
       this.events.push({ type: 'levelup', actorId: p.id, position: { ...p.position }, text: '✦ LEVEL UP! Lv.' + s.playerLevel, durationMs: 2200 });
     }
     if (s.playerLevel === PROGRESSION.maxLevel) s.experience = 0;
@@ -330,7 +338,7 @@ export class GameSession {
   private advanceFloor(): void {
     const s = this.state, next = s.floorNumber! + 1;
     const { map, enemies, spawn } = generateMap(this.stage, this.rng, next);
-    s.floorNumber = next; s.mapState = map; map.playerTraps = []; s.enemyStates = enemies;
+    s.floorNumber = next; s.mapState = map; map.playerTraps = []; s.enemyStates = enemies; s.reinforcementKinds=[...new Set(enemies.map(e=>e.kind))].filter(k=>k!=='player'&&k!=='sprite');
     s.playerState.position = { ...spawn }; s.objectiveChests = 0; s.fullBagRewardClaimed = false; s.defeatedEnemies = []; s.nightRevived = 0; s.nightWave = undefined; s.nightTarget = undefined;
     s.exploredMap = new Array(map.width * map.height).fill(false);
     const placed: Actor[] = [s.playerState, ...enemies];
@@ -351,8 +359,9 @@ export class GameSession {
     const wave = count < DAY_CYCLE.midnight ? 0 : 1 + Math.floor((count - DAY_CYCLE.midnight) / DAY_CYCLE.revivalInterval);
     if (s.nightWave !== wave) { s.nightWave = wave; s.nightRevived = 0; s.nightTarget = this.rng.int(rule.min, Math.max(rule.min, rule.max)); }
     const desired = s.nightTarget ?? rule.min;
-    if (s.nightRevived! >= desired || !s.defeatedEnemies?.length) return;
-    const dead = [...s.defeatedEnemies];
+    if (s.nightRevived! >= desired || wave===0&&!s.defeatedEnemies?.length) return;
+    const pool=s.reinforcementKinds ?? [];
+    const dead = wave===0 ? [...(s.defeatedEnemies??[])] : Array.from({length:desired-s.nightRevived!},(_,i)=>actor('reinforcement-'+i,pool.length?pool[this.rng.int(0,pool.length-1)]:'slime',{x:0,y:0},s.stageId,s.floorNumber));
     while (dead.length && s.nightRevived! < desired) {
       const old = dead.splice(this.rng.int(0, dead.length - 1), 1)[0];
       const enemy = actor(`night-${s.floorNumber}-${s.playerActionCount}-${s.nightRevived}`, old.kind, old.position, s.stageId, s.floorNumber), cells: Point[] = [];
@@ -365,7 +374,7 @@ export class GameSession {
       if (!cells.length) continue;
       enemy.experienceMultiplier = wave === 0 ? DAY_CYCLE.nightExperience : DAY_CYCLE.midnightExperience;
       enemy.position = cells[this.rng.int(0, cells.length - 1)]; s.enemyStates.push(enemy);
-      s.defeatedEnemies = s.defeatedEnemies.filter(a => a.id !== old.id); s.nightRevived!++;
+      if(wave===0)s.defeatedEnemies = s.defeatedEnemies!.filter(a => a.id !== old.id); s.nightRevived!++;
       if (this.inPlayerScreen(enemy.position)) { this.events.push({ type: 'trap', position: { ...enemy.position }, visual: 'summonRing', sound: 'howl' }); this.log(`壁際から${enemy.name}が現れた！`); }
     }
   }
@@ -376,7 +385,8 @@ export class GameSession {
     p.hp = p.maxHp; p.mp = p.maxMp; p.afflictions = []; p.movementLockedUntil = 0;
     // 一晩で期限付き状態と再使用待ちを解消。回復カウントも新しい朝から開始。
     s.cooldowns = {}; s.mpRecoveryActions = 0;
-    for (const a of this.actors) { a.buffs = []; a.afflictions = []; }
+    for (const a of this.actors) { a.buffs = []; a.afflictions = []; a.hp=a.maxHp; if(a.maxMp!==undefined)a.mp=a.maxMp; }
+    s.allyStates=[];
     const limit = this.stage.sleepRespawnCount ?? DAY_CYCLE.respawnCount;
     const dead = [...(s.defeatedEnemies ?? [])]; let count = 0;
     while (dead.length && count < limit) {
@@ -425,12 +435,13 @@ export class GameSession {
     if (p.hp > 0) this.collect(); this.reap();
     this.capture('player');
     for (const ally of s.allyStates) { if (p.hp <= 0) break; actSummon(s, ally, this.rng, this.events, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, message => this.log(message)); }
+    for(const ally of s.allyStates){if(ally.remainingLife!==undefined&&--ally.remainingLife<=0){ally.hp=0;this.log(ally.name+'は役目を終え、消えていった。');this.events.push({type:'defeat',actorId:ally.id,position:{...ally.position},text:'消滅'});}}
     this.reap(); this.capture('ally');
     for (const enemy of s.enemyStates) {
       if (p.hp <= 0) break;
       const beforePosition = { ...enemy.position };
       const innate = actorDefinition(enemy.kind).innateAttribute;
-      if (innate) { enemy.afflictions = enemy.afflictions.filter(f => f.attribute !== innate); if (enemy.afflictions.length >= 2) enemy.afflictions.shift(); enemy.afflictions.push({ attribute: innate, remainingTurns: 10, appliedAt: s.playerActionCount }); }
+      if (innate && innate !== 'wind') { enemy.afflictions = enemy.afflictions.filter(f => f.attribute !== innate); if (enemy.afflictions.length >= 2) enemy.afflictions.shift(); enemy.afflictions.push({ attribute: innate, remainingTurns: 10, appliedAt: s.playerActionCount }); }
       const skillContext = { action: s.playerActionCount, allies: s.enemyStates, map: s.mapState, actors: this.actors, rng: this.rng, events: this.events, damage: (target: Actor, amount: number, attribute: Attribute, _critical?: boolean, label?: string) => this.strike(enemy, target, amount, attribute, label), log: (message: string) => { if (this.inPlayerScreen(enemy.position) || this.events.at(-1)?.path?.some(p => this.inPlayerScreen(p))) this.log(message); } };
       // 支援は敵を見つけていなくても使用可能。攻撃スキルは通常AIの索敵後に試す。
       enemy.enemyCooldownUntil ??= {};
@@ -442,7 +453,7 @@ export class GameSession {
         s.mapState.playerTraps = s.mapState.playerTraps!.filter(t => t.id !== trap.id);
         const start = this.events.length; this.groupingDamage = true;
         const elapsed = Math.min(10, Math.max(0, s.playerActionCount - (trap.placedAt ?? s.playerActionCount)));
-        dealAttributeHit(enemy, trap.damage * (1 + elapsed * .05), 'nature', s.playerActionCount, s.enemyStates, this.damage, this.events, () => this.rng.next());
+        dealAttributeHit(enemy, trap.damage * (1 + elapsed * .05) * connectionDamageMultiplier(s.skillBag, trap.sourceSkillId ?? 'groundbreak'), 'nature', s.playerActionCount, s.enemyStates, this.damage, this.events, () => this.rng.next());
         this.groupingDamage = false; this.logHits('地砕きの罠', start);
         this.events.push({ type: 'trap', position: { ...trap.position }, visual: 'fallingRocks', sound: 'rocks' });
       }
