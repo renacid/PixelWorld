@@ -180,3 +180,8 @@ body.critical-health.still-effects::after{animation:none;opacity:.09}
 
 /* 道具と十字キーは等幅、待機だけ横幅を抑えて誤タップを防ぐ。 */
 .control-bottom .dpad .wait{width:80%;justify-self:center}
+
+/* 無効時もボタンのタッチを受け止め、連打の拡大を防ぐ。 */
+.map-viewport .cast-slot,.map-viewport .cast-slot .cast-button{touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.map-viewport .cast-slot .cast-button[aria-disabled="true"]{opacity:.9;white-space:normal;background:#edf4e6e6;color:#52665a;cursor:default}
+.cast-button[aria-disabled="true"]:active{transform:none;filter:none}

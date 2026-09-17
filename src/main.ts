@@ -43,7 +43,7 @@ function selectSkill(id: SkillId): void {
   if (selected) { const strip = document.getElementById('skill-buttons'), button = strip?.querySelector<HTMLElement>('[data-skill="' + selected + '"]'); if (strip && button) { const r = button.getBoundingClientRect(), box = strip.getBoundingClientRect(); if (r.left < box.left || r.right > box.right) strip.scrollBy({ left: r.left < box.left ? r.left - box.left - 4 : r.right - box.right + 4, behavior: 'smooth' }); } }
 }
 function castSelected(): void {
-  if (selected && session && validSkillTarget(session.state, selected, aim)) act({ type: 'cast', skillId: selected, direction: session.state.playerState.facing, target: aim });
+  if (selected && session && !actionLocked && !modal && !session.canCast(selected) && validSkillTarget(session.state, selected, aim)) act({ type: 'cast', skillId: selected, direction: session.state.playerState.facing, target: aim });
 }
 const escape = (text: string) => text.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 function on(id: string, fn: () => void): void { document.getElementById(id)?.addEventListener('click', fn); }
@@ -130,6 +130,9 @@ function showGame(): void {
   });
   renderer.onPhase = phase => { const label = document.getElementById('phase-label'); if (label) { label.textContent = phase; label.hidden = !phase; } };
   on('pause', pause); on('bag-button', () => openBag(false)); on('map-button', fullMap); on('wait', () => { selected = null; act({ type: 'wait' }); });
+  // 待機中もタッチを受け取り、Safariのダブルタップ拡大へ渡さない。
+  const castButton=document.getElementById('cast')!;
+  castButton.addEventListener('touchend',e=>{if(e.touches.length||e.changedTouches.length!==1)return;e.preventDefault();castSelected();},{passive:false});
   on('cast', castSelected);
   on('cancel-aim', () => { selected = null; update(); });
   on('camera-reset', () => { renderer!.camera = null; update(); });
@@ -262,7 +265,7 @@ function update(): void {
   if (selected && !validSkillTarget(s, selected, aim)) aim = undefined;
   // 選択中はボタン自体を残し、MP・CT・着弾点など発動できない理由を表示する。
   const castError = selected ? session.canCast(selected) ?? (!validSkillTarget(s, selected, aim) ? 'マップで対象を選択' : actionLocked ? '行動の終了を待っています' : null) : null;
-  cast.disabled = !selected || !!castError; cast.classList.toggle('ready', !!selected && !cast.disabled);
+  cast.disabled = false; cast.setAttribute('aria-disabled', String(!selected || !!castError)); cast.classList.toggle('ready', !!selected && !castError);
   cast.hidden = !selected;
   cast.textContent = selected ? castError ?? `${SKILLS[selected].short}を発動 ↗` : '';
   cast.setAttribute('aria-label', selected ? `${SKILLS[selected].name}：${castError ?? '発動確定'}` : 'スキルを選択');
