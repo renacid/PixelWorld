@@ -47,6 +47,7 @@ export class GameSession {
       if (trap.placedAt === undefined) { const oldTurn = Number(trap.id.replace('groundbreak-', '')); trap.placedAt = Number.isInteger(oldTurn) && oldTurn >= 0 ? Math.min(oldTurn, state.playerActionCount) : state.playerActionCount; trap.damage = attackPower(state.playerState); }
     }
     state.mapState.playerTraps = (state.mapState.playerTraps ?? []).filter(t => !!state.skillLevels[t.sourceSkillId!]);
+    state.dayCount ??= 1; state.killCombo ??= 0;
     state.mpRecoveryActions ??= 0; state.daylightCount ??= 0; state.defeatedEnemies ??= []; state.skillWear ??= {}; state.pendingGemChoices ??= []; state.mapState.playerTraps ??= []; state.playerState.visionBonus ??= state.playerState.freeCamera ? 2 : 0;
     // Older saves remain playable; existing hostile enemies do not alert again.
     for (const a of this.actors) {
@@ -317,8 +318,15 @@ export class GameSession {
   reap(): void {
     for (const e of this.state.enemyStates.filter(e => e.hp <= 0)) {
       this.state.defeatedEnemies!.push(structuredClone(e));
-      this.gainExperience(actorDefinition(e.kind).experience * (e.experienceMultiplier ?? 1));
-      this.log(`${e.name}を倒した。`); this.events.push({ type: 'defeat', position: { ...e.position } });
+      const s = this.state;
+      // 同時撃破も1体ずつ加算。撃破なしの行動を挟むと次の撃破から数え直す。
+      if (s.lastKillAction === undefined || s.lastKillAction < s.playerActionCount - 1) s.killCombo = 0;
+      s.killCombo = (s.killCombo ?? 0) + 1; s.lastKillAction = s.playerActionCount;
+      const base = Math.ceil(actorDefinition(e.kind).experience * (e.experienceMultiplier ?? 1));
+      const multiplier = s.killCombo >= 4 ? 1.5 : s.killCombo >= 2 ? 1.2 : 1;
+      const earned = Math.ceil(base * multiplier), bonus = earned - base;
+      this.log(`${e.name}を倒した！経験値${earned}${bonus > 0 ? `(+${bonus})` : ''}獲得`);
+      this.gainExperience(earned); this.events.push({ type: 'defeat', position: { ...e.position } });
       rollDrops(actorDefinition(e.kind).drops, this.rng, this.state.floorNumber).forEach((loot, index) => this.state.mapState.objects.push(floorLoot(`drop-${e.id}-${index}`, e.position, loot)));
     }
     this.state.enemyStates = this.state.enemyStates.filter(e => e.hp > 0);
@@ -338,6 +346,7 @@ export class GameSession {
   private advanceFloor(): void {
     const s = this.state, next = s.floorNumber! + 1;
     const { map, enemies, spawn } = generateMap(this.stage, this.rng, next);
+    s.killCombo = 0; s.lastKillAction = undefined;
     s.floorNumber = next; s.mapState = map; map.playerTraps = []; s.enemyStates = enemies; s.reinforcementKinds=[...new Set(enemies.map(e=>e.kind))].filter(k=>k!=='player'&&k!=='sprite');
     s.playerState.position = { ...spawn }; s.objectiveChests = 0; s.fullBagRewardClaimed = false; s.defeatedEnemies = []; s.nightRevived = 0; s.nightWave = undefined; s.nightTarget = undefined;
     s.exploredMap = new Array(map.width * map.height).fill(false);
@@ -381,6 +390,7 @@ export class GameSession {
   private sleep(): boolean {
     if (!this.canSleep()) { this.log('夜、敵に気付かれていないときだけ眠れます。'); return false; }
     const s = this.state, p = s.playerState;
+    s.dayCount = (s.dayCount ?? 1) + 1; s.killCombo = 0; s.lastKillAction = undefined;
     s.playerActionCount++; s.turnCount++; s.daylightCount = 0; s.nightRevived = 0; s.nightWave = undefined; s.nightTarget = undefined;
     p.hp = p.maxHp; p.mp = p.maxMp; p.afflictions = []; p.movementLockedUntil = 0;
     // 一晩で期限付き状態と再使用待ちを解消。回復カウントも新しい朝から開始。

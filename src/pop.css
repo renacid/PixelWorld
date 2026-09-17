@@ -185,3 +185,20 @@ body.critical-health.still-effects::after{animation:none;opacity:.09}
 .map-viewport .cast-slot,.map-viewport .cast-slot .cast-button{touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
 .map-viewport .cast-slot .cast-button[aria-disabled="true"]{opacity:.9;white-space:normal;background:#edf4e6e6;color:#52665a;cursor:default}
 .cast-button[aria-disabled="true"]:active{transform:none;filter:none}
+
+/* バッグ上部は操作列を右に固定し、形状の縦横比に関わらず左領域の中央へ。 */
+.bag-modal .bag-layout{display:grid;grid-template-columns:minmax(0,1fr) 43px;max-width:none;gap:12px}
+.bag-stage{display:flex;align-items:center;justify-content:center;min-width:0}
+.bag-stage .bag-grid{width:100%;flex:none}
+.bag-modal .bag-tools{width:43px;justify-self:end}
+.bag-list-item>small.unplaced{color:#cf3345;font-weight:700}
+.reorder-handle .block-thumbnail{width:26px;height:28px;display:block;margin:auto;pointer-events:none}
+.gem-inspect{display:flex;gap:8px;margin-top:16px}
+.gem-inspect button{flex:1;font-size:11px;padding:10px 5px}
+.game-header h1 .day-label{margin-left:14px;white-space:nowrap;color:#6c8973;font-size:10px}
+
+/* 左は並べ替え、右は形状をつかんで配置。タッチのスクロール判定と分離する。 */
+.bag-scroll [data-reorder]{touch-action:none;cursor:grab;display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:40px}
+.bag-scroll .placement-handle{position:absolute;right:3px;top:8px;width:29px;height:32px;min-width:29px;min-height:32px;padding:0;background:transparent;touch-action:none;cursor:grab}
+.placement-handle .block-thumbnail{width:26px;height:28px;display:block;margin:auto;pointer-events:none}
+.bag-outline{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;overflow:visible;filter:drop-shadow(0 2px 2px #49381c65)}

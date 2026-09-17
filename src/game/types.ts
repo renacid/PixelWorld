@@ -41,6 +41,10 @@ export type SaveData = {
   skillWear?: Partial<Record<SkillId, { uses: number; extraMp: number }>>;
   pendingGemChoices?: string[][];
   daylightCount?: number;
+  /** 睡眠ごとに進む日数。旧セーブは1日目から再開。 */
+  dayCount?: number;
+  /** 同一行動・直前の行動から続く撃破数。 */
+  killCombo?: number; lastKillAction?: number;
   fullBagRewardClaimed?: boolean;
   floorNumber?: number; floorCount?: number; nightRevived?: number; nightWave?: number; nightTarget?: number;
   reinforcementKinds?: EnemyKind[];

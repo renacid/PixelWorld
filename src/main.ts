@@ -105,7 +105,7 @@ function startStage(id: number): void {
 }
 function showGame(): void {
   stopRenderer(); screen = 'game'; const s = session!;
-  app.innerHTML = `<main class="game-shell"><header class="game-header"><div><span class="eyebrow">THE GREEN EXPANSE / 0${s.state.stageId}</span><h1>${s.stage.name} <small>${s.state.floorNumber ?? 1}/${s.state.floorCount ?? 1}層</small><span>${s.stage.subtitle}</span></h1></div><button id="pause" class="icon-button" aria-label="中断メニュー">Ⅱ</button></header>
+  app.innerHTML = `<main class="game-shell"><header class="game-header"><div><span class="eyebrow">THE GREEN EXPANSE / 0${s.state.stageId}</span><h1>${s.stage.name} <small>${s.state.floorNumber ?? 1}/${s.state.floorCount ?? 1}層</small><small id="day-label" class="day-label">${s.state.dayCount ?? 1}日目</small><span>${s.stage.subtitle}</span></h1></div><button id="pause" class="icon-button" aria-label="中断メニュー">Ⅱ</button></header>
     <section class="hud"><button id="map-button" class="minimap-button" aria-label="全体マップを開く"><canvas id="minimap"></canvas><span>MAP ↗</span></button><div class="vitals"><div class="vital"><span class="vital-title">HP</span><div class="meter"><i id="hp-bar"></i></div><strong id="hp-label"></strong></div><div class="vital mp"><span class="vital-title">MP</span><div class="meter"><i id="mp-bar"></i></div><strong id="mp-label"></strong></div><div class="vital exp"><span class="vital-title" id="level-label"></span><div class="meter"><i id="exp-bar"></i></div><strong id="exp-label"></strong></div></div><div class="turn-counter"><small>ACTION</small><strong id="turn-label">00</strong><span id="regen-label"></span></div></section>
     <section class="map-viewport"><canvas id="game-canvas" aria-label="周囲11×11、外周が半マス見切れるダンジョンマップ"></canvas><div class="map-objective" id="objective-text"></div><div id="phase-label" hidden></div><button id="camera-reset" hidden>◎ プレイヤーへ</button><div id="event-feed" aria-live="polite"></div><button id="sleep-button" class="sleep-button" hidden>☾ 睡眠</button><div class="map-tools"><button id="day-clock" aria-label="昼夜の状態"></button><button id="log-button">ログ</button><button id="bag-button" aria-label="スキルバッグを開く">▦ バッグ</button></div><div class="cast-slot"><button id="cast" class="cast-button" hidden></button></div></section>
     <section class="controls"><div class="skill-strip-wrap"><span id="skill-left" class="scroll-hint" hidden>‹</span><span id="skill-right" class="scroll-hint right" hidden>›</span><div id="skill-buttons" class="skill-buttons" tabindex="0" aria-label="配置済みスキル。左右にスクロールできます"></div></div>
@@ -210,9 +210,7 @@ function showGame(): void {
     }
     const cell = renderer!.mapPoint(e.clientX, e.clientY);
     if (occupied(s.state.playerState).some(p => same(p, cell))) {
-      const p = s.state.playerState;
-      dialog('<div class="dialog-heading"><h2>旅人 Lv.' + s.state.playerLevel + '</h2><button id="close-player" class="icon-button">×</button></div><p>HP ' + p.hp + ' / ' + p.maxHp + '<br>MP ' + p.mp + ' / ' + p.maxMp + '<br>基礎攻撃力 ' + p.attack + '（現在 ' + attackPower(p) + '）<br>会心率 ' + Math.round(p.criticalRate * 100) + '%<br>会心ダメージ ' + Math.round(p.criticalMultiplier * 100) + '%</p><h3>バフ・状態</h3><p>' + ((p.buffs ?? []).filter(b => b.remainingTurns > 0).map(b => '攻撃+' + (b.attackBonus ?? 0) + '・攻撃×' + b.attackMultiplier + '・索敵+' + b.detectionBonus + '：残り' + b.remainingTurns + 'ターン').concat(p.afflictions.map(a => ATTRIBUTE_NAMES[a.attribute] + '：残り' + a.remainingTurns + 'ターン'), (p.movementLockedUntil ?? 0) > s.state.playerActionCount ? ['移動不可'] : [], p.visionBonus ? ['視野+' + p.visionBonus] : []).join('<br>') || 'なし') + '</p>');
-      on('close-player', closeModal); return;
+      showPlayerStatus(); return;
     }
     const ally = s.state.allyStates.find(a => a.hp > 0 && s.visible(a.position) && occupied(a).some(p => same(p, cell)));
     if (ally) {
@@ -233,6 +231,7 @@ function update(): void {
   if (screen !== 'game' || !session) return;
   const s = session.state, p = s.playerState;
   const text = (id: string, value: string) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+  text('day-label', `${s.dayCount ?? 1}日目`);
   text('hp-label', `${Math.ceil(p.hp)} / ${p.maxHp}`); text('mp-label', `${p.mp} / ${p.maxMp}`); text('turn-label', String(s.playerActionCount).padStart(2, '0'));
   const clock = document.querySelector<HTMLButtonElement>('#day-clock')!;
   document.body.classList.toggle('critical-health', p.hp > 0 && p.hp / p.maxHp <= .1);
@@ -304,9 +303,18 @@ function act(command: Command): void {
   }
   update();
 }
+/** 宝石選択からの閲覧は、閉じると同じ選択画面へ戻す。 */
+function showPlayerStatus(onClose: () => void = closeModal): void {
+  if (!session) return;
+  const s = session, p = s.state.playerState;
+  dialog('<div class="dialog-heading"><h2>旅人 Lv.' + s.state.playerLevel + '</h2><button id="close-player" class="icon-button">×</button></div><p>HP ' + p.hp + ' / ' + p.maxHp + '<br>MP ' + p.mp + ' / ' + p.maxMp + '<br>基礎攻撃力 ' + p.attack + '（現在 ' + attackPower(p) + '）<br>会心率 ' + Math.round(p.criticalRate * 100) + '%<br>会心ダメージ ' + Math.round(p.criticalMultiplier * 100) + '%</p><h3>バフ・状態</h3><p>' + ((p.buffs ?? []).filter(b => b.remainingTurns > 0).map(b => '攻撃+' + (b.attackBonus ?? 0) + '・攻撃×' + b.attackMultiplier + '・索敵+' + b.detectionBonus + '：残り' + b.remainingTurns + 'ターン').concat(p.afflictions.map(a => ATTRIBUTE_NAMES[a.attribute] + '：残り' + a.remainingTurns + 'ターン'), (p.movementLockedUntil ?? 0) > s.state.playerActionCount ? ['移動不可'] : [], p.visionBonus ? ['視野+' + p.visionBonus] : []).join('<br>') || 'なし') + '</p>');
+  on('close-player', onClose);
+}
 function openGem(): void {
   if (!session?.state.pendingGemChoices?.length) return;
-  dialog('<h2>宝石の力を選ぶ</h2><p>冒険中の強化を1つ選択してください。</p>' + session.state.pendingGemChoices[0].map((id, i) => '<button class="secondary gem-choice" data-reward="' + i + '">' + escape(GEM_REWARDS[id].name) + '</button>').join(''));
+  dialog('<h2>宝石の力を選ぶ</h2><p>冒険中の強化を1つ選択してください。</p>' + session.state.pendingGemChoices[0].map((id, i) => '<button class="secondary gem-choice" data-reward="' + i + '">' + escape(GEM_REWARDS[id].name) + '</button>').join('') + '<div class="gem-inspect"><button id="gem-status" class="secondary">ステータスを見る</button><button id="gem-bag" class="secondary">スキルバッグを見る</button></div>');
+  on('gem-status', () => showPlayerStatus(openGem));
+  on('gem-bag', () => openBag(false, true, openGem));
   modal!.querySelectorAll<HTMLElement>('[data-reward]').forEach(b => b.addEventListener('click', () => {
     if (!session!.chooseGem(Number(b.dataset.reward))) return;
     persist(); closeModal(); update(); if (session!.state.pendingGemChoices?.length) openGem(); else if (session!.state.pendingBag) openBag(true);
@@ -355,7 +363,12 @@ function showSettings(): void {
   document.getElementById('grid-setting')!.addEventListener('change', e => { settings.grid = (e.target as HTMLInputElement).checked; saves.saveSettings(settings); if (renderer) renderer.settings = settings; });
   document.getElementById('motion-setting')!.addEventListener('change', e => { settings.motion = (e.target as HTMLInputElement).checked; saves.saveSettings(settings); if (renderer) renderer.settings = settings; });
 }
-function openBag(acquisition: boolean): void {
+/** 固定枠内に形状全体を収める。回転も配置中の状態と揃える。 */
+function blockThumbnail(id: SkillId, rotation: number): string {
+  const cells = shape(id, rotation), w = Math.max(...cells.map(c => c.x)) + 1, h = Math.max(...cells.map(c => c.y)) + 1;
+  return `<svg class="block-thumbnail" viewBox="0 0 ${w * 10} ${h * 10}" aria-hidden="true">${cells.map(c => `<rect x="${c.x * 10 + 1}" y="${c.y * 10 + 1}" width="8" height="8" rx="1" fill="${ATTRIBUTE_COLORS[SKILLS[id].attribute]}"/>`).join('')}</svg>`;
+}
+function openBag(acquisition: boolean, readOnly = false, onReturn?: () => void): void {
   if (!session || actionLocked) return;
   const draft: BagBlock[] = structuredClone(session.state.skillBag).sort((a: BagBlock, b: BagBlock) => Number(!!b.isNew) - Number(!!a.isNew));
   const available = session.state.bagCells!;
@@ -363,12 +376,13 @@ function openBag(acquisition: boolean): void {
   const expanded = new Set(draft.filter(b => b.isNew).map(b => b.skillId));
   let active = draft[0]?.skillId ?? null;
   let rotation = draft.find(b => b.skillId === active)?.rotation ?? 0;
-  let message = acquisition ? '手に入れたスキルを配置しよう。' : '未配置のスキルは閉じると消滅します。アイコンをドラッグして配置。';
-  const editable = true;
-  dialog(`<div class="bag-layout"><div class="bag-grid" id="bag-grid" role="grid" aria-label="レベルで拡張するスキルバッグ"></div><div class="bag-tools"><button id="close-bag" class="icon-button" aria-label="バッグの配置を保存して閉じる">×</button><button id="rotate" aria-label="選択ブロックを90度回転" ${editable ? '' : 'disabled'}>↻<small>回転</small></button><button id="unplace" ${editable ? '' : 'disabled'}>↥<small>外す</small></button><div id="shape-preview" aria-label="選択スキルの形"></div></div></div><div id="bag-message" class="bag-message" aria-live="polite"></div><div class="bag-scroll"><div id="bag-list" class="bag-list"></div></div>`, 'bag-modal');
+  let message = acquisition ? '手に入れたスキルを配置しよう。' : '未配置のスキルは閉じると消滅します。右のミニブロックで配置、左のアイコンで順番を変更。';
+  const editable = !readOnly;
+  if (readOnly) message = '閲覧中：×で宝石の選択に戻ります。';
+  dialog(`<div class="bag-layout"><div class="bag-stage"><div class="bag-grid" id="bag-grid" role="grid" aria-label="レベルで拡張するスキルバッグ"></div></div><div class="bag-tools"><button id="close-bag" class="icon-button" aria-label="バッグの配置を保存して閉じる">×</button><button id="rotate" aria-label="選択ブロックを90度回転" ${editable ? '' : 'disabled'}>↻<small>回転</small></button><button id="unplace" ${editable ? '' : 'disabled'}>↥<small>外す</small></button><div id="shape-preview" aria-label="選択スキルの形"></div></div></div><div id="bag-message" class="bag-message" aria-live="polite"></div><div class="bag-scroll"><div id="bag-list" class="bag-list"></div></div>`, 'bag-modal');
   const grid = document.getElementById('bag-grid')!;
   grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`; grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`; grid.style.aspectRatio = `${cols}/${rows}`; grid.style.maxWidth = `${Math.min(260, 260 * cols / rows)}px`;
-  document.getElementById('shape-preview')!.addEventListener('pointerdown', e => { if(active) beginDrag(e,active); });
+  document.getElementById('shape-preview')!.addEventListener('pointerdown', e => { if(editable && active) beginDrag(e,active); });
   function drawBag(): void {
     grid.innerHTML = Array.from({ length: cols * rows }, (_, i) => `<button class="bag-cell ${available.some(p => p.x === i % cols && p.y === Math.floor(i / cols)) ? '' : 'locked-cell'}" data-cell="${i}" role="gridcell" aria-label="${i % cols + 1}列${Math.floor(i / cols) + 1}行" ${available.some(p => p.x === i % cols && p.y === Math.floor(i / cols)) ? '' : 'disabled'}></button>`).join('');
     for (const block of draft.filter(b => b.position)) {
@@ -378,17 +392,35 @@ function openBag(acquisition: boolean): void {
       piece.style.cssText += `left:${block.position!.x * 100 / cols}%;top:${block.position!.y * 100 / rows}%;width:${w * 100 / cols}%;height:${h * 100 / rows}%;`;
       cells.forEach((c, i) => { const cell = document.createElement('span'); cell.className = 'piece-cell'; cell.style.cssText = `left:${c.x / w * 100}%;top:${c.y / h * 100}%;width:${100 / w}%;height:${100 / h}%;`; cell.innerHTML = i === 0 ? icons[block.skillId] : '·'; piece.append(cell); }); grid.append(piece);
     }
+    // 解放セル同士の境界を除き、凹凸を含めたバッグ全体の外周だけを描く。
+    const unlocked = new Set(available.map(p => p.x + ',' + p.y));
+    const edges: string[] = [];
+    for (const { x, y } of available) {
+      if (!unlocked.has(x + ',' + (y - 1))) edges.push(`M${x} ${y}h1`);
+      if (!unlocked.has((x + 1) + ',' + y)) edges.push(`M${x + 1} ${y}v1`);
+      if (!unlocked.has(x + ',' + (y + 1))) edges.push(`M${x} ${y + 1}h1`);
+      if (!unlocked.has((x - 1) + ',' + y)) edges.push(`M${x} ${y}v1`);
+    }
+    const outline = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    outline.classList.add('bag-outline'); outline.setAttribute('aria-hidden', 'true');
+    outline.setAttribute('viewBox', `0 0 ${cols} ${rows}`);
+    outline.setAttribute('preserveAspectRatio', 'none');
+    outline.innerHTML = `<path d="${edges.join(' ')}" fill="none" stroke="#88765399" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+    grid.append(outline);
     document.getElementById('bag-message')!.textContent = message;
     document.getElementById('bag-list')!.innerHTML = draft.map(b => {
       const d = SKILLS[b.skillId];
-      return `<section class="bag-entry" data-entry="${b.skillId}"><button data-bag-skill="${b.skillId}" class="bag-list-item ${active === b.skillId ? 'active' : ''}" style="--skill-color:${ATTRIBUTE_COLORS[d.attribute]}" aria-expanded="${expanded.has(b.skillId)}"><span data-drag-handle title="ドラッグして配置">${icons[b.skillId]}</span><span><strong>${d.name}</strong><small>${ATTRIBUTE_NAMES[d.attribute]} · 基礎Lv.${session!.state.skillLevels[b.skillId]} 連結${connectionBonus(draft, b.skillId)} · ダメージ×${connectionDamageMultiplier(draft, b.skillId).toFixed(2)}</small></span><small>${b.position ? '配置済' : '未配置'} ${expanded.has(b.skillId) ? '▴' : '▾'}</small>${b.isNew ? '<i class="new-badge">new</i>' : ''}</button><button class="reorder-handle" data-reorder="${b.skillId}" aria-label="${d.name}の順番をドラッグで変更">⠿</button><div class="bag-description ${expanded.has(b.skillId) ? 'expanded' : ''}"><div><p>${skillMpLabel(session!.state, b.skillId)} / CT ${d.cooldown} / Lv.${effectiveLevel(draft, session!.state.skillLevels, b.skillId)}</p><p>${skillDescription(session!.state,b.skillId,draft)}</p></div></div></section>`;
+      return `<section class="bag-entry" data-entry="${b.skillId}"><button data-bag-skill="${b.skillId}" class="bag-list-item ${active === b.skillId ? 'active' : ''}" style="--skill-color:${ATTRIBUTE_COLORS[d.attribute]}" aria-expanded="${expanded.has(b.skillId)}"><span data-reorder="${b.skillId}" title="ドラッグして順番を変更">${icons[b.skillId]}</span><span><strong>${d.name}</strong><small>${ATTRIBUTE_NAMES[d.attribute]} · 基礎Lv.${session!.state.skillLevels[b.skillId]} 連結${connectionBonus(draft, b.skillId)} · ダメージ×${connectionDamageMultiplier(draft, b.skillId).toFixed(2)}</small></span><small>${b.position ? '配置済' : '未配置'} ${expanded.has(b.skillId) ? '▴' : '▾'}</small>${b.isNew ? '<i class="new-badge">new</i>' : ''}</button><button class="placement-handle" data-drag-handle="${b.skillId}" aria-label="${d.name}のブロックをドラッグして配置">${blockThumbnail(b.skillId, b.rotation)}</button><div class="bag-description ${expanded.has(b.skillId) ? 'expanded' : ''}"><div><p>${skillMpLabel(session!.state, b.skillId)} / CT ${d.cooldown} / Lv.${effectiveLevel(draft, session!.state.skillLevels, b.skillId)}</p><p>${skillDescription(session!.state,b.skillId,draft)}</p></div></div></section>`;
     }).join('') || '<p class="footnote">まだスキルを持っていません。</p>';
     document.querySelectorAll<HTMLButtonElement>('[data-bag-skill]').forEach(b => {
-      b.addEventListener('click', () => { active = b.dataset.bagSkill as SkillId; if (expanded.has(active)) expanded.delete(active); else expanded.add(active); rotation = draft.find(p => p.skillId === active)!.rotation; message = `${SKILLS[active].name}を選択中。置きたいマスをタップ。`; syncSelection(); });
-      if (editable) b.addEventListener('pointerdown', e => { if ((e.target as HTMLElement).closest('[data-drag-handle]')) beginDrag(e, b.dataset.bagSkill as SkillId); });
+      b.addEventListener('click', () => { active = b.dataset.bagSkill as SkillId; if (expanded.has(active)) expanded.delete(active); else expanded.add(active); rotation = draft.find(p => p.skillId === active)!.rotation; message = readOnly ? '閲覧中：×で宝石の選択に戻ります。' : `${SKILLS[active].name}を選択中。置きたいマスをタップ。`; syncSelection(); });
+
     });
+    grid.closest('.dialog')!.querySelectorAll<HTMLElement>('[data-drag-handle]').forEach(handle => handle.addEventListener('pointerdown', e => {
+      if (editable) beginDrag(e, handle.dataset.dragHandle as SkillId);
+    }));
     document.querySelectorAll<HTMLElement>('[data-reorder]').forEach(handle => handle.addEventListener('pointerdown', event => {
-      if (event.button !== 0) return; event.preventDefault();
+      if (!editable || event.button !== 0) return; event.preventDefault();
       const id = handle.dataset.reorder as SkillId;
       const source = handle.closest<HTMLElement>('.bag-entry')!;
       source.classList.add('reordering');
@@ -418,7 +450,8 @@ function openBag(acquisition: boolean): void {
       const id = entry.dataset.entry as SkillId; entry.classList.toggle('active', id === active);
       const button = entry.querySelector<HTMLButtonElement>('[data-bag-skill]')!; button.classList.toggle('active', id === active); button.setAttribute('aria-expanded', String(expanded.has(id)));
       entry.querySelector('.bag-description')!.classList.toggle('expanded', expanded.has(id));
-      const label = button.querySelector(':scope > small'); if (label) label.textContent = (draft.find(b => b.skillId === id)!.position ? '配置済 ' : '未配置 ') + (expanded.has(id) ? '▴' : '▾');
+      const placed = !!draft.find(b => b.skillId === id)!.position;
+      const label = button.querySelector(':scope > small'); if (label) { label.textContent = (placed ? '配置済 ' : '未配置 ') + (expanded.has(id) ? '▴' : '▾'); label.classList.toggle('unplaced', !placed); }
     }
     grid.querySelectorAll<HTMLElement>('[data-block]').forEach(el => el.classList.toggle('active', el.dataset.block === active));
     const preview = document.getElementById('shape-preview')!; preview.innerHTML = '';
@@ -465,6 +498,7 @@ function openBag(acquisition: boolean): void {
   });
   on('unplace', () => { if (active && editable) { draft.find(b => b.skillId === active)!.position = null; message = 'バッグから外しました。未配置のまま閉じると消滅します。'; drawBag(); } });
   on('close-bag', () => {
+    if (readOnly) { closeModal(); onReturn?.(); return; }
     const discarded = draft.filter(b => !b.position);
     if (discarded.length && !window.confirm('未配置のスキルは消滅します。\n' + discarded.map(b => SKILLS[b.skillId].name).join('、') + '\n破棄して閉じますか？')) return;
     for (const b of discarded) { session!.loseSkill(b.skillId); }

@@ -38,6 +38,9 @@ function validSave(value: unknown): value is SaveData {
     const s = value as SaveData;
     if (s.version !== 1 || !Number.isInteger(s.stageId) || s.stageId < 1 || !STAGES.some(stage => stage.id === s.stageId) || !['playing', 'cleared', 'defeated'].includes(s.status)) return false;
     const m = s.mapState;
+    if (s.dayCount !== undefined && (!Number.isInteger(s.dayCount) || s.dayCount < 1)) return false;
+    if (s.killCombo !== undefined && (!Number.isInteger(s.killCombo) || s.killCombo < 0)) return false;
+    if (s.lastKillAction !== undefined && (!Number.isInteger(s.lastKillAction) || s.lastKillAction < 0 || s.lastKillAction > s.playerActionCount)) return false;
     if (s.floorNumber !== undefined && (!Number.isInteger(s.floorNumber) || s.floorNumber < 1 || s.floorNumber > (s.floorCount ?? 1))) return false;
     if (s.floorCount !== undefined && (!Number.isInteger(s.floorCount) || s.floorCount < 1 || s.floorCount > 99)) return false;
     if (s.nightRevived !== undefined && (!Number.isInteger(s.nightRevived) || s.nightRevived < 0)) return false;
