@@ -125,9 +125,10 @@ export class GameCanvas {
     if (timeOfDay(state) !== 'day') {
       ctx.fillStyle = timeOfDay(state) === 'night' ? '#17263870' : '#eea14c18';
       if (timeOfDay(state) === 'evening') ctx.fillRect(0, 0, VIEW_SIZE, VIEW_SIZE);
-      else { const top = screen({ x: viewPlayer.x - 4, y: viewPlayer.y - 4 });
+      else { const radius=(state.daylightCount ?? 0)>=150?3:4, size=(radius*2+1)*TILE; const top = screen({ x: viewPlayer.x - radius, y: viewPlayer.y - radius });
         // くり抜いた1つのパスで塗る。四隅へ半透明色が重なることを防ぐ。
-        ctx.beginPath(); ctx.rect(0, 0, VIEW_SIZE, VIEW_SIZE); ctx.rect(top.x, top.y, 9 * TILE, 9 * TILE); ctx.fill('evenodd');
+        // 外側へ少しずつ広げた薄い暗幕を重ね、四角い視野境界をぼかす。
+        ctx.save();ctx.fillStyle='rgba(23,38,56,0.07)';for(let i=0;i<8;i++){const spread=i*1.5;ctx.beginPath();ctx.rect(0,0,VIEW_SIZE,VIEW_SIZE);ctx.rect(top.x-spread,top.y-spread,size+spread*2,size+spread*2);ctx.fill('evenodd');}ctx.restore();
       }
     }
     for (const f of state.mapState.fields) if (visible(f.position)) { const p = screen(f.position); ctx.fillStyle = '#ffad7070'; ctx.fillRect(p.x + 3, p.y + 3, 26, 26); ctx.fillStyle = '#ff755c'; ctx.fillRect(p.x + 11, p.y + 15, 10, 8); ctx.fillStyle = '#fff295'; ctx.fillRect(p.x + 14, p.y + 9, 5, 11); }

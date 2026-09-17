@@ -6,20 +6,29 @@ export class SoundManager {
   enabled = true;
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
+  private resumePending = false;
   unlock(): void {
     if (!this.enabled) return;
     try {
-      if (!this.context) {
+      if (!this.context || this.context.state === 'closed') {
         const Audio = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         if (!Audio) return;
         this.context = new Audio(); this.master = this.context.createGain(); this.master.gain.value = .12; this.master.connect(this.context.destination);
       }
-      if (this.context.state === 'suspended') void this.context.resume().catch(() => {});
+      // iOSはバックグラウンド・通話等でinterruptedにもなる。
+      if (String(this.context.state) !== 'running' && !this.resumePending) {
+        this.resumePending = true;
+        const context = this.context;
+        const release=()=>{this.resumePending=false;};
+        void context.resume().then(release,release);
+        window.setTimeout(release,1000);
+      }
     } catch { /* Sound support must never block an action. */ }
   }
   setEnabled(enabled: boolean): void { this.enabled = enabled; if (this.master && this.context) this.master.gain.setValueAtTime(enabled ? .12 : 0, this.context.currentTime); if (enabled) this.unlock(); }
   private tone(frequency: number, end: number, duration: number, type: OscillatorType, delay = 0, volume = .7): void {
-    if (!this.enabled || !this.context || !this.master) return;
+    if (!this.enabled) return; this.unlock();
+    if (!this.context || !this.master || String(this.context.state) !== 'running') return;
     const c = this.context, time = c.currentTime + delay, osc = c.createOscillator(), gain = c.createGain();
     osc.type = type; osc.frequency.setValueAtTime(frequency, time); osc.frequency.exponentialRampToValueAtTime(Math.max(30, end), time + duration);
     gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(volume, time + .008); gain.gain.exponentialRampToValueAtTime(.001, time + duration);

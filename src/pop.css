@@ -170,3 +170,13 @@ body.critical-health.still-effects::after{animation:none;opacity:.09}
 .morning-title{position:absolute;inset:0;display:grid;place-items:center;background:#fff2b655;animation:morning-reveal 2.4s both}
 @keyframes morning-reveal{0%,43%{opacity:0}65%,85%{opacity:1}100%{opacity:0}}
 @media(prefers-reduced-motion:reduce){.eyelid{display:none}.morning-title{animation:none}}
+
+/* ゲーム操作の連打をページ拡大として扱わない。ピンチによる拡大は維持。 */
+.game-shell,.modal-backdrop{touch-action:manipulation}
+.skill-buttons,.skill-buttons *, .dpad [data-dir]{touch-action:none!important;-webkit-touch-callout:none}
+.skill-buttons.drag-scrolling{scroll-snap-type:none}
+.dpad{grid-template-columns:repeat(3,minmax(0,1fr));flex:1 1 0;min-width:0}
+.action-column{flex:1 1 0;max-width:none}.items{gap:4px}.items button{height:auto;min-height:43px;aspect-ratio:1;min-width:0}.items small{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+
+/* 道具と十字キーは等幅、待機だけ横幅を抑えて誤タップを防ぐ。 */
+.control-bottom .dpad .wait{width:80%;justify-self:center}

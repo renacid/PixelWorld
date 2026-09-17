@@ -64,7 +64,8 @@ function dialog(content: string, className = ''): HTMLElement {
 }
 function persist(): void { if (session) { saves.save(session.state); if (session.state.status === 'cleared') saves.complete(session.state.stageId); } }
 function header(label: string, back = true): string { return `<header class="page-header">${back ? '<button id="back" class="icon-button" aria-label="戻る">←</button>' : '<span class="brand-mark">✦</span>'}<span>${label}</span><span class="tiny">PIXEL WORLD</span></header>`; }
-function stopRenderer(): void { document.body.classList.remove('critical-health'); renderer?.destroy(); renderer = null; }
+const gameInputCleanup: (()=>void)[] = [];
+function stopRenderer(): void { gameInputCleanup.splice(0).forEach(cleanup=>cleanup()); document.body.classList.remove('critical-health'); renderer?.destroy(); renderer = null; }
 function home(): void {
   stopRenderer(); closeModal(); screen = 'home';
   const saved = saves.load(), progress = saves.progress();
@@ -132,12 +133,21 @@ function showGame(): void {
   on('cast', castSelected);
   on('cancel-aim', () => { selected = null; update(); });
   on('camera-reset', () => { renderer!.camera = null; update(); });
-  app.querySelectorAll<HTMLButtonElement>('[data-dir]').forEach(button => button.addEventListener('click', () => direction(button.dataset.dir as Direction)));
+  app.querySelectorAll<HTMLButtonElement>('[data-dir]').forEach(button => {
+    let repeat=0, pointer:number|null=null;
+    const stop=()=>{clearTimeout(repeat);pointer=null;};
+    const tick=()=>{if(pointer===null||!button.isConnected||modal||screen!=='game'){stop();return;}if(!actionLocked)direction(button.dataset.dir as Direction);repeat=window.setTimeout(tick,100);};
+    button.addEventListener('pointerdown',e=>{if(e.button!==0||pointer!==null)return;e.preventDefault();pointer=e.pointerId;button.setPointerCapture(e.pointerId);direction(button.dataset.dir as Direction);repeat=window.setTimeout(tick,400);});
+    button.addEventListener('pointerup',stop);button.addEventListener('pointercancel',stop);button.addEventListener('lostpointercapture',stop);
+    button.addEventListener('click',e=>{e.preventDefault();if(e.detail===0)direction(button.dataset.dir as Direction);});
+    const hide=()=>{if(document.hidden)stop();};window.addEventListener('blur',stop);document.addEventListener('visibilitychange',hide);
+    gameInputCleanup.push(()=>{stop();window.removeEventListener('blur',stop);document.removeEventListener('visibilitychange',hide);});
+  });
   const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas')!;
   // マウスのみドラッグを補助。タッチはブラウザ本来の横スクロールを使います。
   const strip = document.getElementById('skill-buttons')!;
   let gesture: {x:number;y:number;currentX:number;currentY:number;scroll:number;id:SkillId|null;timer:number;reorder:boolean;moved:boolean;pointer:number}|null=null;
-  let suppressClick=false, ghost:HTMLElement|null=null, frame=0, lastTime=0;
+  let ghost:HTMLElement|null=null, frame=0, lastTime=0;
   const arrows=()=>{const l=document.getElementById('skill-left'),r=document.getElementById('skill-right');if(l)l.hidden=strip.scrollLeft<2;if(r)r.hidden=strip.scrollLeft+strip.clientWidth>=strip.scrollWidth-2;};
   strip.addEventListener('scroll',arrows); const observer=new ResizeObserver(arrows);observer.observe(strip);
   const reorderTick=(now:number)=>{
@@ -164,7 +174,7 @@ function showGame(): void {
     frame=requestAnimationFrame(reorderTick);
   };
   strip.addEventListener('pointerdown',e=>{
-    if(e.button!==0||actionLocked)return;suppressClick=false;
+    if(e.button!==0||actionLocked||gesture)return;strip.setPointerCapture(e.pointerId);strip.classList.add('drag-scrolling');
     const button=(e.target as HTMLElement).closest<HTMLElement>('[data-skill]'),id=button?.dataset.skill as SkillId|undefined;
     gesture={x:e.clientX,y:e.clientY,currentX:e.clientX,currentY:e.clientY,scroll:strip.scrollLeft,id:id??null,reorder:false,moved:false,pointer:e.pointerId,timer:window.setTimeout(()=>{
       if(gesture&&!gesture.moved&&gesture.id&&button){gesture.reorder=true;strip.classList.add('reordering-skills');strip.setPointerCapture(e.pointerId);sound.ui();ghost=button.cloneNode(true) as HTMLElement;ghost.removeAttribute('data-skill');ghost.classList.add('skill-drag-ghost');ghost.style.width=button.offsetWidth+'px';ghost.style.height=button.offsetHeight+'px';document.body.append(ghost);lastTime=performance.now();frame=requestAnimationFrame(reorderTick);}
@@ -172,11 +182,19 @@ function showGame(): void {
   });
   strip.addEventListener('pointermove',e=>{const g=gesture;if(!g)return;g.currentX=e.clientX;g.currentY=e.clientY;const dx=e.clientX-g.x;
     if(!g.reorder&&Math.hypot(dx,e.clientY-g.y)>7){g.moved=true;clearTimeout(g.timer);}
-    if(g.reorder){e.preventDefault();suppressClick=true;}else if(g.moved){suppressClick=true;strip.setPointerCapture(e.pointerId);strip.scrollLeft=g.scroll-dx;e.preventDefault();}
+    if(g.reorder){e.preventDefault();}else if(g.moved){strip.setPointerCapture(e.pointerId);strip.scrollLeft=g.scroll-dx;e.preventDefault();}
   });
-  const finish=()=>{if(!gesture)return;clearTimeout(gesture.timer);cancelAnimationFrame(frame);if(gesture.reorder){suppressClick=true;persist();}if(strip.hasPointerCapture(gesture.pointer))strip.releasePointerCapture(gesture.pointer);gesture=null;ghost?.remove();ghost=null;strip.classList.remove('reordering-skills');strip.querySelectorAll('.drag-source').forEach(b=>b.classList.remove('drag-source'));};
-  strip.addEventListener('pointerup',finish);strip.addEventListener('pointercancel',finish);strip.addEventListener('lostpointercapture',finish);
-  strip.addEventListener('click',e=>{if(suppressClick){e.preventDefault();e.stopImmediatePropagation();suppressClick=false;}},true);
+  const finish=()=>{if(!gesture)return;clearTimeout(gesture.timer);cancelAnimationFrame(frame);if(gesture.reorder){persist();}const pointer=gesture.pointer;gesture=null;if(strip.hasPointerCapture(pointer))strip.releasePointerCapture(pointer);ghost?.remove();ghost=null;strip.classList.remove('reordering-skills','drag-scrolling');strip.querySelectorAll('.drag-source').forEach(b=>b.classList.remove('drag-source'));};
+  gameInputCleanup.push(()=>{finish();observer.disconnect();});
+  const hideStrip=()=>{if(document.hidden)finish();};document.addEventListener('visibilitychange',hideStrip);window.addEventListener('blur',finish);gameInputCleanup.push(()=>{document.removeEventListener('visibilitychange',hideStrip);window.removeEventListener('blur',finish);});
+  // pointer capture中のclickはカードではなく欄へ届くため、短いタップはここで選択。
+  strip.addEventListener('pointerup',e=>{
+    const g=gesture;if(!g||g.pointer!==e.pointerId)return;
+    const tapped=!g.moved&&!g.reorder&&Math.hypot(e.clientX-g.x,e.clientY-g.y)<8;
+    const id=g.id;finish();
+    if(tapped&&id&&!actionLocked&&!modal)selectSkill(id);
+  });strip.addEventListener('pointercancel',finish);strip.addEventListener('lostpointercapture',e=>{if(e.target===strip&&gesture?.pointer===e.pointerId)finish();});
+  strip.addEventListener('click',e=>{if(e.detail>0){e.preventDefault();e.stopImmediatePropagation();}},true);
   strip.addEventListener('contextmenu',e=>e.preventDefault());strip.addEventListener('dragstart',e=>e.preventDefault());requestAnimationFrame(arrows);
 
   let drag: { x: number; y: number; camera: Point } | null = null;
@@ -464,6 +482,8 @@ document.addEventListener('keydown', event => {
 });
 document.addEventListener('pointerdown', () => sound.unlock(), { capture: true });
 document.addEventListener('keydown', () => sound.unlock(), { capture: true });
-document.addEventListener('visibilitychange', () => { if (document.hidden && screen === 'game') persist(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && screen === 'game') persist(); else if (!document.hidden) sound.unlock(); });
+window.addEventListener('pageshow',()=>sound.unlock());
+document.addEventListener('touchend',()=>sound.unlock(),{passive:true});
 window.addEventListener('pagehide', () => { if (screen === 'game') persist(); });
 home();

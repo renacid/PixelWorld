@@ -88,7 +88,7 @@ export class GameSession {
   }
   get stage() { return STAGES[this.state.stageId - 1]; }
   get actors() { return [this.state.playerState, ...this.state.allyStates, ...this.state.enemyStates]; }
-  get vision() { return (timeOfDay(this.state) === 'night' ? Math.min(4, this.stage.vision) : this.stage.vision) + (this.state.playerState.visionBonus ?? 0); }
+  get vision() { return (timeOfDay(this.state) === 'night' ? Math.min((this.state.daylightCount ?? 0) >= DAY_CYCLE.midnight ? 3 : 4, this.stage.vision) : this.stage.vision) + (this.state.playerState.visionBonus ?? 0); }
   visible(p: Point): boolean {
     const pos = this.state.playerState.position;
     return Math.max(Math.abs(p.x - pos.x), Math.abs(p.y - pos.y)) <= this.vision;
