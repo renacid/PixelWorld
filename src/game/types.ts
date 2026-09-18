@@ -1,7 +1,8 @@
+import type { Installation, InstallationPlacement } from '../data/installations';
 /** セーブ・ゲームロジック・描画で共通利用するデータ型。追加フィールドは旧セーブ互換に注意。 */
 export type Point = { x: number; y: number };
 import type { ActorKind, EnemyKind } from '../data/enemies';
-import type { ChestTier, Loot } from '../data/loot';
+import type { ChestTier, Loot, LootPools, DropEntry } from '../data/loot';
 import type { TrapInstance, TrapPlacement, TrapVisual, SoundCue } from '../data/traps';
 export type Direction = 'up' | 'right' | 'down' | 'left';
 export const VECTORS: Record<Direction, Point> = { up: { x: 0, y: -1 }, right: { x: 1, y: 0 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 } };
@@ -10,6 +11,7 @@ export type SkillId = 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'f
 export type ItemId = 'powerPotion' | 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
 export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
 export type Actor = {
+  wideAttack?: boolean; skillSelection?: 'exclusive';
   enemyCooldownUntil?: Record<string, number>; mpRecoveryTurns?: number;
   remainingLife?: number;
   experienceMultiplier?: number;
@@ -27,9 +29,9 @@ export type Actor = {
 };
 export type Player = Actor & { mp: number; maxMp: number; criticalRate: number; criticalMultiplier: number; facing: Direction; freeCamera: boolean; visionBonus?: number; movementLockedUntil?: number };
 export type BagBlock = { isNew?: boolean; skillId: SkillId; position: Point | null; rotation: number };
-export type GroundObject = { id: string; position: Point; type: 'chest' | 'item' | 'skill' | 'exit' | 'gem'; skillId?: SkillId; skillIds?: SkillId[]; itemId?: ItemId; chestTier?: ChestTier; waitForLeave?: boolean; fullNotified?: boolean; contents?: Loot[]; opened?: boolean; objective?: boolean };
+export type GroundObject = { id: string; position: Point; type: 'record' | 'chest' | 'item' | 'skill' | 'exit' | 'gem'; skillId?: SkillId; skillIds?: SkillId[]; itemId?: ItemId; chestTier?: ChestTier; waitForLeave?: boolean; fullNotified?: boolean; contents?: Loot[]; opened?: boolean; objective?: boolean };
 export type FieldEffect = { sourceSkillId?: SkillId; effectId: string; position: Point; attribute: Attribute; remainingTurns: number; triggerType: 'enter' | 'turn'; damageMultiplier: number; onceOnly: boolean };
-export type MapState = { width: number; height: number; tiles: number[]; objects: GroundObject[]; playerTraps?: { id: string; position: Point; damage: number; sourceSkillId?: SkillId; placedAt?: number }[]; traps?: TrapInstance[]; fields: FieldEffect[] };
+export type MapState = { installations?: Installation[]; loot?: LootPools; width: number; height: number; tiles: number[]; objects: GroundObject[]; playerTraps?: { id: string; position: Point; damage: number; sourceSkillId?: SkillId; placedAt?: number }[]; traps?: TrapInstance[]; fields: FieldEffect[] };
 export type SaveData = {
   version: 1; stageId: number; randomSeed: number; initialSeed: number;
   mapState: MapState; playerState: Player; allyStates: Actor[]; enemyStates: Actor[];
@@ -49,6 +51,8 @@ export type SaveData = {
   floorNumber?: number; floorCount?: number; nightRevived?: number; nightWave?: number; nightTarget?: number;
   reinforcementKinds?: EnemyKind[];
   defeatedEnemies?: Actor[];
+  /** 階層内の討伐実績。睡眠では維持し、次層でリセット。 */
+  floorKills?: Partial<Record<EnemyKind, number>>;
   status: 'playing' | 'cleared' | 'defeated'; objectiveChests: number; pendingBag: boolean;
   log: string[];
 };
@@ -57,6 +61,10 @@ export type TurnFrame = { phase: 'player' | 'ally' | 'enemy'; actors: Actor[]; e
 /** 出現順と個数を定義。固定配置の敵はpositionを指定します。 */
 export type EnemySpawn = { kind: EnemyKind; count: number; position?: Point };
 export type FloorRules = { gemCount: number; extraPassages: number; enemyVariance: number; nightRevival: { min: number; max: number } };
-export type Stage = { dungeon?: FloorRules & { floors: number; enemyScaling?: { everyFloors: number; multiplier: number }; overrides?: Record<number, Partial<FloorRules>> }; id: number; name: string; subtitle: string; description: string; objective: string; vision: number; width: number; height: number; enemyCount: number; enemySpawns?: EnemySpawn[]; trapPlacements?: TrapPlacement[]; goal: 'treasure' | 'exit' | 'hunt' | 'boss'; requiredChests: number; sleepRespawnCount?: number };
+/** 条件達成後は出口へ。kindはenemies.tsのキーを指定。 */
+export type ClearCondition = { type: 'exit' } | { type: 'records'; count: number } | { type: 'defeat'; kind: EnemyKind; count: number };
+export type LayoutSource = StageLayout | ((stage: Stage, floor: number) => StageLayout);
+export type FloorSettings = { installationPlacements?: InstallationPlacement[]; width?: number; height?: number; clearCondition?: ClearCondition; enemySpawns?: EnemySpawn[]; trapPlacements?: TrapPlacement[]; trapPool?: TrapPlacement['pool']; loot?: LootPools; enemyDrops?: Partial<Record<EnemyKind, DropEntry[]>>; layout?: LayoutSource };
+export type Stage = { installationPlacements?: InstallationPlacement[]; regionId?: string; code?: string; clearCondition?: ClearCondition; floorSettings?: Record<number, FloorSettings>; layout?: LayoutSource; loot?: LootPools; trapPool?: TrapPlacement['pool']; enemyDrops?: Partial<Record<EnemyKind, DropEntry[]>>; dungeon?: FloorRules & { floors: number; enemyScaling?: { everyFloors: number; multiplier: number }; overrides?: Record<number, Partial<FloorRules>> }; id: number; name: string; subtitle: string; description: string; objective: string; vision: number; width: number; height: number; enemyCount: number; enemySpawns?: EnemySpawn[]; trapPlacements?: TrapPlacement[]; sleepRespawnCount?: number };
 /** ASCII文字と地形IDを対応させ、手作りダンジョンを定義できます。 */
 export type StageLayout = { randomEnemies?: EnemySpawn[]; randomChests?: number; gemCount?: number; rows: string[]; legend: Record<string, number>; spawn: Point; objects: GroundObject[]; enemies: { kind: EnemyKind; position: Point }[]; fields?: FieldEffect[]; trapPlacements?: TrapPlacement[]; traps?: TrapInstance[] };

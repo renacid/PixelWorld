@@ -5,7 +5,9 @@ export function drawTrapEffect(ctx: CanvasRenderingContext2D, event: GameEvent, 
   ctx.globalAlpha = Math.min(1, (1 - age) * 3);
   for (const cell of event.path ?? [event.position]) {
     const p = screen(cell), x = p.x + 16, y = p.y + 16;
-    if (event.visual === 'fireBlast') {
+    if(event.visual==='shatter') {
+      for(let i=0;i<9;i++){const angle=i*2.4,r=age*(15+i);ctx.fillStyle=i%2?'#e9b985':'#8c513b';ctx.fillRect(x+Math.cos(angle)*r,y+Math.sin(angle)*r-age*18+age*age*25,4,3);}
+    } else if (event.visual === 'fireBlast') {
       ctx.fillStyle = '#ff935577'; ctx.fillRect(p.x, p.y, 32, 32);
       for (let i = 0; i < 5; i++) { const angle = i * Math.PI * .4, r = age * 24; ctx.fillStyle = i % 2 ? '#ff9b55' : '#fff1a2'; ctx.fillRect(x + Math.cos(angle) * r - 3, y + Math.sin(angle) * r - 3, 6, 6); }
     } else if (event.visual === 'fallingRocks') {

@@ -1,6 +1,5 @@
 /** 森3：蛇行する幹道、環状路、宝箱の枝道。各階で経路を変える。 */
-import type { Point, StageLayout } from '../game/types';
-import { DEFAULT_TRAP_POOL } from '../data/traps';
+import type { Point, StageLayout } from '../../game/types';
 export function forest03(floor = 1): StageLayout {
   const w=41,h=65, mid=20;
   const grid=Array.from({length:h},()=>Array<string>(w).fill(' '));
@@ -19,6 +18,6 @@ export function forest03(floor = 1): StageLayout {
     objects:[...(floor===1?[{id:'forest3-start',type:'chest' as const,chestTier:'gold' as const,position:{x:mid,y:3},skillIds:['attack' as const,'warp' as const]}]:[]),...ends.map((position,i)=>({id:'forest3-deadend-'+i,type:'chest' as const,chestTier:i===2?'gold' as const:'silver' as const,position})),{id:'forest3-exit',type:'exit',position:{x:mid,y:62}}],
     enemies:floor===1?[]:magePositions.slice(0,floor-1).map(position=>({kind:'goblinMage',position})),
     randomEnemies:[{kind:'goblin',count:10+floor},{kind:'goblinArcher',count:4+floor},{kind:'wolf',count:3},{kind:'treant',count:2}],
-    randomChests:7,gemCount:1,trapPlacements:[{count:18+floor*2,pool:DEFAULT_TRAP_POOL}]
+    randomChests:7,gemCount:1,trapPlacements:[{count:18+floor*2,}]
   };
 }

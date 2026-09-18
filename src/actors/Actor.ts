@@ -15,6 +15,7 @@ export function actor(id: string, kind: Actor['kind'], position: Point, stage = 
   const hp = Math.floor((d.hp + stage * d.hpPerStage) * multiplier), mp = Math.floor(d.mp * multiplier);
   // 配列は複製し、プレイ中の変更が共通定義や別の敵へ漏れないようにします。
   return {
+    wideAttack: d.wideAttack, skillSelection: d.skillSelection,
     criticalRate: d.criticalRate, criticalMultiplier: d.criticalMultiplier,
     immobile: d.immobile, skillChances: { ...d.skillChances }, buffs: [],
     id, kind, name: d.name, position: { ...position }, facing: 'down', alertedAt: -1,

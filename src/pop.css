@@ -202,3 +202,6 @@ body.critical-health.still-effects::after{animation:none;opacity:.09}
 .bag-scroll .placement-handle{position:absolute;right:3px;top:8px;width:29px;height:32px;min-width:29px;min-height:32px;padding:0;background:transparent;touch-action:none;cursor:grab}
 .placement-handle .block-thumbnail{width:26px;height:28px;display:block;margin:auto;pointer-events:none}
 .bag-outline{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;overflow:visible;filter:drop-shadow(0 2px 2px #49381c65)}
+
+/* 未配置破棄の確認はゲーム内に重ね、ドラッグ中の盤面と操作を分離。 */
+.bag-discard-confirm{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:20px;background:#253c3866}.bag-discard-confirm>div{width:min(100%,340px);padding:20px;border:2px solid #e8946f;border-radius:14px;background:#fffbed;box-shadow:0 10px 36px #20312a55}.bag-discard-confirm h3{font-size:15px;color:#ab493e;margin:0 0 12px}.bag-discard-confirm p{font-size:12px;line-height:1.7;margin-bottom:14px;color:#625844}.bag-discard-confirm button{display:block;width:100%;margin-top:8px;touch-action:manipulation}

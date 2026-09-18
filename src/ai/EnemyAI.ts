@@ -53,7 +53,17 @@ export function actEnemy(map: MapState, enemy: Actor, targets: Actor[], blockers
     enemy.mode = 'hostile'; enemy.lastSeen = { ...target.position }; enemy.pursuitLeft = enemy.pursuitTurns;
     if (skill?.(enemy, visible)) { enemy.chaseMoves = 0; return; }
     const inAttackCell = occupied(enemy).some(c => enemy.attackCells.some(offset => occupied(target).some(t => same(t, { x: c.x + offset.x, y: c.y + offset.y }))));
-    if (actorDistance(enemy, target) <= enemy.attackRange && inAttackCell) { enemy.chaseMoves = 0; attack(enemy, target); }
+    if (actorDistance(enemy, target) <= enemy.attackRange && inAttackCell) { enemy.chaseMoves = 0;
+      if (enemy.wideAttack) {
+        // 正方形の一辺から前方1マス。2×2なら幅2マスにいる敵対対象を攻撃する。
+        const own = occupied(enemy), hit = occupied(target).find(t => own.some(c => distance(c, t) === 1));
+        if (hit) {
+          const edge = own.find(c => distance(c, hit) === 1)!;
+          enemy.facing = hit.x < edge.x ? 'left' : hit.x > edge.x ? 'right' : hit.y < edge.y ? 'up' : 'down';
+          const v = VECTORS[enemy.facing], strip = own.map(c => ({ x: c.x + v.x, y: c.y + v.y })).filter(c => !own.some(p => same(c, p)));
+          for (const victim of targets.filter(t => t.hp > 0 && occupied(t).some(c => strip.some(p => same(c, p))))) attack(enemy, victim);
+        }
+      } else attack(enemy, target); }
     else { const before = enemy.position; moveToward(map, enemy, target.position, blockers, rng); if (!same(before, enemy.position)) enemy.chaseMoves++; }
     return;
   }

@@ -22,7 +22,7 @@ export const TRAPS: Record<TrapId, TrapDefinition> = {
 };
 export type TrapInstance = { id: string; trapId: TrapId; position: Point; triggered: boolean };
 /** region省略で全体。複数ルールで局所密集も指定できます。重なりは避けます。 */
-export type TrapPlacement = { region?: { x: number; y: number; width: number; height: number }; count: number; pool: Weighted<TrapId>[] };
+export type TrapPlacement = { region?: { x: number; y: number; width: number; height: number }; count: number; pool?: Weighted<TrapId>[] };
 export const DEFAULT_TRAP_POOL: Weighted<TrapId>[] = [
   { value: 'treasure', weight: 2 }, { value: 'bearTrap', weight: 2 }, { value: 'fireMine', weight: 2 },
   { value: 'rockfall', weight: 1 }, { value: 'healing', weight: 2 }, { value: 'manaHealing', weight: 2 }, { value: 'wolfTerritory', weight: 1 },

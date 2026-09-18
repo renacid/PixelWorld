@@ -1,5 +1,5 @@
 /** 森の地形は固定、敵・箱・罠は冒険のシードで配置。枝道の奥に固定報酬。 */
-import type { Point, StageLayout } from '../game/types';
+import type { Point, StageLayout } from '../../game/types';
 export function forestLayout(deep: boolean): StageLayout {
   const width = deep ? 39 : 35, height = deep ? 60 : 54, center = Math.floor(width / 2);
   const left = 9, right = width - 10;

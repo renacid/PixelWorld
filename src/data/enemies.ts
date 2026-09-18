@@ -3,9 +3,10 @@ import { ENEMY_SKILLS } from './enemySkills';
 import type { DropEntry } from './loot';
 
 /** 絵の種類は敵の種類から独立。新しい敵でも既存の絵を再利用できます。 */
-export type SpriteId = 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'boss' | 'sprite' | 'treant';
+export type SpriteId = 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'sprite' | 'treant';
 export type ActorDefinition = {
   lifetime?: number;
+  wideAttack?: boolean; skillSelection?: 'exclusive';
   experience: number;
   criticalRate: number; criticalMultiplier: number; immobile: boolean;
   skillChances: Record<string, number>; innateAttribute?: Attribute;
@@ -14,7 +15,7 @@ export type ActorDefinition = {
   pattern: 'patrol' | 'wait' | 'guard'; attackRange: number; priorityTarget: 'nearest' | 'player';
   pursuitTurns: number; chaseMoveLimit: number; chaseRecoveryChance: number;
   directions: Direction[]; attackCells: Point[];
-  sprite: SpriteId; renderScale: number; renderHeight?: number; bob: boolean; idleStep: boolean;
+  sprite: SpriteId; renderScale: number; renderHeight?: number; renderLift?: number; bob: boolean; idleStep: boolean;
 };
 /** 共通値。各敵の項目で上書きできます。sizeは一辺のマス数です。 */
 function define(config: Pick<ActorDefinition, 'name' | 'hp' | 'attack' | 'sprite'> & Partial<ActorDefinition>): ActorDefinition {
@@ -27,7 +28,7 @@ function define(config: Pick<ActorDefinition, 'name' | 'hp' | 'attack' | 'sprite
     chaseMoveLimit: 12, chaseRecoveryChance: .3,
     directions: ['up', 'right', 'down', 'left'],
     attackCells: [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }],
-    renderScale: 2, bob: false, idleStep: false, ...config,
+    renderScale: 2, renderLift: 2, bob: false, idleStep: false, ...config,
   };
 }
 
@@ -39,8 +40,8 @@ export const ENEMIES = {
   slime: define({ experience: 2, name: 'スライム', hp: 12, hpPerStage: 2, attack: 2, sprite: 'slime',　detectionRange: 3, pattern: 'patrol', bob: true, drops: [{ loot: { type: 'item', id: 'potion' }, chance: .08 }, { loot: { type: 'skill', id: 'fireball' }, chance: .02 }] }),
   goblin: define({ experience: 3, name: 'ゴブリン', hp: 17, hpPerStage: 2, attack: 3, sprite: 'goblin', detectionRange: 4, mp: 5, skills: ['stoneThrow'], drops: [{ loot: { type: 'item', id: 'ether' }, chance: .07 }, { loot: { type: 'item', id: 'potion' }, chance: .03 }, { loot: { type: 'skill', id: 'thunder' }, chance: .02 }] }),
   wolf: define({ experience: 3, name: '森の狼', hp: 15, hpPerStage: 2, attack: 3, sprite: 'wolf', detectionRange: 5, mp: 5, skills: ['lunge'], drops: [{ loot: { type: 'item', id: 'potion' }, chance: .06 }, { loot: { type: 'item', id: 'ether' }, chance: .03 }, { loot: { type: 'skill', id: 'tornado' }, chance: .02 }] }),
-  golem: define({ experience: 8, name: '守護岩', hp: 45, attack: 4, size: 2, sprite: 'golem', renderScale: 3, drops: [{ loot: { type: 'item', id: 'summon' }, chance: .05 }, { loot: { type: 'item', id: 'potion' }, chance: .1 }] }),
-  boss: define({ experience: 15, name: '草原の王', hp: 60, attack: 5, size: 3, sprite: 'boss', renderScale: 5, detectionRange: 7, drops: [{ loot: { type: 'item', id: 'scope' }, chance: .25 }, { loot: { type: 'skill', id: 'firerain' }, chance: .5 }] }),
+  // 各行動を独立した20%枠として抽選。残り40%は通常の追跡・攻撃。
+  golem: define({ experience: 8, name: 'ゴーレム', hp: 60, attack: 5, mp: 20, size: 2, sprite: 'golem', renderLift: 0, renderScale: 2, renderHeight: 80, wideAttack: true, skillSelection: 'exclusive', skills: ['quietGaze', 'rockThrow', 'heavyStrike'], drops: [{ loot: { type: 'item', id: 'summon' }, chance: .05 }, { loot: { type: 'item', id: 'potion' }, chance: .1 }] }),
 };
 // プレイヤーと味方も同じ生成・描画インターフェースを利用します。
 export const SUPPORT_ACTORS = {

@@ -54,14 +54,14 @@ describe('deterministic turns and MP', () => {
 describe('attributes and sequential hits', () => {
   it('explodes immediately on fire + thunder in either order at 120% of the triggering hit', () => {
     for (const pair of [['fire', 'thunder'], ['thunder', 'fire']] as const) {
-      const s = cleanSession(), target = actor('target', 'boss', { x: 5, y: 5 });
+      const s = cleanSession(), target = actor('target', 'golem', { x: 5, y: 5 });
       applyAttribute(target, pair[0], 10, 1, [target], s.damage, []);
       applyAttribute(target, pair[1], 13, 2, [target], s.damage, []);
       expect(target.afflictions).toHaveLength(0); expect(target.hp).toBe(125 - 15);
     }
   });
   it('refreshes a same-element aura and expires after 10 subsequent actions', () => {
-    const s = cleanSession(), target = actor('target', 'boss', { x: 5, y: 5 });
+    const s = cleanSession(), target = actor('target', 'golem', { x: 5, y: 5 });
     applyAttribute(target, 'fire', 10, 1, [target], s.damage, []); tickAttributes(target, 1);
     expect(target.afflictions[0].remainingTurns).toBe(10);
     for (let n = 2; n <= 5; n++) tickAttributes(target, n);
@@ -124,7 +124,7 @@ describe('skills, bag and drops', () => {
   });
   it('attack costs 1 MP, has 0 cooldown and deals between 50–70% before crit', () => {
     const s = cleanSession(); s.acquireSkill('attack'); s.state.pendingBag = false; s.state.playerState.criticalRate = 0;
-    s.state.enemyStates = [actor('target', 'boss', { x: 4, y: 3 })];
+    s.state.enemyStates = [actor('target', 'golem', { x: 4, y: 3 })];
     s.execute({ type: 'cast', skillId: 'attack', direction: 'right' });
     const hit = s.events.find(e => e.type === 'damage')!;
     expect(hit.amount).toBeGreaterThanOrEqual(5); expect(hit.amount).toBeLessThanOrEqual(7); expect(s.state.playerState.mp).toBe(19); expect(s.state.cooldowns.attack).toBe(0);
@@ -144,15 +144,15 @@ describe('skills, bag and drops', () => {
 describe('maps, AI, stages and saves', () => {
   it('all 5 stages have reachable treasure and exits, with large guardians on stages 4 and 5', () => {
     for (const stage of STAGES) for (let seed = 0; seed < 5; seed++) {
-      const { map, enemies } = generateMap(stage, new Random(seed));
-      const queue = [{ x: 3, y: 3 }], seen = new Set(['3,3']);
+      const { map, enemies, spawn } = generateMap(stage, new Random(seed));
+      const queue = [spawn], seen = new Set([`${spawn.x},${spawn.y}`]);
       for (let i = 0; i < queue.length; i++) for (const v of [{ x: 0, y: 1 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: -1, y: 0 }]) {
         const p = { x: queue[i].x + v.x, y: queue[i].y + v.y }, k = `${p.x},${p.y}`;
         if (seen.has(k) || wall(map, p)) continue; seen.add(k); queue.push(p);
       }
       for (const o of map.objects) expect(seen.has(`${o.position.x},${o.position.y}`)).toBe(true);
-      if (stage.id === 4) expect(enemies.some(e => e.kind === 'golem')).toBe(true);
-      if (stage.id === 5) expect(enemies.some(e => e.kind === 'boss')).toBe(true);
+      if (stage.id === 4) expect(enemies.filter(e => e.kind === 'wolf').length).toBeGreaterThanOrEqual(3);
+      if (stage.id === 5) expect(enemies.some(e => e.kind === 'golem')).toBe(false);
     }
   });
   it('supports square footprints of 1, 4, 9 cells and rejects partial wall collisions', () => {
@@ -173,7 +173,7 @@ describe('maps, AI, stages and saves', () => {
     const s = GameSession.create(1, 8); s.state.enemyStates = []; const exit = s.state.mapState.objects.find(o => o.type === 'exit')!;
     s.state.playerState.position = { ...exit.position }; s.execute({ type: 'wait' }); expect(s.state.status).toBe('playing');
     s.state.objectiveChests = 1; s.execute({ type: 'wait' }); expect(s.state.status).toBe('cleared');
-    const boss = GameSession.create(5, 8); expect(boss.goalReady()).toBe(false); boss.state.enemyStates = boss.state.enemyStates.filter(e => e.kind !== 'boss'); expect(boss.goalReady()).toBe(true);
+    const boss = GameSession.create(5, 8); expect(boss.goalReady()).toBe(true); boss.state.floorNumber = 2; expect(boss.goalReady()).toBe(false); boss.state.floorKills = { golem: 1 }; expect(boss.goalReady()).toBe(true);
   });
   it('saves pending bag, resumes, rejects malformed saves and records stage unlocks', () => {
     const data = new Map<string, string>(), storage = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => { data.set(k, v); }, removeItem: (k: string) => { data.delete(k); } };

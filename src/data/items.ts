@@ -8,5 +8,5 @@ export const ITEMS: Record<ItemId, { name: string; icon: string; description: st
   potion: { rarity: 'common', rareRank: 1, restoreHp: 15, name: '薬草', icon: '✚', description: 'HPを15回復' },
   ether: { rarity: 'common', rareRank: 1, restoreMp: 10, name: '魔力の雫（小）', icon: '♦', description: 'MPを10回復' },
   scope: { rarity: 'rare', rareRank: 3, name: '千里眼薬（小）', icon: '◎', description: '取得ごとに視野+2（累積）、カメラ自由移動を解放' },
-  summon: { rarity: 'rare', rareRank: 3, name: '精霊の種', icon: '✧', description: '自動で戦う精霊を召喚' },
+  summon: { rarity: 'rare', rareRank: 3, name: '精霊の種', icon: '✧', description: '自動で戦う下級精霊を召喚' },
 };

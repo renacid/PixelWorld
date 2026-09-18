@@ -1,7 +1,7 @@
 /** 第2層は環状の部屋、第3層は蛇行する枝道。床の接続を保証した別地形。 */
-import type { Point, Stage, StageLayout } from '../game/types';
+import type { Point, Stage, StageLayout } from '../../game/types';
 export function upperFloorLayout(stage: Stage, floor: number): StageLayout {
-  const { width: w, height: h } = stage, forest = stage.id >= 6;
+  const { width: w, height: h } = stage, forest = stage.regionId === 'forest';
   const grid = Array.from({ length: h }, () => Array<string>(w).fill('#'));
   const carve = (p: Point, radius: number) => {
     for (let y = Math.max(1, p.y - radius); y <= Math.min(h - 2, p.y + radius); y++)
@@ -28,10 +28,9 @@ export function upperFloorLayout(stage: Stage, floor: number): StageLayout {
   }
   const objects: StageLayout['objects'] = [{ id: 'floor-exit', type: 'exit', position: exit }];
   const rewards = [rooms[4], rooms[6], rooms[2]];
-  for (let i = 0; i < Math.max(3, stage.requiredChests); i++) objects.push({ id: 'floor-reward-' + i, type: 'chest', chestTier: i === 0 ? 'gold' : 'silver', position: { ...rewards[i % rewards.length] }, objective: i < stage.requiredChests });
+  for (let i = 0; i < 3; i++) objects.push({ id: 'floor-reward-' + i, type: 'chest', chestTier: i === 0 ? 'gold' : 'silver', position: { ...rewards[i % rewards.length] } });
   // 討伐対象は固定数。ランダム数の補正で0体にならないよう固定配置にする。
   const enemies: StageLayout['enemies'] = [];
-  if (stage.goal === 'boss' || stage.goal === 'hunt') enemies.push({ kind: stage.goal === 'boss' ? 'boss' : 'golem', position: { x: rooms[8].x - 1, y: rooms[8].y - 1 } });
   return {
     rows: grid.map(row => row.join('')), legend: { '#': forest ? 4 : 1, '.': forest ? 3 : 0 }, spawn, objects, enemies,
     randomEnemies: forest ? [{ kind: 'wolf', count: 6 }, { kind: 'goblin', count: 5 }, { kind: 'treant', count: 4 }, { kind: 'slime', count: 3 }] : (stage.enemySpawns ?? []).filter(e => !e.position),

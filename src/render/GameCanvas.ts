@@ -1,3 +1,4 @@
+import { drawInstallation } from './InstallationSprites';
 import { timeOfDay } from '../game/DayCycle';
 import { actorDefinition } from '../data/enemies';
 import { CHESTS } from '../data/loot';
@@ -55,15 +56,17 @@ export class GameCanvas {
     const cx = x + width / 2;
     ctx.fillStyle = '#315d5c36'; ctx.beginPath(); ctx.ellipse(cx, y + height - 4, width * .3, 4, 0, 0, Math.PI * 2); ctx.fill();
     const definition = actorDefinition(a.kind), pixels = spritePixels(definition.sprite, a.facing ?? 'down'), scale = definition.renderScale;
-    const scaleX = scale, scaleY = (definition.renderHeight ?? scale * 16) / 16;
-    const spriteCenterY = y + height - scaleY * 8;
+    const pixelHeight = pixels.length, pixelWidth = pixels[0].length;
+    const scaleX = scale, scaleY = (definition.renderHeight ?? scale * pixelHeight) / pixelHeight;
+    // 絵の形状を変えず、足元から指定pxだけ上へ浮かせる。影・占有セルは動かさない。
+    const spriteTop = y + height - scaleY * pixelHeight - (definition.renderLift ?? 0);
     const step = this.settings.motion ? Math.floor(clock / (this.animation ? 110 : 230)) % 2 : 0;
     const bob = this.settings.motion && definition.bob ? Math.sin(clock / (a.kind === 'sprite' ? 400 : 200) + a.position.x) * (a.kind === 'sprite' ? 2.5 : 1.3) : 0;
     const flash = this.effects.some(e => e.type === 'damage' && e.actorId === a.id && clock >= e.born && clock - e.born < 140);
-    for (let py = 0; py < 16; py++) for (let px = 0; px < 16; px++) {
+    for (let py = 0; py < pixelHeight; py++) for (let px = 0; px < pixelWidth; px++) {
       const color = PIXEL_COLORS[pixels[py][px]]; if (!color) continue;
-      const foot = py >= 12 && (definition.idleStep || this.animation) ? (px < 8 ? step : 1 - step) * (this.settings.motion ? 1 : 0) : 0;
-      ctx.fillStyle = flash ? '#fffcef' : color; ctx.fillRect(Math.round(cx - scaleX * 8 + px * scaleX), Math.round(spriteCenterY - scaleY * 8 + py * scaleY + bob - foot), scaleX, scaleY);
+      const foot = py >= pixelHeight * .75 && (definition.idleStep || this.animation) ? (px < pixelWidth / 2 ? step : 1 - step) * (this.settings.motion ? 1 : 0) : 0;
+      ctx.fillStyle = flash ? '#fffcef' : color; ctx.fillRect(Math.round(cx - scaleX * pixelWidth / 2 + px * scaleX), Math.round(spriteTop + py * scaleY + bob - foot), scaleX, scaleY);
     }
     if (a.kind !== 'player' && a.hp < a.maxHp) { ctx.fillStyle = '#fffefa'; ctx.fillRect(cx - 12, y, 24, 4); ctx.fillStyle = '#f27276'; ctx.fillRect(cx - 11, y + 1, 22 * a.hp / a.maxHp, 2); }
     if (a.buffs?.some(b => b.remainingTurns > 0)) {
@@ -135,6 +138,7 @@ export class GameCanvas {
     for (const trap of state.mapState.playerTraps ?? []) if (visible(trap.position)) {
       const p = screen(trap.position); ctx.fillStyle = '#53844e'; ctx.fillRect(p.x + 4, p.y + 22, 24, 5); ctx.strokeStyle = '#d5eb88'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x + 6, p.y + 15); ctx.lineTo(p.x + 15, p.y + 21); ctx.lineTo(p.x + 12, p.y + 8); ctx.lineTo(p.x + 25, p.y + 17); ctx.stroke();
     }
+    for(const i of state.mapState.installations??[])if(visible(i.position)){const p=screen(i.position);drawInstallation(ctx,i.kind,p.x,p.y);}
     for (const obj of state.mapState.objects) {
       if (!visible(obj.position)) continue;
       const { x, y } = screen(obj.position);
@@ -142,6 +146,13 @@ export class GameCanvas {
         const float = Math.sin(clock / 350) * 2; ctx.fillStyle = '#7b69dd'; ctx.beginPath(); ctx.moveTo(x + 16, y + 5 + float); ctx.lineTo(x + 25, y + 14 + float); ctx.lineTo(x + 16, y + 27 + float); ctx.lineTo(x + 7, y + 14 + float); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#d8f7ff'; ctx.fillRect(x + 13, y + 9 + float, 4, 10); ctx.fillStyle = '#fff8c9'; ctx.fillRect(x + 24, y + 5, 2, 5);
       } else if (obj.type === 'exit') {
         ctx.fillStyle = '#5ca9a7'; ctx.fillRect(x + 4, y + 3, 24, 26); ctx.strokeStyle = '#fff8c8'; ctx.lineWidth = 2; ctx.strokeRect(x + 5, y + 3, 22, 25); ctx.fillStyle = s.goalReady() ? '#fff7bb' : '#badbcb'; for (let n = 0; n < 4; n++) ctx.fillRect(x + 8 + n * 2, y + 22 - n * 4, 16 - n * 3, 2);
+      } else if (obj.type === 'record') {
+        // 独立した古代の石板。灰色の石と青緑の刻印で宝箱と区別。
+        ctx.fillStyle = '#334d4855'; ctx.fillRect(x + 6, y + 26, 22, 3);
+        ctx.fillStyle = '#647979'; ctx.fillRect(x + 7, y + 5, 18, 22);
+        ctx.fillStyle = '#b5cbc2'; ctx.fillRect(x + 8, y + 4, 16, 20);
+        ctx.fillStyle = '#e1e9cd'; ctx.fillRect(x + 9, y + 5, 2, 18);
+        ctx.fillStyle = '#3f8e8c'; ctx.fillRect(x + 13, y + 9, 7, 2); ctx.fillRect(x + 16, y + 8, 2, 10); ctx.fillRect(x + 12, y + 15, 9, 2); ctx.fillRect(x + 13, y + 20, 6, 2);
       } else if (obj.type === 'chest') {
         const chest = CHESTS[obj.chestTier ?? 'wood'];
         ctx.fillStyle = '#59855550'; ctx.fillRect(x + 5, y + 25, 23, 3); ctx.fillStyle = obj.opened ? '#a8a594' : chest.color; ctx.fillRect(x + 6, y + 12, 21, 13); ctx.fillStyle = obj.opened ? '#8f9386' : chest.trim; ctx.fillRect(x + 5, y + (obj.opened ? 5 : 9), 23, 6);
@@ -215,7 +226,7 @@ export class GameCanvas {
     const ctx = target ?? this.miniCtx, s = this.session; if (!ctx || !s) return;
     const map = s.state.mapState, size = ctx.canvas.width, scale = size / Math.max(map.width, map.height); ctx.fillStyle = '#dae9df'; ctx.fillRect(0, 0, size, size); ctx.imageSmoothingEnabled = false;
     for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) if (s.state.exploredMap[y * map.width + x]) { ctx.fillStyle = terrain(map.tiles[y * map.width + x]).solid ? '#172724' : terrain(map.tiles[y * map.width + x]).color; ctx.fillRect(x * scale, y * scale, Math.ceil(scale), Math.ceil(scale)); }
-    for (const obj of map.objects) if ((timeOfDay(s.state) !== 'night' || s.visible(obj.position)) && s.state.exploredMap[obj.position.y * map.width + obj.position.x] && (obj.type === 'exit' || obj.type === 'gem' || obj.type === 'chest' && !obj.opened)) { ctx.fillStyle = '#ecab3e'; ctx.fillRect(obj.position.x * scale, obj.position.y * scale, Math.max(2, scale), Math.max(2, scale)); }
+    for (const obj of map.objects) if ((timeOfDay(s.state) !== 'night' || s.visible(obj.position)) && s.state.exploredMap[obj.position.y * map.width + obj.position.x] && (obj.type === 'record' || obj.type === 'exit' || obj.type === 'gem' || obj.type === 'chest' && !obj.opened)) { ctx.fillStyle = '#ecab3e'; ctx.fillRect(obj.position.x * scale, obj.position.y * scale, Math.max(2, scale), Math.max(2, scale)); }
     for (const e of s.state.enemyStates) for (const p of occupied(e)) if (s.visible(p)) { ctx.fillStyle = '#ec6d83'; ctx.fillRect(p.x * scale, p.y * scale, Math.max(2, scale), Math.max(2, scale)); }
     ctx.fillStyle = '#3487c6'; const p = s.state.playerState.position; ctx.fillRect(p.x * scale, p.y * scale, Math.max(3, scale), Math.max(3, scale));
   }

@@ -1,4 +1,5 @@
-import { TRAPS, type TrapPlacement } from '../data/traps';
+import { hitInstallation } from './InstallationSystem';
+import { DEFAULT_TRAP_POOL, TRAPS, type TrapPlacement } from '../data/traps';
 import { CHESTS } from '../data/loot';
 import { dealAttributeHit, type DamageHandler } from '../skills/AttributeSystem';
 import { actor } from '../actors/Actor';
@@ -13,7 +14,8 @@ export function placeTraps(map: MapState, rules: TrapPlacement[], rng: Random, s
   if (new Set(map.traps.map(t => t.id)).size !== map.traps.length || new Set(map.traps.map(t => `${t.position.x},${t.position.y}`)).size !== map.traps.length || map.traps.some(t => !Object.hasOwn(TRAPS, t.trapId) || wall(map, t.position))) throw new Error('固定罠のID・座標・種類を確認してください');
   for (const [index, rule] of rules.entries()) {
     if (!Number.isInteger(rule.count) || rule.count < 0) throw new Error('罠の個数は非負整数で指定してください');
-    if (rule.pool.some(e => !Object.hasOwn(TRAPS, e.value))) throw new Error('罠の抽選表に未定義の種類があります');
+    const pool = rule.pool ?? DEFAULT_TRAP_POOL;
+    if (pool.some(e => !Object.hasOwn(TRAPS, e.value))) throw new Error('罠の抽選表に未定義の種類があります');
     const r = rule.region ?? { x: 0, y: 0, width: map.width, height: map.height };
     if (![r.x, r.y, r.width, r.height].every(Number.isInteger) || r.width <= 0 || r.height <= 0) throw new Error('罠の配置範囲が不正です');
     const candidates: Point[] = [];
@@ -25,7 +27,7 @@ export function placeTraps(map: MapState, rules: TrapPlacement[], rng: Random, s
     for (let i = 0; i < rule.count; i++) {
       const position = candidates.splice(rng.int(0, candidates.length - 1), 1)[0];
       let id = `trap-${map.traps.length}`; while (map.traps.some(t => t.id === id)) id += '-new';
-      map.traps.push({ id, trapId: weighted(rule.pool, rng), position, triggered: false });
+      map.traps.push({ id, trapId: weighted(pool, rng), position, triggered: false });
     }
   }
 }
@@ -46,8 +48,8 @@ export function triggerPlayerTraps(state: SaveData, context: Context): void {
       return cells;
     };
     if (effect.type === 'chest') {
-      const cells = area(1).filter(c => !same(c, p.position) && !actors.some(a => a.hp > 0 && occupied(a).some(t => same(c, t))) && !map.objects.some(o => same(o.position, c)) && !(map.traps ?? []).some(t => !t.triggered && same(t.position, c)) && !map.fields.some(f => same(f.position, c)));
-      if (cells.length) { const cell = cells[context.rng.int(0, cells.length - 1)], tier = weighted(effect.tiers, context.rng); map.objects.push(makeChest(`chest-${trap.id}`, cell, tier, context.rng, [], state.floorNumber)); emit([cell]); context.log(`${CHESTS[tier].name}が出現した！`); }
+      const cells = area(1).filter(c => !same(c, p.position) && !actors.some(a => a.hp > 0 && occupied(a).some(t => same(c, t))) && !map.objects.some(o => same(o.position, c)) && !map.installations?.some(i=>same(i.position,c)) && !(map.traps ?? []).some(t => !t.triggered && same(t.position, c)) && !map.fields.some(f => same(f.position, c)));
+      if (cells.length) { const cell = cells[context.rng.int(0, cells.length - 1)], tier = weighted(effect.tiers, context.rng); map.objects.push(makeChest(`chest-${trap.id}`, cell, tier, context.rng, [], state.floorNumber, map.loot)); emit([cell]); context.log(`${CHESTS[tier].name}が出現した！`); }
       else { emit([p.position]); context.log('宝箱が現れる空きマスがなかった。'); }
     } else if (effect.type === 'summonPerimeter') {
       // 外周だけを抽出。キャラサイズを考慮し、同じマスへの重複召喚を防ぎます。
@@ -77,6 +79,7 @@ export function triggerPlayerTraps(state: SaveData, context: Context): void {
         else cells.push(...pool);
         const delay = 250 + hit * 220; emit(cells, delay);
         const before = context.events.length, attribute = effect.type === 'blast' ? 'fire' : 'nature';
+        for(const i of [...map.installations??[]])if(cells.some(c=>same(c,i.position)))hitInstallation(state,i.id,context);
         for (const target of actors) if (target.hp > 0 && occupied(target).some(c => cells.some(t => same(c, t)))) {
           dealAttributeHit(target, effect.damage, attribute, state.playerActionCount, actors, context.damage, context.events, () => context.rng.next());
         }

@@ -1,3 +1,4 @@
+import { INSTALLATIONS } from '../data/installations';
 /** localStorage保存・形式検証・設定と解放進捗の管理。テスト用名前空間にも対応。 */
 import { GEM_REWARDS } from '../data/gems';
 import { SKILLS } from '../data/skills';
@@ -23,6 +24,11 @@ export class SaveManager {
   load(): SaveData | null {
     const value = this.read(this.saveKey);
     if (!value) return null;
+    if (typeof value === 'object' && value !== null) {
+      const old = value as SaveData;
+      for (const list of [old.enemyStates, old.defeatedEnemies]) if (Array.isArray(list)) for (const a of list) if (a && (a.kind as string) === 'boss') { a.kind = 'golem'; a.name = '守護岩'; }
+      if (Array.isArray(old.reinforcementKinds)) old.reinforcementKinds = old.reinforcementKinds.map(k => (k as string) === 'boss' ? 'golem' : k);
+    }
     if (!validSave(value)) { this.error = '中断データの形式が不正です。新しい冒険を開始できます。'; return null; }
     return value;
   }
@@ -38,6 +44,7 @@ function validSave(value: unknown): value is SaveData {
     const s = value as SaveData;
     if (s.version !== 1 || !Number.isInteger(s.stageId) || s.stageId < 1 || !STAGES.some(stage => stage.id === s.stageId) || !['playing', 'cleared', 'defeated'].includes(s.status)) return false;
     const m = s.mapState;
+    if (s.floorKills !== undefined && !Object.entries(s.floorKills).every(([kind, count]) => isActorKind(kind) && Number.isInteger(count) && count >= 0)) return false;
     if (s.dayCount !== undefined && (!Number.isInteger(s.dayCount) || s.dayCount < 1)) return false;
     if (s.killCombo !== undefined && (!Number.isInteger(s.killCombo) || s.killCombo < 0)) return false;
     if (s.lastKillAction !== undefined && (!Number.isInteger(s.lastKillAction) || s.lastKillAction < 0 || s.lastKillAction > s.playerActionCount)) return false;
@@ -85,7 +92,8 @@ function validSave(value: unknown): value is SaveData {
     if (new Set(s.skillBag.map(b => b.skillId)).size !== s.skillBag.length || !s.skillBag.every(b => b.skillId in SKILLS && Number.isInteger(b.rotation) && b.rotation >= 0 && b.rotation < 4 && (b.position === null || validPlacement(s.skillBag, b.skillId, b.position, b.rotation, s.bagCells)))) return false;
     if (!Object.entries(s.skillLevels).every(([id, n]) => id in SKILLS && Number.isInteger(n) && n > 0) || !s.skillBag.every(b => s.skillLevels[b.skillId])) return false;
     if (!Object.entries(s.cooldowns).every(([id, n]) => id in SKILLS && Number.isInteger(n) && n >= 0)) return false;
-    if (!m.objects.every(o => point(o.position) && ['chest', 'item', 'skill', 'exit', 'gem'].includes(o.type) && (!o.skillId || o.skillId in SKILLS) && (!o.skillIds || o.skillIds.every(id => id in SKILLS)) && (!o.itemId || o.itemId in ITEMS) && (!o.chestTier || o.chestTier in CHESTS) && (o.contents === undefined || Array.isArray(o.contents) && o.contents.every(l => l.type === 'item' ? l.id in ITEMS : l.type === 'skill' && l.id in SKILLS)))) return false;
+    if (m.installations !== undefined && (!Array.isArray(m.installations) || new Set(m.installations.map(i=>i.id)).size !== m.installations.length || !m.installations.every(i=>typeof i.id==='string' && i.kind in INSTALLATIONS && point(i.position) && Number.isInteger(i.spawned) && i.spawned>=0))) return false;
+    if (!m.objects.every(o => point(o.position) && ['record', 'chest', 'item', 'skill', 'exit', 'gem'].includes(o.type) && (!o.skillId || o.skillId in SKILLS) && (!o.skillIds || o.skillIds.every(id => id in SKILLS)) && (!o.itemId || o.itemId in ITEMS) && (!o.chestTier || o.chestTier in CHESTS) && (o.contents === undefined || Array.isArray(o.contents) && o.contents.every(l => l.type === 'item' ? l.id in ITEMS : l.type === 'skill' && l.id in SKILLS)))) return false;
     return Array.isArray(m.fields) && m.fields.every(f => point(f.position) && attributes.includes(f.attribute) && Number.isFinite(f.remainingTurns));
   } catch { return false; }
 }

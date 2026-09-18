@@ -1,10 +1,9 @@
-import { forest03 } from '../stages/forest03';
-/** 占有・通行・視線判定とマップ生成。手作り地形はstages/layouts.tsへ登録します。 */
-import { floorRules } from '../stages/DungeonRules';
+import { placeInstallations } from './InstallationSystem';
+/** 占有・通行・視線判定とマップ生成。手作り地形は地域別ステージのlayoutへ指定します。 */
+import { floorRules, stageForFloor } from '../stages/DungeonRules';
 import { actor } from '../actors/Actor';
 import { terrain, TERRAIN } from '../data/terrain';
-import { upperFloorLayout } from '../stages/upperFloors';
-import { CUSTOM_LAYOUTS } from '../stages/layouts';
+import { upperFloorLayout } from '../stages/shared/upperFloors';
 import { Random } from './Random';
 import { initializeChests, weighted } from './LootSystem';
 import { placeTraps } from './TrapSystem';
@@ -16,7 +15,7 @@ export function occupied(a: Actor, position = a.position): Point[] { return a.ce
 export function wall(map: MapState, p: Point): boolean { return p.x < 0 || p.y < 0 || p.x >= map.width || p.y >= map.height || terrain(map.tiles[p.y * map.width + p.x]).solid; }
 export function canStand(map: MapState, a: Actor, p: Point, actors: Actor[] = []): boolean {
   const cells = occupied(a, p);
-  return cells.every(c => !wall(map, c)) && !actors.some(other => other.id !== a.id && other.hp > 0 && occupied(other).some(c => cells.some(t => same(c, t))));
+  return cells.every(c => !wall(map, c) && !map.installations?.some(i => same(i.position, c))) && !actors.some(other => other.id !== a.id && other.hp > 0 && occupied(other).some(c => cells.some(t => same(c, t))));
 }
 export function lineOfSight(map: MapState, from: Point, to: Point): boolean {
   let x = from.x, y = from.y;
@@ -31,7 +30,7 @@ export function lineOfSight(map: MapState, from: Point, to: Point): boolean {
   }
   return true;
 }
-export function generateMap(stage: Stage, rng: Random, floor = 1): { map: MapState; enemies: Actor[]; spawn: Point } {
+function generateBaseMap(stage: Stage, rng: Random, floor = 1): { map: MapState; enemies: Actor[]; spawn: Point } {
   const { width, height } = stage;
   const rules = floorRules(stage, floor);
   const varyCount = (count: number) => Math.max(0, count + rng.int(-rules.enemyVariance, rules.enemyVariance));
@@ -46,11 +45,11 @@ export function generateMap(stage: Stage, rng: Random, floor = 1): { map: MapSta
       if (!cells.length) break; const p = cells[rng.int(0, cells.length - 1)]; map.tiles[p.y * width + p.x] = floorTile;
     }
   };
-  const layout = stage.id === 8 ? forest03(floor) : floor > 1 ? upperFloorLayout(stage, floor) : CUSTOM_LAYOUTS[stage.id];
+  const layout = stage.layout ? (typeof stage.layout === 'function' ? stage.layout(stage, floor) : stage.layout) : floor > 1 ? upperFloorLayout(stage, floor) : undefined;
   if (layout) {
     if (layout.rows.length !== height || layout.rows.some(row => row.length !== width)) throw new Error(`${stage.name}: 地形の行数・列数がステージサイズと一致しません`);
     const tiles = layout.rows.flatMap(row => [...row].map(char => { const id = layout.legend[char]; if (!(id in TERRAIN)) throw new Error(`未定義の地形文字: ${char}`); return id; }));
-    const map: MapState = { width, height, tiles, objects: structuredClone(layout.objects), fields: structuredClone(layout.fields ?? []), traps: structuredClone(layout.traps ?? []) };
+    const map: MapState = { loot: stage.loot, width, height, tiles, objects: structuredClone(layout.objects), fields: structuredClone(layout.fields ?? []), traps: structuredClone(layout.traps ?? []) };
     varyShape(map, layout.legend['.'] ?? 0);
     const enemies = layout.enemies.map((entry, i) => actor(`enemy-${i}`, entry.kind, { ...entry.position }, stage.id, floor));
     if (wall(map, layout.spawn) || enemies.some(e => !canStand(map, e, e.position, enemies)) || map.objects.some(o => wall(map, o.position))) throw new Error(`${stage.name}: 配置が壁または他のキャラクターと重なっています`);
@@ -66,7 +65,7 @@ export function generateMap(stage: Stage, rng: Random, floor = 1): { map: MapSta
       if (!candidates.length) throw new Error(`${stage.name}: ランダム配置用の空き床が不足しています`);
       return candidates[rng.int(0, candidates.length - 1)];
     };
-    for (const entry of (layout.randomEnemies ?? []).map(e => ({ ...e, count: varyCount(e.count) }))) for (let i = 0; i < entry.count; i++) {
+    for (const entry of (stage.enemySpawns ?? layout.randomEnemies ?? []).map(e => ({ ...e, count: stage.clearCondition?.type === 'defeat' && e.kind === stage.clearCondition.kind ? e.count : varyCount(e.count) }))) for (let i = 0; i < entry.count; i++) {
       const enemy = actor(`enemy-${enemies.length}`, entry.kind, { x: 0, y: 0 }, stage.id, floor);
       enemy.position = freeCell(enemy); enemies.push(enemy);
     }
@@ -77,10 +76,10 @@ export function generateMap(stage: Stage, rng: Random, floor = 1): { map: MapSta
     const missingGems = gemLimit - map.objects.filter(o => o.type === 'gem').length;
     for (let i = 0; i < missingGems; i++) map.objects.push({ id: `gem-${i}`, type: 'gem', position: freeCell(token) });
     initializeChests(map, rng, floor);
-    placeTraps(map, layout.trapPlacements ?? stage.trapPlacements ?? [], rng, layout.spawn, enemies);
+    placeTraps(map, (stage.floorSettings?.[floor]?.trapPlacements ?? layout.trapPlacements ?? stage.trapPlacements ?? []).map(p => ({ ...p, pool: p.pool ?? stage.trapPool })), rng, layout.spawn, enemies);
     return { map, enemies, spawn: { ...layout.spawn } };
   }
-  const map: MapState = { width, height, tiles: new Array(width * height).fill(0), objects: [], fields: [] };
+  const map: MapState = { loot: stage.loot, width, height, tiles: new Array(width * height).fill(0), objects: [], fields: [] };
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     // Islands of ruins leave a connected network of wide horizontal/vertical lanes.
     const border = x === 0 || y === 0 || x === width - 1 || y === height - 1;
@@ -91,7 +90,7 @@ export function generateMap(stage: Stage, rng: Random, floor = 1): { map: MapSta
   map.objects.push(
     { id: 'start-attack', type: 'chest', chestTier: 'gold', position: { x: 3, y: 4 }, skillId: 'attack', skillIds: ['warp'] },
     { id: 'rain', type: 'chest', chestTier: 'silver', position: { x: width - 4, y: 4 }, skillId: 'firerain' },
-    { id: 'relic-1', type: 'chest', chestTier: 'iron', position: { x: width - 4, y: height - 4 }, objective: true, itemId: 'ether' },
+    { id: 'relic-1', type: 'record', position: { x: width - 4, y: height - 4 } },
     { id: 'exit', type: 'exit', position: { x: width - 3, y: height - 3 } },
   );
   // One rare elemental chest replaces the three clustered tutorial chests.
@@ -99,7 +98,7 @@ export function generateMap(stage: Stage, rng: Random, floor = 1): { map: MapSta
   map.objects.push({ id: 'element-cache', type: 'chest', chestTier: 'silver', position: { x: 3, y: height - 7 }, skillId: element });
   // No loose starting supplies. A supply cache appears in only 25% of expeditions.
   if (rng.next() < .25) map.objects.push({ id: 'supply-cache', type: 'chest', chestTier: 'wood', position: { x: width - 7, y: 3 } });
-  if (stage.requiredChests > 1) map.objects.push({ id: 'relic-2', type: 'chest', position: { x: 3, y: height - 4 }, objective: true, itemId: 'potion' });
+  if (stage.clearCondition?.type === 'records' && stage.clearCondition.count > 1) map.objects.push({ id: 'relic-2', type: 'record', position: { x: 3, y: height - 4 } });
   const enemies: Actor[] = [];
   // 出現表は型付きの敵IDを参照。種類別の分岐をここへ追加する必要はありません。
   const entries: EnemySpawn[] = stage.enemySpawns ?? [{ kind: 'slime', count: stage.enemyCount }];
@@ -127,6 +126,35 @@ export function generateMap(stage: Stage, rng: Random, floor = 1): { map: MapSta
     if (cells.length) map.objects.push({ id: 'gem-floor', type: 'gem', position: cells[rng.int(0, cells.length - 1)] });
   }
   initializeChests(map, rng, floor);
-  placeTraps(map, stage.trapPlacements ?? [], rng, { x: 3, y: 3 }, enemies);
+  placeTraps(map, (stage.trapPlacements ?? []).map(p => ({ ...p, pool: p.pool ?? stage.trapPool })), rng, { x: 3, y: 3 }, enemies);
   return { map, enemies, spawn: { x: 3, y: 3 } };
+}
+
+/** 目標数を満たす記録・討伐対象を必ず初期配置し、乱数によるクリア不能を防ぐ。 */
+export function generateMap(base: Stage, rng: Random, floor = 1): { map: MapState; enemies: Actor[]; spawn: Point } {
+ const stage = stageForFloor(base, floor), result = generateBaseMap(stage, rng, floor);
+ const { map, enemies, spawn } = result, goal = stage.clearCondition;
+ // 旧形式の目標宝箱も独立した記録に置き換える。
+ map.objects = map.objects.map(o => o.objective ? { id: o.id, type: 'record' as const, position: o.position } : o);
+ const place = (body: Actor): Point => {
+   const candidates: Point[] = [];
+   for (let y = 1; y < map.height - 1; y++) for (let x = 1; x < map.width - 1; x++) {
+     const p = { x, y };
+     if (distance(p, spawn) < 5 || !canStand(map, body, p, enemies)) continue;
+     if (occupied(body, p).some(c => map.objects.some(o => same(o.position, c)) || map.traps?.some(t => same(t.position, c)) || map.fields.some(f => same(f.position, c)))) continue;
+     candidates.push(p);
+   }
+   if (!candidates.length) throw new Error(stage.name + ': クリア目標の配置場所がありません');
+   return candidates[rng.int(0, candidates.length - 1)];
+ };
+ if (goal?.type === 'records') {
+   for (let n = map.objects.filter(o => o.type === 'record').length; n < goal.count; n++) map.objects.push({ id: 'record-' + n, type: 'record', position: place(actor('record-token', 'slime', spawn)) });
+ }
+ if (goal?.type === 'defeat') {
+   for (let n = enemies.filter(e => e.kind === goal.kind).length; n < goal.count; n++) {
+     const enemy = actor('goal-enemy-' + n, goal.kind, spawn, stage.id, floor); enemy.position = place(enemy); enemies.push(enemy);
+   }
+ }
+ placeInstallations(map, stage.installationPlacements ?? [], rng, spawn, enemies);
+ return result;
 }

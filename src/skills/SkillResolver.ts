@@ -3,6 +3,9 @@ import { SKILLS } from '../data/skills';
 import { effectiveLevel } from './SkillBag';
 import { canStand, occupied, same, wall } from '../game/MapState';
 import { VECTORS, type Direction, type Point, type SaveData, type SkillId } from '../game/types';
+export function attackTargets(state:SaveData) {
+ return [...state.enemyStates, ...(state.mapState.installations??[]).map(i=>({...state.playerState,id:i.id,position:i.position,cells:[{x:0,y:0}],hp:1}))];
+}
 export type TargetPreview = { cells: Point[]; blocked: Point | null; targetIds: string[] };
 /** 指定地点型の選択範囲。実効レベルの拡張をUIと実発動で共有。 */
 export function selectionRange(state: SaveData, id: SkillId): number {
@@ -21,7 +24,7 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
   if (definition.target === 'sweep') {
     const f=VECTORS[direction], side={x:-f.y,y:f.x};
     for(const [forward,lateral] of [[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {const c={x:p.x+f.x*forward+side.x*lateral,y:p.y+f.y*forward+side.y*lateral};if(!wall(state.mapState,c))result.cells.push(c);}
-    result.targetIds=state.enemyStates.filter(e=>e.hp>0&&occupied(e).some(c=>result.cells.some(t=>same(c,t)))).map(e=>e.id);
+    result.targetIds=attackTargets(state).filter(e=>e.hp>0&&occupied(e).some(c=>result.cells.some(t=>same(c,t)))).map(e=>e.id);
   } else if (definition.target === 'enemyWarp') {
     const enemy=target?vacuumTarget(state,target):undefined;
     if(enemy){result.cells=occupied(enemy);result.targetIds=[enemy.id];}
@@ -38,7 +41,7 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
       const cell = { x: target!.x + dx, y: target!.y + dy };
       if (!wall(state.mapState, cell)) result.cells.push(cell);
     }
-    result.targetIds = state.enemyStates.filter(e => e.hp > 0 && occupied(e).some(c => result.cells.some(t => same(c, t)))).map(e => e.id);
+    result.targetIds = attackTargets(state).filter(e => e.hp > 0 && occupied(e).some(c => result.cells.some(t => same(c, t)))).map(e => e.id);
   } else if (definition.target === 'warp') {
     for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) <= 1) continue;
@@ -51,14 +54,14 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
       const cell = { x: p.x + dx, y: p.y + dy };
       if (!wall(state.mapState, cell)) result.cells.push(cell);
     }
-    result.targetIds = state.enemyStates.filter(e => e.hp > 0 && occupied(e).some(c => result.cells.some(t => same(c, t)))).map(e => e.id);
+    result.targetIds = attackTargets(state).filter(e => e.hp > 0 && occupied(e).some(c => result.cells.some(t => same(c, t)))).map(e => e.id);
   } else {
     const v = VECTORS[direction];
     for (let n = 1; n <= definition.range; n++) {
       const cell = { x: p.x + v.x * n, y: p.y + v.y * n };
       if (wall(state.mapState, cell)) { result.blocked = cell; break; }
       result.cells.push(cell);
-      const enemy = state.enemyStates.find(e => e.hp > 0 && occupied(e).some(c => same(c, cell)));
+      const enemy = attackTargets(state).find(e => e.hp > 0 && occupied(e).some(c => same(c, cell)));
       if (enemy) { result.targetIds.push(enemy.id); break; }
     }
   }
@@ -68,7 +71,7 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
 /** 一発につき一体へ連鎖。大型敵は占有セルの外周から距離を測る。 */
 export function chainHitLimit(state: SaveData): number { const level=effectiveLevel(state.skillBag,state.skillLevels,'chainLightning');return level>=5?5:level>=3?3:2; }
 export function nextChainTarget(state: SaveData, origins: Point[], hit: Set<string>) {
-  return state.enemyStates.filter(e=>e.hp>0&&!hit.has(e.id)).map(e=>({e,d:Math.min(...occupied(e).flatMap(c=>origins.map(p=>Math.max(Math.abs(p.x-c.x),Math.abs(p.y-c.y)))))})).filter(t=>t.d===1).sort((a,b)=>a.d-b.d||a.e.id.localeCompare(b.e.id))[0]?.e;
+  return attackTargets(state).filter(e=>e.hp>0&&!hit.has(e.id)).map(e=>({e,d:Math.min(...occupied(e).flatMap(c=>origins.map(p=>Math.max(Math.abs(p.x-c.x),Math.abs(p.y-c.y)))))})).filter(t=>t.d===1).sort((a,b)=>a.d-b.d||a.e.id.localeCompare(b.e.id))[0]?.e;
 }
 
 /** 真空切り：敵の占有外周から、旅人が移動可能な空きマスを列挙。 */

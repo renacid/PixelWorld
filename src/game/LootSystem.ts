@@ -1,5 +1,5 @@
 import { ITEMS } from '../data/items';
-import { CHESTS, COMMON_ITEMS, RARE_ITEMS, type ChestTier, type DropEntry, type Loot, type Weighted } from '../data/loot';
+import { CHESTS, COMMON_ITEMS, RARE_ITEMS, type ChestTier, type DropEntry, type Loot, type Weighted, type LootPools } from '../data/loot';
 import type { GroundObject, MapState, Point } from './types';
 import type { Random } from './Random';
 
@@ -14,22 +14,25 @@ export function weighted<T>(entries: Weighted<T>[], rng: Random): T {
 export function rollDrops(entries: DropEntry[], rng: Random, floor = 1): Loot[] {
   return entries.flatMap(e => rng.next() < e.chance * (e.loot.type === 'item' ? rarityFactor(e.loot.id, floor) : 1) ? Array.from({ length: e.count ?? 1 }, () => ({ ...e.loot })) : []);
 }
-export function rollChest(tier: ChestTier, rng: Random, guaranteed: Loot[] = [], floor = 1): Loot[] {
+export function rollChest(tier: ChestTier, rng: Random, guaranteed: Loot[] = [], floor = 1, pools?: LootPools): Loot[] {
   const d = CHESTS[tier], result: Loot[] = guaranteed.map(e => ({ ...e }));
   const skillIds = new Set(result.filter(e => e.type === 'skill').map(e => e.id));
   if (rng.next() < d.skills.chance) {
     const count = Math.max(skillIds.size, rng.int(d.skills.min, d.skills.max));
-    let pool = d.skills.pool.filter(e => !skillIds.has(e.value));
+    let pool = (pools?.skills ?? d.skills.pool).filter(e => e.weight > 0 && !skillIds.has(e.value));
     while (skillIds.size < count && pool.length) { const id = weighted(pool, rng); result.push({ type: 'skill', id }); skillIds.add(id); pool = pool.filter(e => e.value !== id); }
   }
   if (rng.next() < d.items.chance) {
     const count = rng.int(d.items.min, d.items.max), existing = result.filter(e => e.type === 'item').length;
-    for (let i = existing; i < count; i++) result.push({ type: 'item', id: weighted((rng.next() < d.items.rareChance * Math.min(1, .25 + (floor - 1) * .375) ? RARE_ITEMS : COMMON_ITEMS).map(e => ({ ...e, weight: e.weight * rarityFactor(e.value, floor) })), rng) });
+    for (let i = existing; i < count; i++) {
+      const pool = rng.next() < d.items.rareChance * Math.min(1, .25 + (floor - 1) * .375) ? (pools?.rareItems ?? RARE_ITEMS) : (pools?.items ?? COMMON_ITEMS);
+      if (pool.some(e => e.weight > 0)) result.push({ type: 'item', id: weighted(pool.map(e => ({ ...e, weight: e.weight * rarityFactor(e.value, floor) })), rng) });
+    }
   }
   return result;
 }
-export function makeChest(id: string, position: Point, tier: ChestTier, rng: Random, guaranteed: Loot[] = [], floor = 1): GroundObject {
-  return { id, type: 'chest', position: { ...position }, chestTier: tier, contents: rollChest(tier, rng, guaranteed, floor) };
+export function makeChest(id: string, position: Point, tier: ChestTier, rng: Random, guaranteed: Loot[] = [], floor = 1, pools?: LootPools): GroundObject {
+  return { id, type: 'chest', position: { ...position }, chestTier: tier, contents: rollChest(tier, rng, guaranteed, floor, pools) };
 }
 export function floorLoot(id: string, position: Point, loot: Loot): GroundObject {
   return { id, position: { ...position }, type: loot.type, ...(loot.type === 'item' ? { itemId: loot.id } : { skillId: loot.id }) };
@@ -47,7 +50,7 @@ export function initializeChests(map: MapState, rng: Random, floor = 1): void {
   for (const obj of map.objects.filter(o => o.type === 'chest')) {
     const fixed = legacyLoot(obj), skills = fixed.filter(e => e.type === 'skill').length;
     obj.chestTier ??= skills >= 2 ? 'gold' : skills ? 'silver' : 'wood';
-    obj.contents ??= rollChest(obj.chestTier, rng, fixed, floor);
+    obj.contents ??= rollChest(obj.chestTier, rng, fixed, floor, map.loot);
   }
 }
 

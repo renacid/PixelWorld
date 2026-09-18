@@ -14,7 +14,7 @@ import { GEM_REWARDS } from './data/gems';
 import { skillMpLabel } from './skills/SkillWear';
 import { ITEMS } from './data/items';
 import { blockCells, connectionDamageMultiplier, connectionBonus, effectiveLevel, shape, validPlacement } from './skills/SkillBag';
-import { STAGES } from './stages';
+import { STAGES, REGIONS } from './stages';
 import { GameCanvas } from './render/GameCanvas';
 import { SoundManager } from './audio/SoundManager';
 import { previewSkill, validSkillTarget } from './skills/SkillResolver';
@@ -69,8 +69,8 @@ function stopRenderer(): void { gameInputCleanup.splice(0).forEach(cleanup=>clea
 function home(): void {
   stopRenderer(); closeModal(); screen = 'home';
   const saved = saves.load(), progress = saves.progress();
-  app.innerHTML = `<main class="home-shell">${header('草原の迷宮', false)}
-    <section class="hero"><div class="eyebrow"><span></span> A LITTLE TURN-BASED ADVENTURE</div>
+  app.innerHTML = `<main class="home-shell">
+    <section class="hero"><div class="eyebrow"><span></span> PIXEL WORLD</div>
       <h1>ピクセル<span>ワールド</span></h1>
       <div class="hero-art"><canvas id="hero-canvas" aria-label="ドット絵の草原と冒険者"></canvas><div class="hero-vignette"></div></div>
     </section>
@@ -81,17 +81,23 @@ function home(): void {
     ${saves.error ? `<p class="save-warning">${escape(saves.error)}</p>` : ''}</main>`;
   const demo = GameSession.create(4, 8421);
   demo.state.playerState.position = { x: 7, y: 6 }; demo.explore();
-  demo.state.mapState.objects.push({ id: 'hero-chest', type: 'chest', position: { x: 9, y: 5 }, objective: true });
+  demo.state.mapState.objects.push({ id: 'hero-chest', type: 'record', position: { x: 9, y: 5 } });
   renderer = new GameCanvas(document.querySelector('#hero-canvas')!); renderer.session = demo; renderer.settings = settings; renderer.start();
-  on('solo', stages); on('continue', () => { if (saved?.status === 'playing') { session = new GameSession(saved); selected = null; lastOutcome = ''; showGame(); } }); on('settings', showSettings);
+  on('solo', () => stages()); on('continue', () => { if (saved?.status === 'playing') { session = new GameSession(saved); selected = null; lastOutcome = ''; showGame(); } }); on('settings', showSettings);
 }
-function stages(): void {
+function stages(regionId?: string): void {
   stopRenderer(); closeModal(); screen = 'stages'; const progress = saves.progress();
-  app.innerHTML = `<main class="stage-shell">${header('冒険を選ぶ')}<div class="section-intro"><div class="eyebrow">THE GREEN EXPANSE</div><h1>平原の先へ。</h1><p>スキルを集め、組み合わせ、道を切り開こう。</p></div><div class="stage-list">${STAGES.map(stage => {
+  if (!regionId) {
+    app.innerHTML = `<main class="stage-shell">${header('地域を選ぶ')}<div class="stage-list">${REGIONS.map(r => `<button class="stage-card" data-region="${r.id}"><span class="stage-number">${r.number}</span><span class="stage-details"><strong>${r.name}</strong><span>${r.description}</span><small>${STAGES.filter(s => s.regionId === r.id).length}/${r.plannedStages}ステージ公開</small></span><span>→</span></button>`).join('')}</div></main>`;
+    on('back', home); app.querySelectorAll<HTMLElement>('[data-region]').forEach(b => b.addEventListener('click', () => stages(b.dataset.region))); return;
+  }
+  const region = REGIONS.find(r => r.id === regionId)!;
+  const comingSoon = Array.from({ length: region.plannedStages }, (_, i) => `${region.number}-${i + 1}`).filter(code => !STAGES.some(s => s.code === code)).map(code => `<button class="stage-card locked" disabled><span class="stage-number">${code}</span><span class="stage-details"><strong>${region.name}</strong><small>準備中</small></span></button>`).join('');
+  app.innerHTML = `<main class="stage-shell">${header(region.name + 'のステージ')}<div class="section-intro"></div><div class="stage-list">${STAGES.filter(stage => stage.regionId === regionId).map(stage => {
     const locked = stage.id > progress + 1, clear = stage.id <= progress;
-    return `<button class="stage-card ${locked ? 'locked' : ''} ${stage.id === Math.min(STAGES.length, progress + 1) ? 'current' : ''}" data-stage="${stage.id}" ${locked ? 'disabled' : ''}><span class="stage-number">0${stage.id}</span><span class="stage-details"><small>${stage.name} ${clear ? '· 踏破済み' : locked ? '· 未解放' : '· 探索可能'}</small><strong>${stage.subtitle}</strong><span>${stage.objective} · ${stage.dungeon?.floors ?? "1"}層</span></span><span class="stage-arrow">${locked ? '◇' : clear ? '✓' : '↗'}</span></button>`;
-  }).join('')}</div><div class="note-card"><span>✧</span><p>冒険ごとに、新しい組み合わせ。<br><small>HP・MP・スキル・道具は出発時にリセットされます。</small></p></div><p class="footnote">宝箱へ移動すると開きます。行動するまで敵も動きません。</p></main>`;
-  on('back', home);
+    return `<button class="stage-card ${locked ? 'locked' : ''} ${stage.id === Math.min(STAGES.length, progress + 1) ? 'current' : ''}" data-stage="${stage.id}" ${locked ? 'disabled' : ''}><span class="stage-number">${stage.code}</span><span class="stage-details"><small>${stage.name} ${clear ? '· 踏破済み' : locked ? '· 未解放' : '· 探索可能'}</small><strong>${stage.subtitle}</strong><span>${stage.objective} · ${stage.dungeon?.floors ?? "1"}層</span></span><span class="stage-arrow">${locked ? '◇' : clear ? '✓' : '↗'}</span></button>`;
+  }).join('')}${comingSoon}</div><div class="note-card"><span>✧</span><p>冒険ごとに、新しい組み合わせ。<br><small>HP・MP・スキル・道具は出発時にリセットされます。</small></p></div></main>`;
+  on('back', () => stages());
   app.querySelectorAll<HTMLButtonElement>('[data-stage]').forEach(button => button.addEventListener('click', () => {
     const id = Number(button.dataset.stage), saved = saves.load();
     if (saved?.status === 'playing') {
@@ -245,7 +251,7 @@ function update(): void {
   clock.classList.remove('sleep-ready');
   text('regen-label', (p.movementLockedUntil ?? -1) > s.playerActionCount ? '移動不可 · 1行動' : `MP回復まで${BALANCE.mpRecoveryInterval - (s.mpRecoveryActions ?? 0)}`);
   document.getElementById('hp-bar')!.style.width = `${p.hp / p.maxHp * 100}%`; document.getElementById('mp-bar')!.style.width = `${p.mp / p.maxMp * 100}%`;
-  text('objective-text', `${session.goalReady() ? '出口へ向かおう' : session.stage.objective}${session.stage.goal === 'treasure' ? ` (${s.objectiveChests}/${session.stage.requiredChests})` : ''}`);
+  text('objective-text', session.goalReady() ? '出口へ向かおう' : session.objectiveLabel());
   text('level-label', `Lv.${s.playerLevel}`); text('exp-label', s.playerLevel === 20 ? 'MAX' : `${s.experience}/${requiredExperience(s.playerLevel!)}`); document.getElementById('exp-bar')!.style.width = `${s.playerLevel === 20 ? 100 : s.experience! / requiredExperience(s.playerLevel!) * 100}%`; document.getElementById('exp-bar')!.parentElement!.setAttribute('aria-label', '経験値'); text('message-text', s.log.at(-1) ?? ''); text('bag-count', `${s.skillBag.filter(b => b.position).flatMap(blockCells).length}/${s.bagCells!.length}`);
   text('save-label', saves.error ? `⚠ ${saves.error}` : '● 自動保存');
   const buttons = document.getElementById('skill-buttons')!;
@@ -346,8 +352,8 @@ function pause(): void {
 function outcome(): void {
   if (!session || screen !== 'game') return;
   const clear = session.state.status === 'cleared', id = session.state.stageId;
-  dialog(`<div class="result-symbol">${clear ? '✦' : '◇'}</div><div class="eyebrow">${clear ? 'EXPEDITION COMPLETE' : 'END OF EXPEDITION'}</div><h2>${clear ? 'ステージを踏破した。' : 'また、新しい一歩を。'}</h2><p>${session.stage.name} · ${session.stage.subtitle}<br>${session.state.playerActionCount}行動 / 古代の宝箱 ${session.state.objectiveChests}個</p><div class="note-card"><p>${clear && id < STAGES.length ? `${STAGES[id].name}「${STAGES[id].subtitle}」が解放されました。` : clear ? 'すべてのステージを踏破しました！' : '集めたスキルと道具は回収されます。新しい構成で再挑戦しよう。'}</p></div><button id="next-adventure" class="primary">${clear && id < STAGES.length ? '次のステージへ' : 'もう一度挑戦'}</button><button id="result-stages" class="secondary">ステージ選択へ</button>`);
-  on('next-adventure', () => startStage(clear && id < STAGES.length ? id + 1 : id)); on('result-stages', stages);
+  dialog(`<div class="result-symbol">${clear ? '✦' : '◇'}</div><div class="eyebrow">${clear ? 'EXPEDITION COMPLETE' : 'END OF EXPEDITION'}</div><h2>${clear ? 'ステージを踏破した。' : 'また、新しい一歩を。'}</h2><p>${session.stage.name} · ${session.stage.subtitle}<br>${session.state.playerActionCount}行動 / 古代の記録 ${session.state.objectiveChests}個</p><div class="note-card"><p>${clear && id < STAGES.length ? `${STAGES[id].name}「${STAGES[id].subtitle}」が解放されました。` : clear ? 'すべてのステージを踏破しました！' : '集めたスキルと道具は回収されます。新しい構成で再挑戦しよう。'}</p></div><button id="next-adventure" class="primary">${clear && id < STAGES.length ? '次のステージへ' : 'もう一度挑戦'}</button><button id="result-stages" class="secondary">ステージ選択へ</button>`);
+  on('next-adventure', () => startStage(clear && id < STAGES.length ? id + 1 : id)); on('result-stages', () => stages());
 }
 function fullMap(): void {
   if (actionLocked) return;
@@ -497,13 +503,37 @@ function openBag(acquisition: boolean, readOnly = false, onReturn?: () => void):
     b.rotation = rotation; drawBag();
   });
   on('unplace', () => { if (active && editable) { draft.find(b => b.skillId === active)!.position = null; message = 'バッグから外しました。未配置のまま閉じると消滅します。'; drawBag(); } });
+  const closeButton = document.getElementById('close-bag')!;
+  const commitBag = () => {
+    const discarded = draft.filter(b => !b.position);
+    for (const b of discarded) session!.loseSkill(b.skillId);
+    if (discarded.length) session!.log(discarded.map(b => SKILLS[b.skillId].name).join('、') + 'は未配置のため消滅した。');
+    session!.state.skillBag = draft.filter(b => b.position).map(b => ({ ...b, isNew: false }));
+    session!.state.pendingBag = false; session!.rewardFullBag(); persist();
+    if (selected && !draft.find(b => b.skillId === selected)?.position) selected = null;
+    closeModal(); update();
+  };
   on('close-bag', () => {
     if (readOnly) { closeModal(); onReturn?.(); return; }
+    if (modal!.querySelector('.bag-discard-confirm')) return;
     const discarded = draft.filter(b => !b.position);
-    if (discarded.length && !window.confirm('未配置のスキルは消滅します。\n' + discarded.map(b => SKILLS[b.skillId].name).join('、') + '\n破棄して閉じますか？')) return;
-    for (const b of discarded) { session!.loseSkill(b.skillId); }
-    if (discarded.length) session!.log(discarded.map(b => SKILLS[b.skillId].name).join('、') + 'は未配置のため消滅した。');
-    if (editable) { session!.state.skillBag = draft.filter(b => b.position).map(b => ({ ...b, isNew: false })); session!.state.pendingBag = false; session!.rewardFullBag(); persist(); } if (selected && !draft.find(b => b.skillId === selected)?.position) selected = null; closeModal(); update(); });
+    if (!discarded.length) { commitBag(); return; }
+    // ブラウザのconfirmは埋め込み画面で見落とされやすいため、バッグ内に確認を表示する。
+    const panel = document.createElement('div'); panel.className = 'bag-discard-confirm';
+    panel.setAttribute('role', 'alertdialog'); panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'discard-title');
+    panel.innerHTML = '<div><h3 id="discard-title">未配置のスキルは消滅します</h3><p>' + discarded.map(b => escape(SKILLS[b.skillId].name)).join('、') + '</p><button id="keep-bag" class="secondary">配置に戻る</button><button id="discard-bag" class="primary">破棄して閉じる</button></div>';
+    const content = modal!.querySelector<HTMLElement>('.dialog')!; content.inert = true;
+    modal!.append(panel);
+    const cancel = () => { panel.remove(); content.inert = false; closeButton.focus(); };
+    panel.querySelector<HTMLButtonElement>('#keep-bag')!.onclick = cancel;
+    panel.querySelector<HTMLButtonElement>('#discard-bag')!.onclick = commitBag;
+    panel.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel(); }
+      if (e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); const buttons = panel.querySelectorAll<HTMLButtonElement>('button'); (document.activeElement === buttons[0] ? buttons[1] : buttons[0]).focus(); }
+    });
+    panel.querySelector<HTMLButtonElement>('#keep-bag')!.focus();
+  });
   drawBag();
 }
 document.addEventListener('keydown', event => {
