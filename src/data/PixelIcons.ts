@@ -3,6 +3,12 @@ import type { SkillId, ItemId } from '../game/types';
 export type PixelIcon = { rows: string[]; color: string; image?: string };
 const make=(color:string,rows:string[]):PixelIcon=>({color,rows:rows.flatMap(row=>[...Array(2)].map(()=>[...row].map(c=>c+c).join('')))});
 export const SKILL_ICONS:Record<SkillId,PixelIcon>={
+ iceLance:make('#63badb',['......wg','.....wgg','....wgg.','...wg...','..wg....','.wg.....','gg......','g.......']),
+ fireWall:make('#e97448',['.g.g.g..','.gwgwg..','ggwgwgg.','gwgwgwgg','gggggggg','gggggggg','gggggggg','........']),
+ tornadoSummon:make('#55bfa5',['.gggggg.','g......g','.gggggg.','..gggg..','...gg...','..gg....','.g......','gggggggg']),
+ earthquake:make('#a98157',['...g....','gg.g.ggg','..g.g...','...g....','ggg.g.gg','...g.g..','gggggggg','gggggggg']),
+ summonSpirit:make('#aa825f',['..gggg..','.gwwggg.','ggwwgggg','gggggggg','.g.gg.g.','...g....','.gggggg.','..gggg..']),
+ iceShield:make('#66bddc',['.gggggg.','gwwggwwg','gwggggwg','gggwgggg','.gwwwgg.','.ggwggg.','..gggg..','...gg...']),
  sweep:make('#bf9652',['...sss..','.ss...s.','s......s','.....ss.','...ss...','..ss....','.gg.....','gg......']),
  vacuumSlash:make('#59ac98',['......ss','.....ss.','gg..ss..','..gss...','..ssgggg','.ss.....','gg..gg..','g.......']),
  attack:make('#c5aa59',['......ss','.....ss.','....ss..','...ss...','g.ss....','.gg.....','.ggg....','g..g....']),

@@ -4,8 +4,18 @@ import type { GameEvent, Point } from '../game/types';
 export function drawTrapEffect(ctx: CanvasRenderingContext2D, event: GameEvent, age: number, screen: (p: Point) => Point): void {
   ctx.globalAlpha = Math.min(1, (1 - age) * 3);
   for (const cell of event.path ?? [event.position]) {
-    const p = screen(cell), x = p.x + 16, y = p.y + 16;
-    if(event.visual==='shatter') {
+    const visualCell=event.visual==='windVortex'&&event.target?{x:cell.x+(event.target.x-cell.x)*Math.min(1,age*2),y:cell.y+(event.target.y-cell.y)*Math.min(1,age*2)}:cell;
+    const p = screen(visualCell), x = p.x + 16, y = p.y + 16;
+    if(event.visual==='quake'){
+      ctx.strokeStyle='#a98351';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x+3,p.y+25);ctx.lineTo(p.x+12,p.y+14);ctx.lineTo(p.x+19,p.y+20);ctx.lineTo(p.x+29,p.y+6);ctx.stroke();
+    }else if(event.visual==='iceLance'){
+      ctx.fillStyle='#d9faff';ctx.beginPath();ctx.moveTo(x,y-13);ctx.lineTo(x+5,y+5);ctx.lineTo(x,y+12);ctx.lineTo(x-5,y+5);ctx.closePath();ctx.fill();ctx.strokeStyle='#67b7e0';ctx.stroke();
+    }else if(event.visual==='windVortex'){
+      ctx.strokeStyle='#a4f4d8';ctx.lineWidth=3;for(let i=0;i<3;i++){ctx.beginPath();ctx.ellipse(x+Math.sin(age*15+i)*2,y+8-i*6,4+i*4,2+i,age*5,0,Math.PI*1.8);ctx.stroke();}
+    }else if(event.visual==='iceShield'){
+      ctx.fillStyle='#90dfff55';ctx.fillRect(p.x+2,p.y+2,28,28);
+      ctx.strokeStyle='#d4faff';ctx.lineWidth=2;ctx.beginPath();const r=4+age*9;ctx.moveTo(x,y-r);ctx.lineTo(x+r*.6,y);ctx.lineTo(x,y+r);ctx.lineTo(x-r*.6,y);ctx.closePath();ctx.stroke();
+    }else if(event.visual==='shatter') {
       for(let i=0;i<9;i++){const angle=i*2.4,r=age*(15+i);ctx.fillStyle=i%2?'#e9b985':'#8c513b';ctx.fillRect(x+Math.cos(angle)*r,y+Math.sin(angle)*r-age*18+age*age*25,4,3);}
     } else if (event.visual === 'fireBlast') {
       ctx.fillStyle = '#ff935577'; ctx.fillRect(p.x, p.y, 32, 32);

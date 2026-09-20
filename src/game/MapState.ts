@@ -1,3 +1,4 @@
+import { WORLD_SETTINGS } from './WorldSettings';
 import { placeInstallations } from './InstallationSystem';
 /** 占有・通行・視線判定とマップ生成。手作り地形は地域別ステージのlayoutへ指定します。 */
 import { floorRules, stageForFloor } from '../stages/DungeonRules';
@@ -32,6 +33,7 @@ export function lineOfSight(map: MapState, from: Point, to: Point): boolean {
 }
 function generateBaseMap(stage: Stage, rng: Random, floor = 1): { map: MapState; enemies: Actor[]; spawn: Point } {
   const { width, height } = stage;
+  if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||width>WORLD_SETTINGS.maxMapWidth||height>WORLD_SETTINGS.maxMapHeight)throw new Error('マップサイズは最大120×120です。');
   const rules = floorRules(stage, floor);
   const varyCount = (count: number) => Math.max(0, count + rng.int(-rules.enemyVariance, rules.enemyVariance));
   // 既存の床に接した壁だけを開くので、通路の接続と固定配置を壊さず形が変わる。
@@ -155,6 +157,23 @@ export function generateMap(base: Stage, rng: Random, floor = 1): { map: MapStat
      const enemy = actor('goal-enemy-' + n, goal.kind, spawn, stage.id, floor); enemy.position = place(enemy); enemies.push(enemy);
    }
  }
+ if(floor===1){
+  const chest=map.objects.find(o=>o.type==='chest'&&(o.skillId==='attack'||o.skillIds?.includes('attack')));
+  if(chest){const forest=(Number(stage.code?.split('-')[0])||1)>=2||stage.regionId==='forest';
+    chest.skillId=undefined;chest.skillIds=forest?['attack','warp','sweep']:['attack','warp'];chest.itemId=forest?'potion':undefined;
+    const supplies=(chest.contents??[]).filter(e=>e.type==='item');if(forest&&!supplies.some(e=>e.id==='potion'))supplies.push({type:'item',id:'potion'});
+    chest.contents=[...chest.skillIds.map(id=>({type:'skill' as const,id})),...supplies];chest.randomSkillsResolved=true;
+    const cells:Point[]=[];for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++){const p={x:chest.position.x+x,y:chest.position.y+y};if((x||y)&&!same(p,spawn)&&canStand(map,actor('book','slime',p),p,enemies)&&!map.objects.some(o=>same(o.position,p))&&!map.traps?.some(t=>same(t.position,p))&&!map.fields.some(f=>same(f.position,p)))cells.push(p);}
+    if(!cells.length)throw new Error(stage.name+': 初期宝箱の隣にスキルの書の空きマスがありません');
+    map.objects.push({id:'starting-skill-book',type:'skillBook',position:cells[0]});
+  }
+ }
  placeInstallations(map, stage.installationPlacements ?? [], rng, spawn, enemies);
+ if(goal?.type==='destroyInstallations'){
+   let targets=map.installations!.filter(i=>i.kind===goal.kind);
+   if(targets.length<goal.count)throw new Error(stage.name+': 破壊目標の設置物が不足しています');
+   // 目標数分は出現枯渇後も残す。自然消滅で破壊目標が不足しないため。
+   targets.slice(0,goal.count).forEach(i=>i.requiredForGoal=true);
+ }
  return result;
 }

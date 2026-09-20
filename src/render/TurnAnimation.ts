@@ -32,7 +32,7 @@ export class TurnAnimation {
         if (progress < .55) { a.hp = prev.hp; a.afflictions = prev.afflictions; }
       }
       const attack = step.events.find(e => (e.type === 'attack' || e.type === 'cast') && e.actorId === id);
-      if (attack?.target && attack.skillId !== 'warp') {
+      if (attack?.target && attack.skillId !== 'warp' && attack.enemySkillId !== 'dash') {
         const dx = attack.target.x - attack.position.x, dy = attack.target.y - attack.position.y, len = Math.hypot(dx, dy) || 1;
         const lunge = Math.sin(Math.min(1, progress / .7) * Math.PI) * .22;
         a.position = { x: a.position.x + dx / len * lunge, y: a.position.y + dy / len * lunge };

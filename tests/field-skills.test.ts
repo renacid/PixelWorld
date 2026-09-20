@@ -1,0 +1,17 @@
+import {it,expect} from 'vitest';
+import {GameSession} from '../src/game/GameSession';
+import {actor} from '../src/actors/Actor';
+import {dealAttributeHit,applyAttribute,tickAttributes} from '../src/skills/AttributeSystem';
+import {previewSkill,validSkillTarget} from '../src/skills/SkillResolver';
+import {tickSkillFields,contactSkillFields} from '../src/skills/FieldSkills';
+import {movementLocked} from '../src/game/ActorStats';
+import type {GameEvent} from '../src/game/types';
+const setup=()=>{const s=GameSession.create(1,1);s.state.playerState.position={x:5,y:5};s.state.playerState.criticalRate=0;s.state.enemyStates=[];s.state.mapState.tiles.fill(0);s.state.mapState.fields=[];s.state.mapState.objects=[];s.state.mapState.traps=[];s.state.mapState.installations=[];return s;};
+const context=(s:GameSession)=>({rng:s.rng,events:s.events,damage:s.damage,log:(m:string)=>s.log(m)});
+it('睡眠は夜の翌行動から',()=>{const s=setup();s.state.daylightCount=100;expect(s.canSleep()).toBe(false);s.state.daylightCount=101;expect(s.canSleep()).toBe(true);});
+it('チェインの初撃は選択した隣接対象',()=>{const s=setup();s.state.enemyStates=[actor('a','slime',{x:6,y:5}),actor('b','slime',{x:5,y:6})];expect(validSkillTarget(s.state,'chainLightning')).toBe(false);expect(previewSkill(s.state,'chainLightning','right',{x:5,y:6}).targetIds[0]).toBe('b');});
+it('氷槍は距離ではなく命中順、Lv3で4体目まで',()=>{const s=setup();s.state.skillLevels.iceLance=3;s.state.enemyStates=[1,2,3,4].map(n=>({...actor('e'+n,'slime',{x:5+n,y:5}),hp:100,maxHp:100}));s.cast('iceLance','right');expect(s.state.enemyStates.map(e=>100-e.hp)).toEqual([7,9,13,16]);});
+it('炎の壁は3ターンで消え、大型敵に1回分ずつ命中',()=>{const s=setup();s.state.enemyStates=[{...actor('e','golem',{x:6,y:5}),hp:100,maxHp:100}];s.cast('fireWall','right');expect(s.state.enemyStates[0].hp).toBe(95);for(let n=1;n<=3;n++){s.state.playerActionCount=n;contactSkillFields(s.state,context(s));tickSkillFields(s.state,context(s));}expect(s.state.enemyStates[0].hp).toBe(86);expect(s.state.mapState.fields).toHaveLength(0);});
+it('竜巻は発生後3回移動して消える',()=>{const s=setup();s.cast('tornadoSummon','right');expect(s.state.mapState.fields[0].position.x).toBe(6);for(let n=1;n<=2;n++){s.state.playerActionCount=n;tickSkillFields(s.state,context(s));expect(s.state.mapState.fields[0].position.x).toBe(6+n);}s.state.playerActionCount=3;tickSkillFields(s.state,context(s));expect(s.state.mapState.fields).toHaveLength(0);});
+it('霜蝕は属性を維持、融激ダメージを1回追加して解除',()=>{const e={...actor('e','slime',{x:1,y:1}),hp:100,maxHp:100},events:GameEvent[]=[];const damage=(t:typeof e,n:number)=>{t.hp-=Math.floor(n);};applyAttribute(e,'ice',1,1,[e],damage,events);applyAttribute(e,'earth',1,1,[e],damage,events);expect(e.afflictions).toHaveLength(2);expect(movementLocked(e,1)).toBe(true);expect(movementLocked(e,2)).toBe(false);dealAttributeHit(e,10,'fire',2,[e],damage,events,()=>0);expect(e.hp).toBe(70);expect(e.frostErosion).toBeUndefined();});
+it('大地震は範囲内の未発見罠だけを除去',()=>{const s=setup();s.state.mapState.traps=[{id:'near',trapId:'fireMine',position:{x:6,y:5},triggered:false},{id:'far',trapId:'bearTrap',position:{x:10,y:5},triggered:false},{id:'known',trapId:'fireMine',position:{x:4,y:5},triggered:true}];s.state.mapState.playerTraps=[{id:'own',position:{x:5,y:5},damage:10}];s.cast('earthquake','up');expect(s.state.mapState.traps.map(t=>t.id)).toEqual(['far','known']);expect(s.state.mapState.playerTraps).toHaveLength(1);});

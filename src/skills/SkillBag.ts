@@ -34,7 +34,10 @@ export function connectionBonus(bag: BagBlock[], skillId: SkillId): number {
 export function effectiveLevel(_bag: BagBlock[], levels: Partial<Record<SkillId, number>>, id: SkillId, passiveBonus = 0): number { return (levels[id] ?? 1) + passiveBonus; }
 export function autoPlace(bag: BagBlock[], id: SkillId, available: Point[] = initialBagCells(5)): void {
   const block = bag.find(b => b.skillId === id)!;
-  for (const p of available) if (validPlacement(bag, id, p, block.rotation, available)) { block.position = { ...p }; return; }
+  for(let n=0;n<(SKILLS[id].rotatable?4:1);n++) {
+    const rotation=(block.rotation+n)%4;
+    for (const p of available) if (validPlacement(bag,id,p,rotation,available)) {block.position={...p};block.rotation=rotation;return;}
+  }
 }
 
 /** 接続グループの他ブロック数に応じた別枠乗算。未指定の連結4以上は20%で上限。 */

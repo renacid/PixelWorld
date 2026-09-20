@@ -34,11 +34,25 @@ export class SoundManager {
     gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(volume, time + .008); gain.gain.exponentialRampToValueAtTime(.001, time + duration);
     osc.connect(gain); gain.connect(this.master); osc.start(time); osc.stop(time + duration + .02); osc.onended = () => { osc.disconnect(); gain.disconnect(); };
   }
+  /** ガラスが砕ける瞬間の短い高域ノイズ。ゲーム用乱数には触れない。 */
+  private glassBurst(delay:number):void {
+    this.unlock();
+    if(!this.enabled||!this.context||!this.master||String(this.context.state)!=='running')return;
+    const c=this.context,time=c.currentTime+delay,duration=.12;
+    const buffer=c.createBuffer(1,Math.ceil(c.sampleRate*duration),c.sampleRate),data=buffer.getChannelData(0);
+    for(let i=0;i<data.length;i++)data[i]=Math.random()*2-1;
+    const source=c.createBufferSource(),filter=c.createBiquadFilter(),gain=c.createGain();
+    source.buffer=buffer;filter.type='highpass';filter.frequency.value=2200;filter.Q.value=.7;
+    gain.gain.setValueAtTime(.001,time);gain.gain.linearRampToValueAtTime(.55,time+.002);gain.gain.exponentialRampToValueAtTime(.001,time+duration);
+    source.connect(filter);filter.connect(gain);gain.connect(this.master);source.start(time);source.stop(time+duration);
+    source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};
+  }
   step(): void { this.tone(150, 80, .065, 'triangle', 0, .25); }
   ui(): void { this.tone(700, 1000, .055, 'sine', 0, .3); }
   play(event: GameEvent, delayMs = 0): void {
     const t = delayMs / 1000;
     if (event.sound) {
+      if(event.sound==='shatter')this.glassBurst(t);
       for (const note of SOUND_CUES[event.sound]) this.tone(note.from, note.to, note.duration, note.wave, t + (note.delay ?? 0), note.volume ?? .5);
       return;
     }

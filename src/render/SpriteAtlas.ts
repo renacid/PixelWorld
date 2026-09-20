@@ -6,7 +6,11 @@ function make(kind: SpriteId, facing: 'down' | 'up' | 'left'): string[] {
   if (kind === 'golem') return makeGolem(facing);
   const pixels = Array.from({ length: 16 }, () => Array<string>(16).fill('.'));
   const rect = (x: number, y: number, w: number, h: number, color: string) => { for (let dy = y; dy < y + h; dy++) for (let dx = x; dx < x + w; dx++) if (dy >= 0 && dy < 16 && dx >= 0 && dx < 16) pixels[dy][dx] = color; };
-  if (kind === 'player') {
+  if(kind==='reaper'){
+    rect(4,2,7,2,'a');rect(3,4,9,7,'k');rect(4,4,7,5,'d');rect(5,5,2,1,'r');rect(9,5,2,1,'r');rect(4,9,7,3,'a');rect(3,11,3,2,'k');rect(8,11,4,2,'k');rect(5,12,2,2,'a');
+    const x=facing==='left'?1:13;rect(x,3,1,11,'O');rect(Math.max(0,x-4),1,5,1,'C');rect(Math.max(0,x-5),2,2,2,'w');rect(Math.max(0,x-5),4,1,2,'c');
+    if(facing==='up'){rect(4,4,7,4,'a');rect(6,4,2,5,'k');}
+  }else if (kind === 'player') {
     rect(4, 1, 8, 1, 'R'); rect(3, 2, 10, 7, 'r'); rect(2, 3, 12, 4, 'r'); rect(4, 9, 8, 4, 'b'); rect(3, 10, 1, 3, 's'); rect(12, 10, 1, 3, 's'); rect(5, 13, 2, 2, 'k'); rect(9, 13, 2, 2, 'k'); rect(4, 12, 8, 1, 'B');
     if (facing === 'down') { rect(4, 4, 8, 4, 's'); rect(5, 5, 2, 2, 'k'); rect(9, 5, 2, 2, 'k'); rect(7, 8, 2, 1, 's'); rect(5, 9, 6, 1, 'y'); }
     else if (facing === 'up') { rect(4, 3, 8, 2, 'R'); rect(5, 9, 6, 4, 'y'); rect(6, 9, 4, 1, 'w'); rect(7, 11, 2, 1, 'O'); }
@@ -16,7 +20,7 @@ function make(kind: SpriteId, facing: 'down' | 'up' | 'left'): string[] {
     if (facing === 'down') { rect(5, 10, 2, 2, 'k'); rect(10, 10, 2, 2, 'k'); rect(8, 12, 1, 1, 'G'); }
     else if (facing === 'left') { rect(3, 10, 2, 2, 'k'); rect(6, 10, 1, 2, 'k'); rect(10, 9, 3, 3, 'G'); }
     else { rect(7, 8, 4, 1, 'p'); rect(5, 11, 7, 2, 'G'); }
-  } else if (kind === 'goblin' || kind === 'archer' || kind === 'mage') {
+  } else if (kind === 'fighter' || kind === 'goblin' || kind === 'archer' || kind === 'mage') {
     // 緑の耳と茶色の服、手に持った石でスライムと見分けられるようにします。
     rect(4, 3, 8, 7, 'g'); rect(1, 4, 3, 3, 'G'); rect(12, 4, 3, 3, 'G');
     rect(5, 10, 6, 3, 'O'); rect(4, 13, 3, 2, 'k'); rect(9, 13, 3, 2, 'k');
@@ -33,25 +37,41 @@ function make(kind: SpriteId, facing: 'down' | 'up' | 'left'): string[] {
       rect(x+3,8,2,4,'o'); rect(x+2,12,2,2,'O'); rect(x+1,14,2,1,'o');
       rect(x,9,4,1,'y');
     }
+    if(kind==='fighter'){
+      rect(4,1,8,3,'c');rect(3,3,10,1,'a');rect(7,0,2,4,'C');rect(4,4,1,3,'a');rect(11,4,1,3,'a');
+      const x=facing==='left'?0:14;rect(x,5,1,7,'C');rect(x,5,1,2,'w');rect(Math.max(0,x-1),11,3,1,'y');rect(x,12,1,3,'O');
+    }
     if (kind === 'mage') { rect(5, 1, 6, 3, 'B'); rect(3, 3, 10, 1, 'b'); rect(5, 10, 6, 3, 'B'); rect(13, 8, 1, 7, 'O'); rect(12, 7, 3, 2, 'r'); }
   } else if (kind === 'wolf') {
-    // Top-down quadruped: muzzle on the left, body in the middle, tail on the right.
-    rect(4, 4, 8, 8, 'B'); rect(5, 5, 7, 6, 'b'); rect(3, 2, 2, 3, 'k'); rect(3, 11, 2, 3, 'k');
-    rect(9, 3, 2, 2, 'k'); rect(9, 11, 2, 2, 'k'); rect(1, 5, 5, 6, 'b'); rect(0, 7, 3, 2, 'w'); rect(0, 7, 1, 2, 'k');
-    rect(2, 5, 1, 1, 'k'); rect(2, 10, 1, 1, 'k'); rect(12, 6, 2, 3, 'B'); rect(14, 4, 1, 4, 'b'); rect(15, 3, 1, 3, 'w');
-    if (facing !== 'left') { const original = pixels.map(row => [...row]); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) pixels[y][x] = facing === 'up' ? original[15 - x][y] : original[x][15 - y]; }
+    // 背中の明部・腹側の陰・手前と奥の足で斜め上からの厚みを出す。
+    if(facing==='left'){
+      rect(6,9,2,3,'B');rect(11,9,2,3,'B');
+      rect(4,5,9,5,'B');rect(5,4,7,4,'b');rect(6,4,5,1,'w');
+      rect(3,9,2,5,'k');rect(10,9,2,5,'k');rect(3,10,2,3,'b');rect(10,10,2,3,'b');
+      rect(1,4,5,6,'b');rect(1,2,2,3,'B');rect(4,2,2,3,'B');rect(2,5,3,2,'w');
+      rect(0,7,4,3,'w');rect(0,7,1,2,'k');rect(2,6,1,1,'k');rect(4,9,2,2,'B');
+      rect(12,5,2,3,'b');rect(14,3,1,4,'B');rect(14,2,1,2,'w');
+    }else{
+      rect(4,7,2,6,'B');rect(10,7,2,6,'B');rect(5,5,6,7,'B');rect(6,5,4,5,'b');
+      if(facing==='down'){
+        rect(4,5,8,6,'b');rect(4,3,2,3,'B');rect(10,3,2,3,'B');rect(6,9,4,3,'w');rect(7,10,2,1,'k');rect(5,7,1,1,'k');rect(10,7,1,1,'k');rect(7,2,2,3,'B');
+      }else{
+        rect(4,3,8,5,'b');rect(4,2,2,3,'B');rect(10,2,2,3,'B');rect(5,4,6,1,'w');rect(7,10,2,4,'b');rect(7,13,2,1,'w');
+      }
+    }
   } else if (kind === 'treant') {
     // 枯れ枝・裂けた幹・赤い目。足元の根を描画基準にする。
     rect(6,4,5,10,'O');rect(7,5,2,9,'o');rect(4,14,9,1,'O');rect(2,15,4,1,'O');rect(12,15,3,1,'O');
     rect(3,5,3,2,'O');rect(2,2,2,4,'O');rect(0,1,3,1,'O');rect(10,3,3,2,'O');rect(12,0,2,4,'O');rect(14,2,2,1,'O');rect(7,1,2,4,'O');rect(5,0,3,1,'O');
     rect(3,10,3,2,'O');rect(1,8,2,3,'O');rect(11,9,3,2,'O');rect(14,7,1,3,'O');rect(8,11,1,3,'k');
     if(facing!=='up'){rect(facing==='left'?5:6,7,2,1,'r');rect(facing==='left'?8:10,7,2,1,'r');rect(7,10,3,2,'k');rect(8,10,1,1,'w');}
-  } else if (kind === 'sprite') {
+  } else if ((kind === 'sprite' || kind === 'greaterSprite')) {
     // 薄緑の丸い傘と長い触手。描画側で上下に漂わせる。
     rect(6, 2, 4, 1, 'p'); rect(4, 3, 8, 2, 'p'); rect(3, 5, 10, 4, 'p'); rect(2, 7, 12, 3, 'g'); rect(3, 7, 10, 2, 'p');
     rect(4, 10, 1, 4, 'p'); rect(6, 10, 1, 6, 'g'); rect(9, 10, 1, 5, 'p'); rect(11, 10, 1, 4, 'g'); rect(5, 4, 3, 2, 'w');
     if (facing !== 'up') { rect(facing === 'left' ? 4 : 5, 7, 1, 2, 'k'); rect(facing === 'left' ? 7 : 10, 7, 1, 2, 'k'); }
   }
+  if(kind==='greaterSprite')for(const x of [4,10]){rect(x,1,1,3,'w');rect(x-1,2,3,1,'w');rect(x,2,1,1,'y');}
   return pixels.map(row => row.join(''));
 }
 /** 大型キャラは元絵の解像度を増やす。32×40を2倍で描き、通常キャラと同じ2pxドットにする。 */

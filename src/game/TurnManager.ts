@@ -4,12 +4,12 @@ import type { SaveData, SkillId } from './types';
 export const BALANCE = { mpRecoveryInterval: 5, mpRecoveryFraction: .1, dropChance: .12 };
 // dropChanceは旧設定との互換用。現在のドロップ抽選はenemies.tsのdropsだけを使用します。
 export function endTurn(state: SaveData, castId?: SkillId): void {
-  for (const id of Object.keys(state.cooldowns) as SkillId[]) if (id !== castId) state.cooldowns[id] = Math.max(0, (state.cooldowns[id] ?? 0) - 1);
+  for (const id of Object.keys(state.cooldowns) as SkillId[]) if (id !== castId && state.passiveTriggeredAt?.[id] !== state.playerActionCount) state.cooldowns[id] = Math.max(0, (state.cooldowns[id] ?? 0) - 1);
   for (const a of [state.playerState, ...state.allyStates, ...state.enemyStates]) {
     tickAttributes(a, state.playerActionCount);
     a.buffs = (a.buffs ?? []).filter(b => { if (b.appliedAt < state.playerActionCount) b.remainingTurns--; return b.remainingTurns > 0; });
   }
-  state.mapState.fields = state.mapState.fields.filter(f => --f.remainingTurns > 0);
+  state.mapState.fields = state.mapState.fields.filter(f => f.skillKind ? f.remainingTurns > 0 : --f.remainingTurns > 0);
   state.mpRecoveryActions ??= 0;
   if (!castId && ++state.mpRecoveryActions >= BALANCE.mpRecoveryInterval) {
     state.mpRecoveryActions = 0;

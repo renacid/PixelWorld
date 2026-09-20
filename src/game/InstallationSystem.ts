@@ -29,8 +29,9 @@ type Context={rng:Random;events:GameEvent[];log:(s:string)=>void};
 export function hitInstallation(state:SaveData,id:string,context:Context):boolean{
  const map=state.mapState,i=map.installations?.find(i=>i.id===id);if(!i)return false;
  map.installations=map.installations!.filter(o=>o.id!==id);
+ const counts=state.destroyedInstallations??={};counts[i.kind]=(counts[i.kind]??0)+1;
  const def=installationDefinition(i);
- context.events.push({type:'trap',position:{...i.position},visual:'shatter',sound:'shatter',delayMs:160,durationMs:500});
+ context.events.push({type:'trap',position:{...i.position},visual:'shatter',sound:i.kind==='pot'?'shatter':'rocks',delayMs:160,durationMs:500});
  context.log(def.name+'が砕け散った！');
  if(def.drop&&def.drop.pool.length&&context.rng.next()<def.drop.chance)map.objects.push({id:'drop-'+i.id,type:'item',position:{...i.position},itemId:weighted(def.drop.pool,context.rng)});
  return true;
@@ -40,7 +41,7 @@ export function moveNearInstallations(state:SaveData,context:Context):void{
  const map=state.mapState,p=state.playerState;
  for(const i of [...map.installations??[]]){
   const rule=installationDefinition(i).spawn;if(!rule||p.hp<=0||Math.max(Math.abs(p.position.x-i.position.x),Math.abs(p.position.y-i.position.y))>rule.radius)continue;
-  if(i.spawned>=rule.max){map.installations=map.installations!.filter(o=>o.id!==i.id);continue;}
+  if(i.spawned>=rule.max){if(i.requiredForGoal)continue;map.installations=map.installations!.filter(o=>o.id!==i.id);continue;}
   const actors=[p,...state.allyStates,...state.enemyStates];
   // 種類ごとに空きを調べ、大型候補を将来追加しても占有判定を共有。
   const choices=rule.pool.filter(e=>e.weight>0).map(entry=>{const enemy=actor(i.id+'-spawn-'+i.spawned,entry.value,i.position,state.stageId,state.floorNumber),cells:Point[]=[];
@@ -49,6 +50,6 @@ export function moveNearInstallations(state:SaveData,context:Context):void{
   const choice=weighted(choices.map(value=>({value,weight:value.entry.weight})),context.rng);
   choice.enemy.position={...choice.cells[context.rng.int(0,choice.cells.length-1)]};state.enemyStates.push(choice.enemy);i.spawned++;
   context.events.push({type:'trap',position:{...choice.enemy.position},visual:'summonRing',sound:'rocks',durationMs:450});context.log('巣穴から'+choice.enemy.name+'が現れた！');
-  if(i.spawned>=rule.max){map.installations=map.installations!.filter(o=>o.id!==i.id);context.events.push({type:'trap',position:{...i.position},visual:'shatter',sound:'rocks',durationMs:500});}
+  if(i.spawned>=rule.max&&!i.requiredForGoal){map.installations=map.installations!.filter(o=>o.id!==i.id);context.events.push({type:'trap',position:{...i.position},visual:'shatter',sound:'rocks',durationMs:500});}
  }
 }

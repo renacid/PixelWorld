@@ -1,3 +1,5 @@
+import { canRollSkill } from '../skills/SkillLoot';
+import type { SaveData } from './types';
 import { ITEMS } from '../data/items';
 import { CHESTS, COMMON_ITEMS, RARE_ITEMS, type ChestTier, type DropEntry, type Loot, type Weighted, type LootPools } from '../data/loot';
 import type { GroundObject, MapState, Point } from './types';
@@ -32,7 +34,7 @@ export function rollChest(tier: ChestTier, rng: Random, guaranteed: Loot[] = [],
   return result;
 }
 export function makeChest(id: string, position: Point, tier: ChestTier, rng: Random, guaranteed: Loot[] = [], floor = 1, pools?: LootPools): GroundObject {
-  return { id, type: 'chest', position: { ...position }, chestTier: tier, contents: rollChest(tier, rng, guaranteed, floor, pools) };
+  return { id, type: 'chest', skillIds:guaranteed.filter(e=>e.type==='skill').map(e=>e.id), position: { ...position }, chestTier: tier, contents: rollChest(tier, rng, guaranteed, floor, pools) };
 }
 export function floorLoot(id: string, position: Point, loot: Loot): GroundObject {
   return { id, position: { ...position }, type: loot.type, ...(loot.type === 'item' ? { itemId: loot.id } : { skillId: loot.id }) };
@@ -56,3 +58,17 @@ export function initializeChests(map: MapState, rng: Random, floor = 1): void {
 
 /** 上位ランクほど浅層の抽選を抑制。3層以降は段階的に解放する。 */
 export function rarityFactor(id: import('./types').ItemId, floor: number): number { return Math.min(1, (.25 + (floor - 1) * .375) ** (ITEMS[id].rareRank - 1)); }
+
+/** 開封時の所持スキルで候補を制限。固定報酬は対象外。箱1つの抽選上限は途中で変えない。 */
+export function resolveChestSkills(state:SaveData,chest:GroundObject,rng:Random):void{
+ if(chest.randomSkillsResolved)return;
+ const fixed=new Set(legacyLoot(chest).filter(e=>e.type==='skill').map(e=>e.id));
+ const used=new Set(fixed),def=CHESTS[chest.chestTier??'wood'];
+ let pool=(state.mapState.loot?.skills??def.skills.pool).filter(e=>e.weight>0&&canRollSkill(state,e.value)&&!used.has(e.value));
+ chest.contents=(chest.contents??legacyLoot(chest)).flatMap((loot):Loot[]=>{
+  if(loot.type!=='skill'||fixed.has(loot.id))return [loot];
+  if(!pool.length)return [];
+  const id=weighted(pool,rng);used.add(id);pool=pool.filter(e=>!used.has(e.value));return [{type:'skill',id}];
+ });
+ chest.randomSkillsResolved=true;
+}

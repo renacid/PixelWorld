@@ -1,3 +1,4 @@
+import { itemFieldColor } from '../data/items';
 import { drawInstallation } from './InstallationSprites';
 import { timeOfDay } from '../game/DayCycle';
 import { actorDefinition } from '../data/enemies';
@@ -54,14 +55,14 @@ export class GameCanvas {
   private sprite(ctx: CanvasRenderingContext2D, a: Actor, x: number, y: number, clock: number): void {
     const width = (Math.max(...a.cells.map(c => c.x)) + 1) * TILE, height = (Math.max(...a.cells.map(c => c.y)) + 1) * TILE;
     const cx = x + width / 2;
-    ctx.fillStyle = '#315d5c36'; ctx.beginPath(); ctx.ellipse(cx, y + height - 4, width * .3, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#315d5c36'; ctx.beginPath(); ctx.ellipse(cx, y + height - (a.kind === 'wolf' ? 7 : 4), width * .3, 4, 0, 0, Math.PI * 2); ctx.fill();
     const definition = actorDefinition(a.kind), pixels = spritePixels(definition.sprite, a.facing ?? 'down'), scale = definition.renderScale;
     const pixelHeight = pixels.length, pixelWidth = pixels[0].length;
     const scaleX = scale, scaleY = (definition.renderHeight ?? scale * pixelHeight) / pixelHeight;
     // 絵の形状を変えず、足元から指定pxだけ上へ浮かせる。影・占有セルは動かさない。
     const spriteTop = y + height - scaleY * pixelHeight - (definition.renderLift ?? 0);
     const step = this.settings.motion ? Math.floor(clock / (this.animation ? 110 : 230)) % 2 : 0;
-    const bob = this.settings.motion && definition.bob ? Math.sin(clock / (a.kind === 'sprite' ? 400 : 200) + a.position.x) * (a.kind === 'sprite' ? 2.5 : 1.3) : 0;
+    const bob = this.settings.motion && definition.bob ? Math.sin(clock / ((a.kind === 'sprite' || a.kind === 'greaterSprite') ? 400 : 200) + a.position.x) * ((a.kind === 'sprite' || a.kind === 'greaterSprite') ? 2.5 : 1.3) : 0;
     const flash = this.effects.some(e => e.type === 'damage' && e.actorId === a.id && clock >= e.born && clock - e.born < 140);
     for (let py = 0; py < pixelHeight; py++) for (let px = 0; px < pixelWidth; px++) {
       const color = PIXEL_COLORS[pixels[py][px]]; if (!color) continue;
@@ -75,6 +76,7 @@ export class GameCanvas {
       ctx.beginPath(); ctx.moveTo(1, 12); ctx.lineTo(12, 1); ctx.moveTo(1, 1); ctx.lineTo(12, 12);
       ctx.moveTo(0, 7); ctx.lineTo(5, 12); ctx.moveTo(8, 12); ctx.lineTo(13, 7); ctx.stroke(); ctx.restore();
     }
+    if(a.frostErosion){ctx.fillStyle='#b4e7ff';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.fillText('霜',cx,y-8);}
     a.afflictions.forEach((f, i) => { ctx.fillStyle = ATTRIBUTE_COLORS[f.attribute]; ctx.fillRect(cx - 7 + i * 9, y - 5, 6, 4); });
     if (a.mode === 'hostile' && a.kind !== 'player' && a.alertedAt === this.session?.state.playerActionCount) {
       ctx.fillStyle = '#fff5d9'; ctx.fillRect(x + width - 6, y - 9, 10, 13); ctx.fillStyle = '#ee605d'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.fillText('!', x + width - 1, y + 1);
@@ -112,7 +114,9 @@ export class GameCanvas {
     const walking = oldPlayer && nextPlayer && (oldPlayer.position.x !== nextPlayer.position.x || oldPlayer.position.y !== nextPlayer.position.y);
     const player = actors.find(a => a.id === 'player') ?? state.playerState;
     const viewPlayer = walking ? player.position : nextPlayer?.position ?? state.playerState.position;
-    const center = this.camera ?? viewPlayer;
+    const center = {...(this.camera ?? viewPlayer)};
+    const quake=this.effects.find(e=>e.visual==='quake'&&clock>=e.born&&clock<e.born+e.duration);
+    if(quake&&this.settings.motion){const fade=1-(clock-quake.born)/quake.duration;center.x+=Math.sin(clock*.08)*.12*fade;center.y+=Math.cos(clock*.1)*.09*fade;}
     const screen = (p: Point) => ({ x: (p.x - center.x) * TILE + 144, y: (p.y - center.y) * TILE + 144 });
     const visible = (p: Point) => { const from = { x: Math.round(viewPlayer.x), y: Math.round(viewPlayer.y) }, to = { x: Math.round(p.x), y: Math.round(p.y) }; return Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y)) <= s.vision; };
     const phase = sample ? { player: 'あなたの行動', ally: '味方の行動', enemy: '敵の行動' }[sample.step.phase] : '';
@@ -134,7 +138,8 @@ export class GameCanvas {
         ctx.save();ctx.fillStyle='rgba(23,38,56,0.07)';for(let i=0;i<8;i++){const spread=i*1.5;ctx.beginPath();ctx.rect(0,0,VIEW_SIZE,VIEW_SIZE);ctx.rect(top.x-spread,top.y-spread,size+spread*2,size+spread*2);ctx.fill('evenodd');}ctx.restore();
       }
     }
-    for (const f of state.mapState.fields) if (visible(f.position)) { const p = screen(f.position); ctx.fillStyle = '#ffad7070'; ctx.fillRect(p.x + 3, p.y + 3, 26, 26); ctx.fillStyle = '#ff755c'; ctx.fillRect(p.x + 11, p.y + 15, 10, 8); ctx.fillStyle = '#fff295'; ctx.fillRect(p.x + 14, p.y + 9, 5, 11); }
+    for (const f of state.mapState.fields) if (visible(f.position)) {
+      if(f.skillKind==='tornadoSummon'){if(this.effects.some(e=>e.visual==='windVortex'&&e.target?.x===f.position.x&&e.target?.y===f.position.y&&clock>=e.born&&clock<e.born+e.duration))continue;drawTrapEffect(ctx,{type:'trap',position:f.position,visual:'windVortex'},(clock%700)/700,screen);ctx.globalAlpha=1;continue;} const p = screen(f.position); ctx.fillStyle = '#ffad7070'; ctx.fillRect(p.x + 3, p.y + 3, 26, 26); ctx.fillStyle = '#ff755c'; ctx.fillRect(p.x + 11, p.y + 15, 10, 8); ctx.fillStyle = '#fff295'; ctx.fillRect(p.x + 14, p.y + 9, 5, 11); }
     for (const trap of state.mapState.playerTraps ?? []) if (visible(trap.position)) {
       const p = screen(trap.position); ctx.fillStyle = '#53844e'; ctx.fillRect(p.x + 4, p.y + 22, 24, 5); ctx.strokeStyle = '#d5eb88'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x + 6, p.y + 15); ctx.lineTo(p.x + 15, p.y + 21); ctx.lineTo(p.x + 12, p.y + 8); ctx.lineTo(p.x + 25, p.y + 17); ctx.stroke();
     }
@@ -159,12 +164,15 @@ export class GameCanvas {
         ctx.fillStyle = chest.trim; ctx.fillRect(x + 8, y + 14, 2, 11); ctx.fillRect(x + 23, y + 14, 2, 11); ctx.fillRect(x + 15, y + 16, 4, 4);
         if (obj.objective && !obj.opened) { ctx.fillStyle = '#fff9d2'; ctx.fillRect(x + 14, y + 20, 6, 2); }
         if (!obj.opened) { ctx.fillStyle = '#fffbe7'; ctx.fillRect(x + 15, y + 1, 2, 6); ctx.fillRect(x + 13, y + 3, 6, 2); }
+      } else if(obj.type==='skillBook'){
+        ctx.fillStyle='#fff3c5';ctx.fillRect(x+9,y+8,14,18);ctx.fillStyle='#b19871';ctx.fillRect(x+7,y+7,18,3);ctx.fillRect(x+7,y+25,18,3);
+        ['#ec7666','#67b8e6','#b485d3','#72c7a0','#ad845d','#7c8184'].forEach((color,i)=>{ctx.fillStyle=color;ctx.fillRect(x+11+(i%2)*6,y+12+Math.floor(i/2)*4,4,3);});
       } else if (obj.type === 'skill') { ctx.fillStyle = '#fff3c5'; ctx.fillRect(x + 9, y + 8, 14, 18); ctx.fillStyle = '#e78474'; ctx.fillRect(x + 12, y + 12, 8, 2); ctx.fillRect(x + 12, y + 17, 7, 2); }
-      else { ctx.fillStyle = obj.itemId === 'potion' ? '#f884a0' : obj.itemId === 'ether' ? '#64bfe8' : '#ffd15d'; ctx.fillRect(x + 12, y + 10, 8, 3); ctx.fillRect(x + 10, y + 14, 12, 12); ctx.fillStyle = '#fffae7'; ctx.fillRect(x + 13, y + 7, 6, 3); ctx.fillRect(x + 11, y + 16, 2, 6); }
+      else { ctx.fillStyle = obj.itemId ? itemFieldColor(obj.itemId) : '#ffd15d'; ctx.fillRect(x + 12, y + 10, 8, 3); ctx.fillRect(x + 10, y + 14, 12, 12); ctx.fillStyle = '#fffae7'; ctx.fillRect(x + 13, y + 7, 6, 3); ctx.fillRect(x + 11, y + 16, 2, 6); }
     }
     if (this.selected && !sample) {
       const target = previewSkill(state, this.selected, state.playerState.facing, this.aim), color = ATTRIBUTE_COLORS[SKILLS[this.selected].attribute];
-      if (['pointArea','enemyWarp'].includes(SKILLS[this.selected].target)) {
+      if (['pointArea','enemyWarp','chain'].includes(SKILLS[this.selected].target)) {
         const r = selectionRange(state, this.selected), center = state.playerState.position;
         ctx.strokeStyle = color; ctx.lineWidth = 1;
         for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {

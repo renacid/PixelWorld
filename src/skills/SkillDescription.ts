@@ -1,3 +1,4 @@
+import { passiveChance } from './PassiveSkills';
 /** 変動値は実効レベルから毎回算出。文章と実際の倍率を対応させる。 */
 import { SKILLS } from '../data/skills';
 import { connectionDamageMultiplier, effectiveLevel } from './SkillBag';
@@ -6,7 +7,10 @@ export function skillDescription(state:SaveData,id:SkillId,bag:BagBlock[]):strin
  const d=SKILLS[id],level=effectiveLevel(bag,state.skillLevels,id),link=connectionDamageMultiplier(bag,id),scale=(1+(level-1)*.05)*link;
  const red=(n:number)=>'<em class="changing-value">'+Math.round(n*1000)/10+'%</em>';
  let detail='';
- if(id==='attack')detail='現在の攻撃力倍率：'+red(.5*scale)+'〜'+red(.7*scale);
+ if(d.kind==='passive')detail='現在の発動率：'+red(passiveChance(state,id,bag))+'、冷気の攻撃力倍率：'+red(d.multiplier*scale);
+ else if(id==='iceLance')detail='命中順の倍率：'+[.7,.9,1.2,...(level>=3?[1.5]:[])].map(n=>red(n*scale)).join(' → ');
+ else if(id==='fireWall')detail='初撃：'+red(.5*scale)+'、炎フィールド：'+red(.3*scale);
+ else if(id==='attack')detail='現在の攻撃力倍率：'+red(.5*scale)+'〜'+red(.7*scale);
  else if(id==='sweep')detail='現在の攻撃力倍率：'+red(.4*scale)+'〜'+red(.6*scale);
  else if(id==='chainLightning')detail='現在の各命中倍率：'+Array.from({length:level>=5?5:level>=3?3:2},(_,i)=>red((1-i*.1)*scale)).join(' → ');
  else if(id==='groundbreak')detail='設置時の倍率：'+red(scale)+'、10ターン後：'+red(1.5*scale);

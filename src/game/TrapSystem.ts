@@ -78,7 +78,7 @@ export function triggerPlayerTraps(state: SaveData, context: Context): void {
         if (effect.type === 'rocks') for (let i = 0; i < effect.tiles && pool.length; i++) cells.push(pool.splice(context.rng.int(0, pool.length - 1), 1)[0]);
         else cells.push(...pool);
         const delay = 250 + hit * 220; emit(cells, delay);
-        const before = context.events.length, attribute = effect.type === 'blast' ? 'fire' : 'nature';
+        const before = context.events.length, attribute = effect.type === 'blast' ? 'fire' : 'earth';
         for(const i of [...map.installations??[]])if(cells.some(c=>same(c,i.position)))hitInstallation(state,i.id,context);
         for (const target of actors) if (target.hp > 0 && occupied(target).some(c => cells.some(t => same(c, t)))) {
           dealAttributeHit(target, effect.damage, attribute, state.playerActionCount, actors, context.damage, context.events, () => context.rng.next());

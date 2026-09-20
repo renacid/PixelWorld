@@ -3,7 +3,7 @@ import { ENEMY_SKILLS } from './enemySkills';
 import type { DropEntry } from './loot';
 
 /** 絵の種類は敵の種類から独立。新しい敵でも既存の絵を再利用できます。 */
-export type SpriteId = 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'sprite' | 'treant';
+export type SpriteId = 'reaper' | 'fighter' | 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'sprite' | 'greaterSprite' | 'treant';
 export type ActorDefinition = {
   lifetime?: number;
   wideAttack?: boolean; skillSelection?: 'exclusive';
@@ -34,9 +34,11 @@ function define(config: Pick<ActorDefinition, 'name' | 'hp' | 'attack' | 'sprite
 
 /** 敵の追加はこの一覧から。IDの型もこのキーから自動生成されます。 */
 export const ENEMIES = {
-  goblinArcher: define({ name: 'ゴブリン・アーチャー', hp: 15, attack: 2, detectionRange: 4, mp: 3, experience: 4, sprite: 'archer', skills: ['arrowShot'] }),
-  goblinMage: define({ name: 'ゴブリン・メイジ', hp: 25, attack: 3, detectionRange: 3, mp: 15, experience: 5, sprite: 'mage', skills: ['fireball', 'teleport', 'prayer'] }),
-  treant: define({ experience: 5, name: 'トレント', hp: 35, attack: 5, sprite: 'treant', renderHeight: 44, immobile: true, attribute: 'nature', innateAttribute: 'nature', mp: 20, detectionRange: 5, skills: ['forestBlessing', 'stoneThrow'], skillChances: { stoneThrow: .5, forestBlessing: .2 }, drops: [{ loot: { type: 'item', id: 'potion' }, chance: .7 }] }),
+  reaper:define({name:'死神',hp:4,mp:40,attack:4,detectionRange:7,experience:0,sprite:'reaper',bob:true,skills:['flowAcceleration','sweepingStrike']}),
+  goblinFighter:define({name:'ゴブリン・ファイター',hp:35,mp:15,attack:5,detectionRange:4,experience:10,sprite:'fighter',skills:['dash','heavyStrike']}),
+  goblinArcher: define({ name: 'ゴブリン・アーチャー', hp: 16, attack: 2, detectionRange: 4, mp: 3, experience: 4, criticalRate: .1, sprite: 'archer', skills: ['arrowShot'] }),
+  goblinMage: define({ name: 'ゴブリン・メイジ', hp: 25, attack: 3, detectionRange: 3, mp: 15, experience: 8, sprite: 'mage', skills: ['fireball', 'teleport', 'prayer'] }),
+  treant: define({ experience: 5, name: 'トレント', hp: 35, attack: 5, sprite: 'treant', renderHeight: 44, immobile: true, attribute: 'earth', innateAttribute: 'earth', mp: 20, detectionRange: 5, skills: ['forestBlessing', 'stoneThrow'], skillChances: { stoneThrow: .5, forestBlessing: .2 }, drops: [{ loot: { type: 'item', id: 'potion' }, chance: .7 }] }),
   slime: define({ experience: 2, name: 'スライム', hp: 12, hpPerStage: 2, attack: 2, sprite: 'slime',　detectionRange: 3, pattern: 'patrol', bob: true, drops: [{ loot: { type: 'item', id: 'potion' }, chance: .08 }, { loot: { type: 'skill', id: 'fireball' }, chance: .02 }] }),
   goblin: define({ experience: 3, name: 'ゴブリン', hp: 17, hpPerStage: 2, attack: 3, sprite: 'goblin', detectionRange: 4, mp: 5, skills: ['stoneThrow'], drops: [{ loot: { type: 'item', id: 'ether' }, chance: .07 }, { loot: { type: 'item', id: 'potion' }, chance: .03 }, { loot: { type: 'skill', id: 'thunder' }, chance: .02 }] }),
   wolf: define({ experience: 3, name: '森の狼', hp: 15, hpPerStage: 2, attack: 3, sprite: 'wolf', detectionRange: 5, mp: 5, skills: ['lunge'], drops: [{ loot: { type: 'item', id: 'potion' }, chance: .06 }, { loot: { type: 'item', id: 'ether' }, chance: .03 }, { loot: { type: 'skill', id: 'tornado' }, chance: .02 }] }),
@@ -44,9 +46,11 @@ export const ENEMIES = {
   golem: define({ experience: 8, name: 'ゴーレム', hp: 60, attack: 5, mp: 20, size: 2, sprite: 'golem', renderLift: 0, renderScale: 2, renderHeight: 80, wideAttack: true, skillSelection: 'exclusive', skills: ['quietGaze', 'rockThrow', 'heavyStrike'], drops: [{ loot: { type: 'item', id: 'summon' }, chance: .05 }, { loot: { type: 'item', id: 'potion' }, chance: .1 }] }),
 };
 // プレイヤーと味方も同じ生成・描画インターフェースを利用します。
+const lesserSpirit = define({ lifetime:30,name:'下級精霊',hp:16,attack:4,sprite:'sprite',bob:true });
 export const SUPPORT_ACTORS = {
   player: define({ name: '旅人', criticalRate: .15, criticalMultiplier: 1.5, hp: 30, attack: 10, sprite: 'player', mp: 20, idleStep: true }),
-  sprite: define({ lifetime: 30, name: '森の精霊', hp: 16, attack: 4, sprite: 'sprite', bob: true }),
+  sprite: lesserSpirit,
+  greaterSprite: define({...lesserSpirit,name:'中級精霊',hp:lesserSpirit.hp*2,attack:lesserSpirit.attack*2,mp:20,sprite:'greaterSprite'}),
 };
 export type EnemyKind = keyof typeof ENEMIES;
 export type ActorKind = EnemyKind | keyof typeof SUPPORT_ACTORS;

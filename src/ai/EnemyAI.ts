@@ -1,7 +1,7 @@
 /** 敵と召喚味方の索敵・追跡・攻撃。追跡疲労は1行動ずつスキップし抽選で回復。 */
 import { canStand, distance, lineOfSight, occupied, same } from '../game/MapState';
 import { Random } from '../game/Random';
-import { detection } from '../game/ActorStats';
+import { detection, movementLocked } from '../game/ActorStats';
 import { VECTORS, type Actor, type Direction, type MapState, type Point } from '../game/types';
 export function faceToward(a: Actor, target: Point): Direction { const dx = target.x - a.position.x, dy = target.y - a.position.y; return Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up'; }
 export function actorDistance(a: Actor, b: Actor): number { return Math.min(...occupied(a).flatMap(c => occupied(b).map(t => distance(c, t)))); }
@@ -14,8 +14,8 @@ function turn(map: MapState, a: Actor, facing: Direction, blockers: Actor[]): vo
   if (canStand(map, rotated, a.position, blockers)) { a.facing = facing; a.cells = rotated.cells; }
 }
 function sees(map: MapState, a: Actor, b: Actor): boolean { return occupied(a).some(c => occupied(b).some(t => Math.max(Math.abs(c.x - t.x), Math.abs(c.y - t.y)) <= detection(a) && lineOfSight(map, c, t))); }
-export function moveToward(map: MapState, a: Actor, target: Point, blockers: Actor[], rng?: Random): void {
-  if (a.immobile) return;
+export function moveToward(map: MapState, a: Actor, target: Point, blockers: Actor[], rng?: Random, action=0): void {
+  if (a.immobile || movementLocked(a,action)) return;
   const directions = [...a.directions];
   if (rng) for (let i = directions.length - 1; i > 0; i--) { const j = rng.int(0, i); [directions[i], directions[j]] = [directions[j], directions[i]]; }
   const queue: { p: Point; first: Point | null; facing: Direction; firstDir: Direction }[] = [{ p: a.position, first: null, facing: a.facing, firstDir: a.facing }];
@@ -36,7 +36,7 @@ export function moveToward(map: MapState, a: Actor, target: Point, blockers: Act
 export function actEnemy(map: MapState, enemy: Actor, targets: Actor[], blockers: Actor[], rng: Random, attack: (a: Actor, b: Actor) => void, action = 0, skill?: (caster: Actor, targets: Actor[]) => boolean): void {
   if (enemy.hp <= 0) return;
   enemy.chaseMoveLimit ??= 12; enemy.chaseMoves ??= 0; enemy.chaseSkipLeft ??= 0; enemy.chaseRecoveryChance ??= .3;
-  if (enemy.kind !== 'sprite' && enemy.mode === 'hostile' && (enemy.chaseSkipLeft > 0 || enemy.chaseMoves >= enemy.chaseMoveLimit)) {
+  if (enemy.kind !== 'sprite' && enemy.kind !== 'greaterSprite' && enemy.mode === 'hostile' && (enemy.chaseSkipLeft > 0 || enemy.chaseMoves >= enemy.chaseMoveLimit)) {
     // この行動はスキップ。全対象が索敵距離外なら敵視解除、範囲内なら敵視を維持します。
     if (!targets.some(t => t.hp > 0 && occupied(t).some(c => occupied(enemy).some(p => Math.max(Math.abs(c.x - p.x), Math.abs(c.y - p.y)) <= detection(enemy))))) {
       enemy.mode = 'idle'; enemy.lastSeen = null; enemy.pursuitLeft = 0; enemy.chaseMoves = 0; enemy.chaseSkipLeft = 0;
@@ -64,7 +64,7 @@ export function actEnemy(map: MapState, enemy: Actor, targets: Actor[], blockers
           for (const victim of targets.filter(t => t.hp > 0 && occupied(t).some(c => strip.some(p => same(c, p))))) attack(enemy, victim);
         }
       } else attack(enemy, target); }
-    else { const before = enemy.position; moveToward(map, enemy, target.position, blockers, rng); if (!same(before, enemy.position)) enemy.chaseMoves++; }
+    else { const before = enemy.position; moveToward(map, enemy, target.position, blockers, rng, action); if (!same(before, enemy.position)) enemy.chaseMoves++; }
     return;
   }
   if (enemy.mode === 'hostile' && enemy.lastSeen && enemy.pursuitLeft > 0) {
@@ -72,7 +72,7 @@ export function actEnemy(map: MapState, enemy: Actor, targets: Actor[], blockers
     if (same(enemy.position, enemy.lastSeen)) enemy.pursuitLeft = 0;
   } else {
     enemy.mode = 'idle'; enemy.lastSeen = null; enemy.chaseMoves = 0;
-    if (!enemy.immobile && enemy.pattern === 'patrol' && rng.next() < .35) {
+    if (!enemy.immobile && !movementLocked(enemy,action) && enemy.pattern === 'patrol' && rng.next() < .35) {
       const v = VECTORS[enemy.directions[rng.int(0, enemy.directions.length - 1)]];
       const p = { x: enemy.position.x + v.x, y: enemy.position.y + v.y };
       const rotated = oriented(enemy, faceToward(enemy, p));

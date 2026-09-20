@@ -2,7 +2,7 @@ import { ENEMY_SKILLS, type EnemySkillDefinition } from '../data/enemySkills';
 import { canStand, distance, lineOfSight, occupied, same, wall } from '../game/MapState';
 import type { Random } from '../game/Random';
 import { VECTORS, type Actor, type Direction, type GameEvent, type MapState, type Point } from '../game/types';
-import { applyBuff, attackPower } from '../game/ActorStats';
+import { applyBuff, attackPower, movementLocked } from '../game/ActorStats';
 
 type Context = { hitInstallation?: (id:string)=>boolean; action: number; allies: Actor[]; map: MapState; actors: Actor[]; rng: Random; events: GameEvent[]; damage: (target: Actor, amount: number, attribute: import("../game/types").Attribute, critical?: boolean, label?: string) => void; log: (message: string) => void };
 type PreparedAction = { installationId?:string; position: Point; facing: Direction; origin?: Point; impact?: Point; path?: Point[] };
@@ -60,7 +60,28 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
   for (const id of ids) {
     const skill = ENEMY_SKILLS[id];
     if (!skill || (caster.mp ?? 0) < skill.mpCost || (caster.enemyCooldownUntil?.[id] ?? 0) > context.action) continue;
+    if(movementLocked(caster,context.action)&&['dash','teleport','approachStrike'].includes(skill.effect.type))continue;
     const consume = () => { caster.mp = (caster.mp ?? 0) - skill.mpCost; (caster.enemyCooldownUntil ??= {})[id] = context.action + (skill.cooldown ?? 0) + 1; };
+    if(skill.effect.type==='extraActions')continue; // 行動開始時だけ別枠で抽選し、再帰加速を防ぐ。
+    if(skill.effect.type==='sweep'){
+      const facing=caster.facing??'down',f=VECTORS[facing],side={x:-f.y,y:f.x},p=caster.position;
+      const cells=[[0,-1],[0,1],[1,-1],[1,0],[1,1]].map(([a,b])=>({x:p.x+f.x*a+side.x*b,y:p.y+f.y*a+side.y*b})).filter(c=>!wall(context.map,c));
+      const victims=targets.filter(t=>t.hp>0&&occupied(t).some(c=>cells.some(p=>same(c,p))));
+      if(!victims.length||(!exclusive&&context.rng.next()>=(caster.skillChances?.[id]??skill.chance)))continue;
+      consume();context.events.push({type:'cast',actorId:caster.id,position:{...p},path:cells,target:{x:p.x+f.x,y:p.y+f.y},skillId:'sweep',sound:skill.sound});
+      for(const target of victims)if(caster.hp>0)context.damage(target,attackPower(caster)*(skill.effect.damageMin+context.rng.next()*(skill.effect.damageMax-skill.effect.damageMin)),skill.effect.attribute,false,skill.name);
+      for(const i of [...context.map.installations??[]])if(cells.some(c=>same(c,i.position)))context.hitInstallation?.(i.id);
+      return true;
+    }
+    if(skill.effect.type==='dash'){
+      if(caster.mode!=='hostile'||!targets.some(t=>t.hp>0)||targets.some(t=>t.hp>0&&occupied(t).some(p=>occupied(caster).some(c=>Math.max(Math.abs(p.x-c.x),Math.abs(p.y-c.y))<=1))))continue;
+      const target=targets.filter(t=>t.hp>0).sort((a,b)=>distance(caster.position,a.position)-distance(caster.position,b.position))[0];
+      const moves=caster.directions.map(facing=>{const v=VECTORS[facing],path=Array.from({length:skill.effect.type==='dash'?skill.effect.steps:0},(_,i)=>({x:caster.position.x+v.x*(i+1),y:caster.position.y+v.y*(i+1)}));return {facing,path};}).filter(m=>m.path.every(p=>canStand(context.map,caster,p,context.actors))&&distance(m.path.at(-1)!,target.position)<distance(caster.position,target.position));
+      moves.sort((a,b)=>distance(a.path.at(-1)!,target.position)-distance(b.path.at(-1)!,target.position));
+      if(!moves.length||(!exclusive&&context.rng.next()>=(caster.skillChances?.[id]??skill.chance)))continue;
+      const move=moves[0],from={...caster.position};consume();caster.position={...move.path.at(-1)!};caster.facing=move.facing;
+      context.events.push({type:'attack',actorId:caster.id,position:from,target:{...caster.position},path:move.path,visual:'strike',sound:skill.sound,enemySkillId:id});context.log(caster.name+'の加速！');return true;
+    }
     if (skill.effect.type === 'teleport' || skill.effect.type === 'restoreMp') {
       if (!targets.length) continue;
       let destination: Point | undefined;
@@ -112,4 +133,12 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
     return true;
   }
   return false;
+}
+
+/** 追加行動スキルは1敵・1ターンに1回だけ抽選。発動自身は行動回数に含めない。 */
+export function enemyActionCount(caster:Actor,context:Pick<Context,'rng'|'events'|'log'>):number{
+ for(const id of caster.enemySkillIds??[]){const skill=ENEMY_SKILLS[id];if(skill?.effect.type!=='extraActions'||(caster.mp??0)<skill.mpCost)continue;
+  if(context.rng.next()>=(caster.skillChances?.[id]??skill.chance))continue;
+  caster.mp!-=skill.mpCost;context.events.push({type:'trap',actorId:caster.id,position:{...caster.position},visual:'healingGlow',sound:skill.sound});context.log(caster.name+'の'+skill.name+'！ '+skill.effect.count+'回行動！');return skill.effect.count;
+ }return 1;
 }

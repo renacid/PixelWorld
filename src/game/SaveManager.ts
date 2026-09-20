@@ -1,3 +1,5 @@
+import { WORLD_SETTINGS } from './WorldSettings';
+import { itemCapacity } from './Inventory';
 import { INSTALLATIONS } from '../data/installations';
 /** localStorage保存・形式検証・設定と解放進捗の管理。テスト用名前空間にも対応。 */
 import { GEM_REWARDS } from '../data/gems';
@@ -44,6 +46,9 @@ function validSave(value: unknown): value is SaveData {
     const s = value as SaveData;
     if (s.version !== 1 || !Number.isInteger(s.stageId) || s.stageId < 1 || !STAGES.some(stage => stage.id === s.stageId) || !['playing', 'cleared', 'defeated'].includes(s.status)) return false;
     const m = s.mapState;
+    if(s.lastReaperDay!==undefined&&(!Number.isInteger(s.lastReaperDay)||s.lastReaperDay<4||s.lastReaperDay%4!==0||s.lastReaperDay>(s.dayCount??1)))return false;
+    if(s.destroyedInstallations!==undefined&&!Object.entries(s.destroyedInstallations).every(([kind,n])=>kind in INSTALLATIONS&&Number.isInteger(n)&&n>=0))return false;
+    if(s.pendingSkillBooks!==undefined&&(!Number.isInteger(s.pendingSkillBooks)||s.pendingSkillBooks<0))return false;
     if (s.floorKills !== undefined && !Object.entries(s.floorKills).every(([kind, count]) => isActorKind(kind) && Number.isInteger(count) && count >= 0)) return false;
     if (s.dayCount !== undefined && (!Number.isInteger(s.dayCount) || s.dayCount < 1)) return false;
     if (s.killCombo !== undefined && (!Number.isInteger(s.killCombo) || s.killCombo < 0)) return false;
@@ -51,7 +56,7 @@ function validSave(value: unknown): value is SaveData {
     if (s.floorNumber !== undefined && (!Number.isInteger(s.floorNumber) || s.floorNumber < 1 || s.floorNumber > (s.floorCount ?? 1))) return false;
     if (s.floorCount !== undefined && (!Number.isInteger(s.floorCount) || s.floorCount < 1 || s.floorCount > 99)) return false;
     if (s.nightRevived !== undefined && (!Number.isInteger(s.nightRevived) || s.nightRevived < 0)) return false;
-    if (s.skillWear !== undefined && !Object.entries(s.skillWear).every(([id, w]) => id in SKILLS && w && Number.isInteger(w.uses) && w.uses >= 0 && Number.isInteger(w.extraMp) && w.extraMp >= 0)) return false;
+    if (s.skillWear !== undefined && !Object.entries(s.skillWear).every(([id, w]) => id in SKILLS && w && Number.isInteger(w.uses) && w.uses >= 0 && Number.isInteger(w.extraMp) && w.extraMp >= 0 && (w.stage === undefined || Number.isInteger(w.stage) && w.stage >= 0))) return false;
     if (s.pendingGemChoices !== undefined && (!Array.isArray(s.pendingGemChoices) || !s.pendingGemChoices.every(options => Array.isArray(options) && options.length === 3 && new Set(options).size === 3 && options.every(id => id in GEM_REWARDS)))) return false;
     if (s.playerState.visionBonus !== undefined && (!Number.isInteger(s.playerState.visionBonus) || s.playerState.visionBonus < 0)) return false;
     for (const a of s.enemyStates) {
@@ -60,7 +65,7 @@ function validSave(value: unknown): value is SaveData {
     }
     if (s.fullBagRewardClaimed !== undefined && typeof s.fullBagRewardClaimed !== 'boolean') return false;
     if (s.allyStates.some(a=>a.remainingLife!==undefined&&(!Number.isInteger(a.remainingLife)||a.remainingLife<1))) return false;
-    if (s.reinforcementKinds!==undefined&&(!Array.isArray(s.reinforcementKinds)||!s.reinforcementKinds.every(k=>isActorKind(k)&&!['player','sprite'].includes(k)))) return false;
+    if (s.reinforcementKinds!==undefined&&(!Array.isArray(s.reinforcementKinds)||!s.reinforcementKinds.every(k=>isActorKind(k)&&!['player','sprite','greaterSprite'].includes(k)))) return false;
     if (s.nightWave !== undefined && (!Number.isInteger(s.nightWave) || s.nightWave < 0)) return false;
     if (s.nightTarget !== undefined && (!Number.isInteger(s.nightTarget) || s.nightTarget < 0)) return false;
     if ([s.playerState, ...s.allyStates, ...s.enemyStates].some(a => a.experienceMultiplier !== undefined && (!Number.isFinite(a.experienceMultiplier) || a.experienceMultiplier < 0))) return false;
@@ -75,7 +80,7 @@ function validSave(value: unknown): value is SaveData {
       if (a.buffs !== undefined && (!Array.isArray(a.buffs) || !a.buffs.every(b => typeof b.id === 'string' && (b.attackBonus === undefined || Number.isFinite(b.attackBonus)) && Number.isInteger(b.remainingTurns) && b.remainingTurns > 0 && Number.isInteger(b.appliedAt) && Number.isFinite(b.attackMultiplier) && b.attackMultiplier >= 1 && Number.isInteger(b.detectionBonus) && b.detectionBonus >= 0))) return false;
     }
     if (s.mpRecoveryActions !== undefined && (!Number.isInteger(s.mpRecoveryActions) || s.mpRecoveryActions < 0)) return false;
-    if (!Number.isInteger(m.width) || !Number.isInteger(m.height) || m.width < 9 || m.height < 9 || m.width > 100 || m.height > 100 || m.tiles.length !== m.width * m.height || s.exploredMap.length !== m.tiles.length) return false;
+    if (!Number.isInteger(m.width) || !Number.isInteger(m.height) || m.width < 9 || m.height < 9 || m.width > WORLD_SETTINGS.maxMapWidth || m.height > WORLD_SETTINGS.maxMapHeight || m.tiles.length !== m.width * m.height || s.exploredMap.length !== m.tiles.length) return false;
     if (!m.tiles.every(t => t in TERRAIN) || !s.exploredMap.every(t => typeof t === 'boolean')) return false;
     const point = (p: { x: number; y: number }) => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.y >= 0 && p.x < m.width && p.y < m.height;
     if (m.playerTraps !== undefined && (!Array.isArray(m.playerTraps) || m.playerTraps.length > 2 || !m.playerTraps.every(t => typeof t.id === 'string' && point(t.position) && Number.isFinite(t.damage) && t.damage > 0 && (t.placedAt === undefined || Number.isInteger(t.placedAt) && t.placedAt >= 0 && t.placedAt <= s.playerActionCount) && (t.sourceSkillId === undefined || t.sourceSkillId in SKILLS)))) return false;
@@ -88,12 +93,12 @@ function validSave(value: unknown): value is SaveData {
     // MP未導入の旧セーブは受理し、GameSessionで補完します。
     if (![...s.enemyStates, ...s.allyStates].every(a => (a.mp === undefined || Number.isInteger(a.mp) && a.mp >= 0 && a.maxMp !== undefined && a.mp <= a.maxMp) && (a.maxMp === undefined || Number.isInteger(a.maxMp) && a.maxMp >= 0) && (a.enemySkillIds === undefined || Array.isArray(a.enemySkillIds) && a.enemySkillIds.every(id => canonicalEnemySkillId(id) in ENEMY_SKILLS)))) return false;
     if (![s.randomSeed, s.initialSeed, s.turnCount, s.playerActionCount, s.objectiveChests].every(n => Number.isInteger(n) && n >= 0) || s.turnCount !== s.playerActionCount) return false;
-    if (s.itemSlots.length > 3 || !s.itemSlots.every(id => id in ITEMS) || typeof s.pendingBag !== 'boolean' || !s.log.every(l => typeof l === 'string')) return false;
+    if (s.itemSlots.length > itemCapacity(s) || !s.itemSlots.every(id => id in ITEMS) || typeof s.pendingBag !== 'boolean' || !s.log.every(l => typeof l === 'string')) return false;
     if (new Set(s.skillBag.map(b => b.skillId)).size !== s.skillBag.length || !s.skillBag.every(b => b.skillId in SKILLS && Number.isInteger(b.rotation) && b.rotation >= 0 && b.rotation < 4 && (b.position === null || validPlacement(s.skillBag, b.skillId, b.position, b.rotation, s.bagCells)))) return false;
     if (!Object.entries(s.skillLevels).every(([id, n]) => id in SKILLS && Number.isInteger(n) && n > 0) || !s.skillBag.every(b => s.skillLevels[b.skillId])) return false;
     if (!Object.entries(s.cooldowns).every(([id, n]) => id in SKILLS && Number.isInteger(n) && n >= 0)) return false;
     if (m.installations !== undefined && (!Array.isArray(m.installations) || new Set(m.installations.map(i=>i.id)).size !== m.installations.length || !m.installations.every(i=>typeof i.id==='string' && i.kind in INSTALLATIONS && point(i.position) && Number.isInteger(i.spawned) && i.spawned>=0))) return false;
-    if (!m.objects.every(o => point(o.position) && ['record', 'chest', 'item', 'skill', 'exit', 'gem'].includes(o.type) && (!o.skillId || o.skillId in SKILLS) && (!o.skillIds || o.skillIds.every(id => id in SKILLS)) && (!o.itemId || o.itemId in ITEMS) && (!o.chestTier || o.chestTier in CHESTS) && (o.contents === undefined || Array.isArray(o.contents) && o.contents.every(l => l.type === 'item' ? l.id in ITEMS : l.type === 'skill' && l.id in SKILLS)))) return false;
+    if (!m.objects.every(o => point(o.position) && ['skillBook', 'record', 'chest', 'item', 'skill', 'exit', 'gem'].includes(o.type) && (!o.skillId || o.skillId in SKILLS) && (!o.skillIds || o.skillIds.every(id => id in SKILLS)) && (!o.itemId || o.itemId in ITEMS) && (!o.chestTier || o.chestTier in CHESTS) && (o.contents === undefined || Array.isArray(o.contents) && o.contents.every(l => l.type === 'item' ? l.id in ITEMS : l.type === 'skill' && l.id in SKILLS)))) return false;
     return Array.isArray(m.fields) && m.fields.every(f => point(f.position) && attributes.includes(f.attribute) && Number.isFinite(f.remainingTurns));
   } catch { return false; }
 }

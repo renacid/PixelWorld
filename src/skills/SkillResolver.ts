@@ -13,6 +13,7 @@ export function selectionRange(state: SaveData, id: SkillId): number {
   return upgrade && effectiveLevel(state.skillBag, state.skillLevels, id) >= upgrade.level ? upgrade.range : d.range;
 }
 export function validSkillTarget(state: SaveData, id: SkillId, target?: Point): boolean {
+  if(SKILLS[id].target==='chain')return !!chainOrigin(state,target);
   if (SKILLS[id].target === 'enemyWarp') return !!target && !!vacuumTarget(state,target);
   if (SKILLS[id].target !== 'pointArea') return true;
   const p = state.playerState.position;
@@ -21,6 +22,16 @@ export function validSkillTarget(state: SaveData, id: SkillId, target?: Point): 
 export function previewSkill(state: SaveData, id: SkillId, direction: Direction, target?: Point): TargetPreview {
   const definition = SKILLS[id], p = state.playerState.position;
   const result: TargetPreview = { cells: [], blocked: null, targetIds: [] };
+  if(definition.kind==='passive')return result;
+  if(['pierce','wall','movingField','quake'].includes(definition.target)){
+    const v=VECTORS[direction],side={x:-v.y,y:v.x};
+    if(definition.target==='quake'){for(let y=-3;y<=3;y++)for(let x=-3;x<=3;x++){const c={x:p.x+x,y:p.y+y};if(!wall(state.mapState,c))result.cells.push(c);}}
+    else if(definition.target==='wall'){for(let depth=1;depth<=(effectiveLevel(state.skillBag,state.skillLevels,id)>=5?2:1);depth++)for(let lateral=-1;lateral<=1;lateral++){const c={x:p.x+v.x*depth+side.x*lateral,y:p.y+v.y*depth+side.y*lateral};if(!wall(state.mapState,c)&&!wall(state.mapState,{x:c.x-v.x*(depth-1),y:c.y-v.y*(depth-1)}))result.cells.push(c);}}
+    else for(let n=1;n<=(definition.target==='pierce'?selectionRange(state,id):1);n++){const c={x:p.x+v.x*n,y:p.y+v.y*n};if(wall(state.mapState,c)){result.blocked=c;break;}result.cells.push(c);}
+    const targets=attackTargets(state);for(const c of result.cells)for(const e of targets)if(e.hp>0&&!result.targetIds.includes(e.id)&&occupied(e).some(t=>same(c,t)))result.targetIds.push(e.id);
+    return result;
+  }
+  if(definition.target==='summon'){result.cells.push({...p});return result;}
   if (definition.target === 'sweep') {
     const f=VECTORS[direction], side={x:-f.y,y:f.x};
     for(const [forward,lateral] of [[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {const c={x:p.x+f.x*forward+side.x*lateral,y:p.y+f.y*forward+side.y*lateral};if(!wall(state.mapState,c))result.cells.push(c);}
@@ -30,7 +41,7 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
     if(enemy){result.cells=occupied(enemy);result.targetIds=[enemy.id];}
   } else if (definition.target === 'chain') {
     let origins = occupied(state.playerState); const hit = new Set<string>();
-    for (let i=0;i<chainHitLimit(state);i++) { const enemy = nextChainTarget(state, origins, hit); if (!enemy) break; hit.add(enemy.id); result.targetIds.push(enemy.id); result.cells.push({...enemy.position}); origins=occupied(enemy); }
+    for (let i=0;i<chainHitLimit(state);i++) { const enemy = i===0?chainOrigin(state,target):nextChainTarget(state, origins, hit); if (!enemy) break; hit.add(enemy.id); result.targetIds.push(enemy.id); result.cells.push({...enemy.position}); origins=occupied(enemy); }
     if (!result.cells.length) for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++)if(x||y){const c={x:p.x+x,y:p.y+y};if(!wall(state.mapState,c))result.cells.push(c);}
   } else if (definition.target === 'groundTrap') {
     result.cells.push({ ...p });
@@ -88,3 +99,5 @@ export function vacuumTarget(state:SaveData,target:Point){
  if(!Number.isInteger(target.x)||!Number.isInteger(target.y)||Math.max(Math.abs(target.x-p.x),Math.abs(target.y-p.y))>2)return undefined;
  return state.enemyStates.find(e=>e.hp>0&&occupied(e).some(c=>same(c,target))&&vacuumDestinations(state,e).length>0);
 }
+
+export function chainOrigin(state:SaveData,target?:Point){if(!target)return undefined;return attackTargets(state).find(e=>e.hp>0&&occupied(e).some(c=>same(c,target))&&occupied(e).some(c=>Math.max(Math.abs(c.x-state.playerState.position.x),Math.abs(c.y-state.playerState.position.y))===1));}

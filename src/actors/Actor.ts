@@ -11,7 +11,7 @@ export function actor(id: string, kind: Actor['kind'], position: Point, stage = 
   const d = actorDefinition(kind);
   // 第3層から1.2倍、第6層から1.44倍。再生成する敵にも同じ基準値から適用。
   const rule = STAGES.find(s => s.id === stage)?.dungeon?.enemyScaling;
-  const multiplier = kind !== 'player' && kind !== 'sprite' && rule ? rule.multiplier ** Math.floor(floor / Math.max(1, rule.everyFloors)) : 1;
+  const multiplier = kind !== 'player' && kind !== 'sprite' && kind !== 'greaterSprite' && rule ? rule.multiplier ** Math.floor(floor / Math.max(1, rule.everyFloors)) : 1;
   const hp = Math.floor((d.hp + stage * d.hpPerStage) * multiplier), mp = Math.floor(d.mp * multiplier);
   // 配列は複製し、プレイ中の変更が共通定義や別の敵へ漏れないようにします。
   return {
@@ -20,7 +20,7 @@ export function actor(id: string, kind: Actor['kind'], position: Point, stage = 
     immobile: d.immobile, skillChances: { ...d.skillChances }, buffs: [],
     id, kind, name: d.name, position: { ...position }, facing: 'down', alertedAt: -1,
     hp, maxHp: hp, attack: Math.floor(d.attack * multiplier), cells: rectangle(d.size, d.size),
-    mp, maxMp: mp, enemySkillIds: [...d.skills], attribute: d.attribute === 'earth' ? 'nature' : d.attribute, afflictions: d.innateAttribute && d.innateAttribute !== 'wind' ? [{ attribute: d.innateAttribute, remainingTurns: 10, appliedAt: 0 }] : [],
+    mp, maxMp: mp, enemySkillIds: [...d.skills], attribute: d.attribute === 'nature' ? 'earth' : d.attribute, afflictions: d.innateAttribute && d.innateAttribute !== 'wind' ? [{ attribute: d.innateAttribute, remainingTurns: 10, appliedAt: 0 }] : [],
     directions: [...d.directions], attackCells: d.attackCells.map(c => ({ ...c })),
     detectionRange: d.detectionRange, pattern: d.pattern, attackRange: d.attackRange,
     priorityTarget: d.priorityTarget, pursuitTurns: d.pursuitTurns,
