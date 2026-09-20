@@ -1,6 +1,9 @@
 /** 道具の表示名・説明。使用効果はGameSession.useItemで処理。 */
 import type { ItemId } from '../game/types';
-export const ITEMS: Record<ItemId, { name: string; icon: string; description: string; rarity: 'common' | 'rare'; rareRank: 1 | 2 | 3 | 4 | 5; fieldColor?: string; restoreHp?: number; restoreMp?: number }> = {
+export const ITEMS: Record<ItemId, { name: string; icon: string; description: string; rarity: 'common' | 'rare'; rareRank: 1 | 2 | 3 | 4 | 5; skillCellLimit?: number; fieldColor?: string; restoreHp?: number; restoreMp?: number }> = {
+  bookmarkLesser: {rarity:'rare',rareRank:3,skillCellLimit:3,name:'魔法の栞（下級）',icon:'',description:'3マス以下の所持スキルを1つ選び、レベルを1上げる'},
+  bookmarkMiddle: {rarity:'rare',rareRank:3,skillCellLimit:5,name:'魔法の栞（中級）',icon:'',description:'5マス以下の所持スキルを1つ選び、レベルを1上げる'},
+  bookmarkGreater: {rarity:'rare',rareRank:3,skillCellLimit:7,name:'魔法の栞（上級）',icon:'',description:'7マス以下の所持スキルを1つ選び、レベルを1上げる'},
   powerPotion: { fieldColor:'#e97668',rarity:'rare',rareRank:2,name:'強攻薬（小）',icon:'',description:'10ターン、攻撃力+5。同じ強化は重複せず持続時間を更新' },
   healingPotion: { rarity: 'rare', rareRank: 2, restoreHp: 30, name: '回復薬', icon: '✚', description: 'HPを30回復' },
   etherMedium: { rarity: 'rare', rareRank: 2, restoreMp: 20, name: '魔力の雫（中）', icon: '♦', description: 'MPを20回復' },

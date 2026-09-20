@@ -3,6 +3,7 @@ import type { SkillId, ItemId } from '../game/types';
 export type PixelIcon = { rows: string[]; color: string; image?: string };
 const make=(color:string,rows:string[]):PixelIcon=>({color,rows:rows.flatMap(row=>[...Array(2)].map(()=>[...row].map(c=>c+c).join('')))});
 export const SKILL_ICONS:Record<SkillId,PixelIcon>={
+ meteor:make('#e96b40',['.....w.g','....wgg.','...wggg.','..gggg..','.ggwgg..','ggwwgg..','ggggg...','.ggg....']),
  icePillar:make('#78cbe9',['...w....','..wwg...','..wwgg..','..wwgg..','..wwgg..','.gwwggg.','.gggggg.','..gggg..']),
  thunderArmor:make('#ac78e1',['.gg..gg.','gggggggg','gg.wg.gg','ggwwgggg','.ggwggg.','.gggggg.','..gggg..','...gg...']),
  iceLance:make('#63badb',['......wg','.....wgg','....wgg.','...wg...','..wg....','.wg.....','gg......','g.......']),
@@ -23,6 +24,9 @@ export const SKILL_ICONS:Record<SkillId,PixelIcon>={
  icestone:make('#5ba5d2',['...gg...','..gwwg..','.gwwwgg.','ggwwgggg','ggwggggg','.gggggg.','..gggg..','...gg...']),
  groundbreak:make('#718f42',['........','g...g...','.g.g....','..g..gg.','gg.g.g..','...gg...','gggggggg','.gggggg.'])};
 export const ITEM_ICONS:Record<ItemId,PixelIcon>={
+ bookmarkLesser:make('#6baa88',['..gggg..','..gwwg..','..gggg..','..gwwg..','..gggg..','..gggg..','..g..g..','........']),
+ bookmarkMiddle:make('#739cdb',['..gggg..','..gwwg..','..gwgg..','..ggwg..','..gwwg..','..gggg..','..g..g..','........']),
+ bookmarkGreater:make('#b380db',['..gggg..','..gwwg..','..wwww..','..gwwg..','..gwwg..','..gggg..','..g..g..','........']),
  powerPotion:make('#ce663e',['..gggg..','...ww...','..gwwg..','.gggggg.','.ggwggg.','.gwwwgg.','.ggwggg.','..gggg..']),
  potion:make('#58a354',['......g.','....ggg.','...gwg..','.gggg...','ggggg...','.gg.g...','....g...','...g....']),
  healingPotion:make('#e96870',['..gggg..','...ww...','..gwwg..','.gwwwwg.','.ggwggg.','.gwwwgg.','.ggwggg.','..gggg..']),

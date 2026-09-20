@@ -1,7 +1,7 @@
-import { canRollSkill } from '../skills/SkillLoot';
+import { canRollSkill, rollSkillBySize } from '../skills/SkillLoot';
 import type { SaveData } from './types';
 import { ITEMS } from '../data/items';
-import { CHESTS, COMMON_ITEMS, RARE_ITEMS, type ChestTier, type DropEntry, type Loot, type Weighted, type LootPools } from '../data/loot';
+import { DEEP_ITEM_BALANCE, BOOKMARK_LOOT, CHESTS, COMMON_ITEMS, RARE_ITEMS, type ChestTier, type DropEntry, type Loot, type Weighted, type LootPools } from '../data/loot';
 import type { GroundObject, MapState, Point } from './types';
 import type { Random } from './Random';
 
@@ -14,7 +14,7 @@ export function weighted<T>(entries: Weighted<T>[], rng: Random): T {
   return entries[entries.length - 1].value;
 }
 export function rollDrops(entries: DropEntry[], rng: Random, floor = 1): Loot[] {
-  return entries.flatMap(e => rng.next() < e.chance * (e.loot.type === 'item' ? rarityFactor(e.loot.id, floor) : 1) ? Array.from({ length: e.count ?? 1 }, () => ({ ...e.loot })) : []);
+  return entries.flatMap(e => rng.next() < Math.min(1,e.chance * (e.loot.type === 'item' ? rarityFactor(e.loot.id, floor)*(floor>=DEEP_ITEM_BALANCE.fromFloor?(ITEMS[e.loot.id].rareRank===1?DEEP_ITEM_BALANCE.rank1DropMultiplier:ITEMS[e.loot.id].rareRank===2?DEEP_ITEM_BALANCE.rank2DropMultiplier:1):1) : 1)) ? Array.from({ length: e.count ?? 1 }, () => ({ ...e.loot })) : []);
 }
 export function rollChest(tier: ChestTier, rng: Random, guaranteed: Loot[] = [], floor = 1, pools?: LootPools): Loot[] {
   const d = CHESTS[tier], result: Loot[] = guaranteed.map(e => ({ ...e }));
@@ -27,7 +27,9 @@ export function rollChest(tier: ChestTier, rng: Random, guaranteed: Loot[] = [],
   if (rng.next() < d.items.chance) {
     const count = rng.int(d.items.min, d.items.max), existing = result.filter(e => e.type === 'item').length;
     for (let i = existing; i < count; i++) {
-      const pool = rng.next() < d.items.rareChance * Math.min(1, .25 + (floor - 1) * .375) ? (pools?.rareItems ?? RARE_ITEMS) : (pools?.items ?? COMMON_ITEMS);
+      let pool = rng.next() < d.items.rareChance * Math.min(1, .25 + (floor - 1) * .375) ? (pools?.rareItems ?? RARE_ITEMS) : (pools?.items ?? COMMON_ITEMS);
+      const rank2=(pools?.rareItems??RARE_ITEMS).filter(e=>e.weight>0&&ITEMS[e.value].rareRank===2);
+      if(floor>=DEEP_ITEM_BALANCE.fromFloor&&pool.some(e=>e.weight>0&&ITEMS[e.value].rareRank===1)&&rank2.length&&rng.next()<DEEP_ITEM_BALANCE.rank2TransferChance)pool=rank2;
       if (pool.some(e => e.weight > 0)) result.push({ type: 'item', id: weighted(pool.map(e => ({ ...e, weight: e.weight * rarityFactor(e.value, floor) })), rng) });
     }
   }
@@ -67,8 +69,9 @@ export function resolveChestSkills(state:SaveData,chest:GroundObject,rng:Random)
  let pool=(state.mapState.loot?.skills??def.skills.pool).filter(e=>e.weight>0&&canRollSkill(state,e.value)&&!used.has(e.value));
  chest.contents=(chest.contents??legacyLoot(chest)).flatMap((loot):Loot[]=>{
   if(loot.type!=='skill'||fixed.has(loot.id))return [loot];
+  if(rng.next()<BOOKMARK_LOOT.replacementChance)return [{type:'item',id:weighted(BOOKMARK_LOOT.pool,rng)}];
   if(!pool.length)return [];
-  const id=weighted(pool,rng);used.add(id);pool=pool.filter(e=>!used.has(e.value));return [{type:'skill',id}];
+  const id=rollSkillBySize(state,pool,rng);if(!id)return [];used.add(id);pool=pool.filter(e=>!used.has(e.value));return [{type:'skill',id}];
  });
  chest.randomSkillsResolved=true;
 }

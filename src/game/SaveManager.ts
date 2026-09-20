@@ -47,6 +47,7 @@ function validSave(value: unknown): value is SaveData {
     const s = value as SaveData;
     if (s.version !== 1 || !Number.isInteger(s.stageId) || s.stageId < 1 || !STAGES.some(stage => stage.id === s.stageId) || !['playing', 'cleared', 'defeated'].includes(s.status)) return false;
     const m = s.mapState;
+    if(s.bookFragments!==undefined&&(!Number.isSafeInteger(s.bookFragments)||s.bookFragments<0))return false;
     if(s.pendingBookAttributes!==undefined&&(!Array.isArray(s.pendingBookAttributes)||s.pendingBookAttributes.length!==(s.pendingSkillBooks??0)||!s.pendingBookAttributes.every(validBookAttributes)))return false;
     if(!m.objects.every(o=>o.bookAttributes===undefined||validBookAttributes(o.bookAttributes)))return false;
     if(s.lastReaperDay!==undefined&&(!Number.isInteger(s.lastReaperDay)||s.lastReaperDay<4||s.lastReaperDay%4!==0||s.lastReaperDay>(s.dayCount??1)))return false;

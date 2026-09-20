@@ -7,8 +7,8 @@ import type { TrapInstance, TrapPlacement, TrapVisual, SoundCue } from '../data/
 export type Direction = 'up' | 'right' | 'down' | 'left';
 export const VECTORS: Record<Direction, Point> = { up: { x: 0, y: -1 }, right: { x: 1, y: 0 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 } };
 export type Attribute = 'fire' | 'ice' | 'thunder' | 'earth' | 'wind' | 'neutral' | 'physical' | 'nature';
-export type SkillId = 'icePillar' | 'thunderArmor' | 'iceLance' | 'fireWall' | 'tornadoSummon' | 'earthquake' | 'summonSpirit' | 'iceShield' | 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
-export type ItemId = 'powerPotion' | 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
+export type SkillId = 'meteor' | 'icePillar' | 'thunderArmor' | 'iceLance' | 'fireWall' | 'tornadoSummon' | 'earthquake' | 'summonSpirit' | 'iceShield' | 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
+export type ItemId = 'bookmarkLesser' | 'bookmarkMiddle' | 'bookmarkGreater' | 'powerPotion' | 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
 export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
 export type Actor = { lastActedAt?:number; movementLockedUntil?: number; frostErosion?: { spent:boolean; rootUntil?:number };
   wideAttack?: boolean; skillSelection?: 'exclusive';
@@ -42,6 +42,7 @@ export type SaveData = {
   playerLevel?: number; experience?: number; bagCells?: Point[];
   passiveTriggeredAt?: Partial<Record<SkillId, number>>;
   skillWear?: Partial<Record<SkillId, { uses: number; extraMp: number; stage?: number }>>;
+  bookFragments?: number;
   pendingSkillBooks?: number;
   pendingBookAttributes?: Attribute[][];
   pendingGemChoices?: string[][];

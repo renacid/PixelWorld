@@ -14,7 +14,7 @@ export type ChestDefinition = {
 };
 export const COMMON_ITEMS: Weighted<ItemId>[] = [{ value: 'potion', weight: 1 }, { value: 'ether', weight: 1 }, { value: 'hourglass', weight: 1 }];
 export const RARE_ITEMS: Weighted<ItemId>[] = [{ value: 'powerPotion', weight: 1 },{ value: 'healingPotion', weight: 2 }, { value: 'etherMedium', weight: 2 }, { value: 'scope', weight: 1 }, { value: 'summon', weight: 1 }];
-export const skillPool: Weighted<SkillId>[] = ['icePillar','thunderArmor','iceLance','fireWall','tornadoSummon','earthquake','summonSpirit', 'iceShield', 'sweep', 'vacuumSlash', 'chainLightning', 'fireball', 'thunder', 'tornado', 'firerain', 'warp', 'icestone', 'groundbreak'].map(value => ({ value: value as SkillId, weight: 1 }));
+export const skillPool: Weighted<SkillId>[] = ['meteor','icePillar','thunderArmor','iceLance','fireWall','tornadoSummon','earthquake','summonSpirit', 'iceShield', 'sweep', 'vacuumSlash', 'chainLightning', 'fireball', 'thunder', 'tornado', 'firerain', 'warp', 'icestone', 'groundbreak'].map(value => ({ value: value as SkillId, weight: 1 }));
 /** 個数・追加確率・レア抽選をここで調整。金のスキル抽選は重複なしです。 */
 export const CHESTS: Record<ChestTier, ChestDefinition> = {
   wood: { name: '宝箱(木)', color: '#c68a4d', trim: '#f1c58a', items: { chance: 1, min: 1, max: 2, rareChance: 0 }, skills: { chance: 0, min: 0, max: 0, pool: skillPool } },
@@ -22,3 +22,11 @@ export const CHESTS: Record<ChestTier, ChestDefinition> = {
   silver: { name: '宝箱(銀)', color: '#afc7d0', trim: '#f3fbff', items: { chance: .4, min: 1, max: 1, rareChance: .05 }, skills: { chance: 1, min: 1, max: 1, pool: skillPool } },
   gold: { name: '宝箱(金)', color: '#dfa739', trim: '#fff2a3', items: { chance: .9, min: 1, max: 2, rareChance: .5 }, skills: { chance: 1, min: 2, max: 3, pool: skillPool } },
 };
+
+/** 固定報酬を除く宝箱スキル枠の20%を栞へ置換。全栞はレア3、種類間の重みだけを変える。 */
+export const BOOKMARK_LOOT = { replacementChance: .2, pool: [
+ {value:'bookmarkLesser' as const,weight:7}, {value:'bookmarkMiddle' as const,weight:2}, {value:'bookmarkGreater' as const,weight:1}
+] };
+
+/** 3層以降、通常道具枠の15%を出現表のレア2へ振り替える。 */
+export const DEEP_ITEM_BALANCE = { fromFloor: 3, rank2TransferChance: .15, rank1DropMultiplier: .85, rank2DropMultiplier: 1.15 };

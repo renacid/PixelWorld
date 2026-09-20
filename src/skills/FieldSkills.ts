@@ -9,14 +9,14 @@ import {occupied,same,wall} from '../game/MapState';
 import {VECTORS,type SaveData,type SkillId,type Direction,type GameEvent,type Point,type FieldEffect} from '../game/types';
 import type {Random} from '../game/Random';
 type Context={rng:Random;events:GameEvent[];damage:DamageHandler;log:(m:string)=>void};
-export function castFieldSkill(s:SaveData,id:SkillId,direction:Direction,c:Context):boolean{
- if(!['iceLance','fireWall','tornadoSummon','earthquake'].includes(id))return false;
- const d=SKILLS[id],level=effectiveLevel(s.skillBag,s.skillLevels,id),power=attackPower(s.playerState)*(1+(level-1)*.05)*connectionDamageMultiplier(s.skillBag,id),preview=previewSkill(s,id,direction);
+export function castFieldSkill(s:SaveData,id:SkillId,direction:Direction,c:Context,aim?:Point):boolean{
+ if(!['meteor','iceLance','fireWall','tornadoSummon','earthquake'].includes(id))return false;
+ const d=SKILLS[id],level=effectiveLevel(s.skillBag,s.skillLevels,id),power=attackPower(s.playerState)*(1+(level-1)*.05)*connectionDamageMultiplier(s.skillBag,id),preview=previewSkill(s,id,direction,aim);
  if(id==='tornadoSummon'){
   let position={...s.playerState.position};const visited=new Set([position.x+','+position.y]);
-  const steps=level>=5?5:level>=3?4:3;
+  const steps=level>=5?7:level>=3?5:4;
   for(let step=0;step<steps;step++){
-   const choices=Object.values(VECTORS).map(v=>({x:position.x+v.x,y:position.y+v.y})).filter(p=>!visited.has(p.x+','+p.y)&&!wall(s.mapState,p));
+   const choices=(step===0?[VECTORS[direction]]:Object.values(VECTORS)).map(v=>({x:position.x+v.x,y:position.y+v.y})).filter(p=>!visited.has(p.x+','+p.y)&&!wall(s.mapState,p));
    if(!choices.length)break;
    const next=choices[c.rng.int(0,choices.length-1)],delay=step*240;
    c.events.push({type:'trap',position:{...position},target:{...next},visual:'windVortex',sound:step===0?'magicCast':undefined,delayMs:delay,durationMs:240});
@@ -32,7 +32,8 @@ export function castFieldSkill(s:SaveData,id:SkillId,direction:Direction,c:Conte
   }
   return true;
  }
- c.events.push({type:'trap',actorId:s.playerState.id,position:{...s.playerState.position},path:preview.cells,visual:id==='earthquake'?'quake':id==='iceLance'?'iceLance':id==='fireWall'?'fireBlast':'windVortex',sound:id==='earthquake'?'rocks':id==='iceLance'?'ice':'magicCast',durationMs:650});
+ if(id==='meteor')c.events.push({type:'cast',actorId:s.playerState.id,position:{...s.playerState.position},target:aim,path:preview.cells,skillId:id,sound:'magicCast',durationMs:650});
+ else c.events.push({type:'trap',actorId:s.playerState.id,position:{...s.playerState.position},path:preview.cells,visual:id==='earthquake'?'quake':id==='iceLance'?'iceLance':id==='fireWall'?'fireBlast':'windVortex',sound:id==='earthquake'?'rocks':id==='iceLance'?'ice':'magicCast',durationMs:650});
  let index=0;
  for(const targetId of preview.targetIds){
   if(hitInstallation(s,targetId,c))continue;
@@ -40,10 +41,11 @@ export function castFieldSkill(s:SaveData,id:SkillId,direction:Direction,c:Conte
   const multiplier=id==='iceLance'?[.7,.9,1.2,1.5][Math.min(index++,3)]:d.multiplier;
   const critical=c.rng.next()<criticalChance(s.playerState,enemy,d.attribute);
   dealAttributeHit(enemy,power*multiplier*(critical?s.playerState.criticalMultiplier:1),d.attribute,s.playerActionCount,s.enemyStates,c.damage,c.events,()=>c.rng.next(),critical);
-  if(id==='earthquake'&&enemy.hp>0&&c.rng.next()<.5)enemy.movementLockedUntil=Math.max(enemy.movementLockedUntil??0,s.playerActionCount+1);
+  if(id==='earthquake'&&enemy.hp>0&&c.rng.next()<(level>=3?.8:.5))enemy.movementLockedUntil=Math.max(enemy.movementLockedUntil??0,s.playerActionCount+1);
  }
  if(id==='earthquake')s.mapState.traps=s.mapState.traps?.filter(t=>t.triggered||!preview.cells.some(p=>same(p,t.position)));
- if(id==='fireWall')for(const [i,position] of preview.cells.entries())s.mapState.fields.push({effectId:id+'-'+s.playerActionCount+'-'+i,sourceSkillId:id,skillKind:id,position:{...position},direction,placedAt:s.playerActionCount,power,attribute:d.attribute,remainingTurns:3,triggerType:'turn',damageMultiplier:.3,onceOnly:false,hitAction:s.playerActionCount,hitIds:[...preview.targetIds]});
+ const fireCells=id==='fireWall'?preview.cells:id==='meteor'&&level>=3?preview.cells.filter(()=>c.rng.next()<.5):[];
+ for(const [i,position] of fireCells.entries())s.mapState.fields.push({effectId:id+'-'+s.playerActionCount+'-'+i,sourceSkillId:id,skillKind:'fireWall',position:{...position},direction,placedAt:s.playerActionCount,power,attribute:d.attribute,remainingTurns:3,triggerType:'turn',damageMultiplier:.3,onceOnly:false,hitAction:s.playerActionCount,hitIds:[...preview.targetIds]});
  return true;
 }
 function hitField(s:SaveData,f:FieldEffect,c:Context):void{

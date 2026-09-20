@@ -27,10 +27,10 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
   if(definition.target==='installation'){result.cells=icePillarCells(state,direction);return result;}
   if(definition.target==='randomWalk'){
     // 乱数を消費せず、実際に取り得る未訪問経路の全体を予告表示。
-    const level=effectiveLevel(state.skillBag,state.skillLevels,id),steps=level>=5?5:level>=3?4:3;
+    const level=effectiveLevel(state.skillBag,state.skillLevels,id),steps=level>=5?7:level>=3?5:4;
     const seen=new Set<string>(),visit=(from:Point,left:number,path:Set<string>):void=>{
       if(!left)return;
-      for(const v of Object.values(VECTORS)){const next={x:from.x+v.x,y:from.y+v.y},key=next.x+','+next.y;
+      for(const v of (left===steps?[VECTORS[direction]]:Object.values(VECTORS))){const next={x:from.x+v.x,y:from.y+v.y},key=next.x+','+next.y;
         if(path.has(key)||wall(state.mapState,next))continue;
         if(!seen.has(key)){seen.add(key);result.cells.push(next);}
         visit(next,left-1,new Set([...path,key]));
@@ -42,7 +42,7 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
   }
   if(['pierce','wall','quake'].includes(definition.target)){
     const v=VECTORS[direction],side={x:-v.y,y:v.x};
-    if(definition.target==='quake'){for(let y=-3;y<=3;y++)for(let x=-3;x<=3;x++){const c={x:p.x+x,y:p.y+y};if(!wall(state.mapState,c))result.cells.push(c);}}
+    if(definition.target==='quake'){const radius=selectionRange(state,id);for(let y=-radius;y<=radius;y++)for(let x=-radius;x<=radius;x++){const c={x:p.x+x,y:p.y+y};if(!wall(state.mapState,c))result.cells.push(c);}}
     else if(definition.target==='wall'){for(let depth=1;depth<=(effectiveLevel(state.skillBag,state.skillLevels,id)>=5?2:1);depth++)for(let lateral=-1;lateral<=1;lateral++){const c={x:p.x+v.x*depth+side.x*lateral,y:p.y+v.y*depth+side.y*lateral};if(!wall(state.mapState,c)&&!wall(state.mapState,{x:c.x-v.x*(depth-1),y:c.y-v.y*(depth-1)}))result.cells.push(c);}}
     else for(let n=1;n<=(definition.target==='pierce'?selectionRange(state,id):1);n++){const c={x:p.x+v.x*n,y:p.y+v.y*n};if(wall(state.mapState,c)){result.blocked=c;break;}result.cells.push(c);}
     const targets=attackTargets(state);for(const c of result.cells)for(const e of targets)if(e.hp>0&&!result.targetIds.includes(e.id)&&occupied(e).some(t=>same(c,t)))result.targetIds.push(e.id);
@@ -66,6 +66,7 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
     if (!validSkillTarget(state, id, target)) return result;
     const radius = definition.areaRadius ?? 1;
     for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
+      if(definition.areaShape==='cross'&&Math.abs(dx)+Math.abs(dy)>radius)continue;
       const cell = { x: target!.x + dx, y: target!.y + dy };
       if (!wall(state.mapState, cell)) result.cells.push(cell);
     }
@@ -77,7 +78,8 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
       if (canStand(state.mapState, state.playerState, cell, [...state.enemyStates, ...state.allyStates]) && !state.mapState.objects.some(o => same(o.position, cell))) result.cells.push(cell);
     }
   } else if (definition.target === 'area') {
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+    const radius=selectionRange(state,id);
+    for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
       if (!dx && !dy) continue;
       const cell = { x: p.x + dx, y: p.y + dy };
       if (!wall(state.mapState, cell)) result.cells.push(cell);
@@ -113,7 +115,7 @@ export function vacuumDestinations(state:SaveData, enemy:import('../game/types')
 }
 export function vacuumTarget(state:SaveData,target:Point){
  const p=state.playerState.position;
- if(!Number.isInteger(target.x)||!Number.isInteger(target.y)||Math.max(Math.abs(target.x-p.x),Math.abs(target.y-p.y))>2)return undefined;
+ if(!Number.isInteger(target.x)||!Number.isInteger(target.y)||Math.max(Math.abs(target.x-p.x),Math.abs(target.y-p.y))>selectionRange(state,'vacuumSlash'))return undefined;
  return state.enemyStates.find(e=>e.hp>0&&occupied(e).some(c=>same(c,target))&&vacuumDestinations(state,e).length>0);
 }
 

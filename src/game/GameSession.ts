@@ -6,7 +6,7 @@ import { summonCells,createSpirit,summonMedia } from './Summoning';
 import { skillPool } from '../data/loot';
 import { itemCapacity } from './Inventory';
 import { passiveChance, passiveDamageScale } from '../skills/PassiveSkills';
-import { canRollSkill } from '../skills/SkillLoot';
+import { canRollSkill, rollSkillBySize } from '../skills/SkillLoot';
 import { resolveChestSkills } from './LootSystem';
 import { hitInstallation, moveNearInstallations, tickInstallations } from './InstallationSystem';
 import { applyBuff } from './ActorStats';
@@ -53,6 +53,7 @@ export class GameSession {
     state.randomSeed=this.rng.seed;
     // 旧仕様の持続竜巻はロード時に撤去する。
     state.mapState.fields=state.mapState.fields.filter(f=>f.skillKind!=='tornadoSummon');
+    state.bookFragments ??= 0;
     state.playerLevel ??= 1; state.experience = Math.ceil(state.experience ?? 0); state.bagCells ??= initialBagCells(5);
     for (const list of [state.enemyStates, state.defeatedEnemies ?? []]) for (const a of list) {
       if ((a.kind as string) === 'boss' || a.kind === 'golem' && a.name === '守護岩') {
@@ -74,6 +75,10 @@ export class GameSession {
     state.mapState.objects = state.mapState.objects.filter(o => !(o.objective && o.opened)).map(o => o.objective ? { id: o.id, type: 'record' as const, position: o.position } : o);
     state.dayCount ??= 1; state.killCombo ??= 0;
     state.mpRecoveryActions ??= 0; state.daylightCount ??= 0; state.defeatedEnemies ??= []; state.skillWear ??= {}; state.pendingGemChoices ??= []; state.mapState.playerTraps ??= []; state.playerState.visionBonus ??= state.playerState.freeCamera ? 2 : 0;
+    // 旧セーブで朝まで残っていた死神も補正し、通常の復活候補には入れない。
+    if(timeOfDay(state)!=='night')state.enemyStates=state.enemyStates.filter(e=>e.kind!=='reaper');
+    state.defeatedEnemies=state.defeatedEnemies.filter(e=>e.kind!=='reaper');
+    state.reinforcementKinds=state.reinforcementKinds?.filter(k=>k!=='reaper');
     // Older saves remain playable; existing hostile enemies do not alert again.
     for (const a of this.actors) {
       a.facing ??= 'down'; a.alertedAt ??= -1; a.hp = Math.floor(a.hp);
@@ -178,6 +183,7 @@ export class GameSession {
   /** スキル喪失時の後始末を集約。今後の設置効果も生成元IDで撤去できる。 */
   loseSkill(id: SkillId): void {
     const s = this.state;
+    if(s.skillBag.some(b=>b.skillId===id)){const count=s.skillLevels[id]??1;s.bookFragments=(s.bookFragments??0)+count;this.log('魔導書の切れ端を'+count+'枚獲得！（所持'+s.bookFragments+'枚）');}
     delete s.skillLevels[id]; delete s.cooldowns[id]; delete s.skillWear?.[id];
     s.skillBag = s.skillBag.filter(b => b.skillId !== id);
     s.mapState.playerTraps = (s.mapState.playerTraps ?? []).filter(t => t.sourceSkillId !== id);
@@ -222,7 +228,7 @@ export class GameSession {
       if (obj.waitForLeave) { if (same(obj.position, s.playerState.position)) continue; obj.waitForLeave = false; }
       if (!same(obj.position, s.playerState.position) || obj.opened || obj.type === 'exit') continue;
       if(obj.type==='skillBook'){
-        s.pendingSkillBooks=(s.pendingSkillBooks??0)+1;(s.pendingBookAttributes??=[]).push(obj.bookAttributes??rollBookAttributes(this.rng));s.mapState.objects=s.mapState.objects.filter(o=>o.id!==obj.id);this.log('スキルの書を手に入れた！');this.events.push({type:'pickup',position:{...obj.position},sound:'magicCast'});
+        s.pendingSkillBooks=(s.pendingSkillBooks??0)+1;(s.pendingBookAttributes??=[]).push(obj.bookAttributes??rollBookAttributes(this.rng));s.mapState.objects=s.mapState.objects.filter(o=>o.id!==obj.id);this.log('魔導書を手に入れた！');this.events.push({type:'pickup',position:{...obj.position},sound:'magicCast'});
       } else if (obj.type === 'record') {
         s.objectiveChests++; s.mapState.objects = s.mapState.objects.filter(o => o.id !== obj.id);
         this.log('古代の記録を手に入れた！');
@@ -249,10 +255,17 @@ export class GameSession {
   }
   /** 書は出現表と所持最大ブロック数+1で候補を制限。属性ボタンと実際の抽選で同じ候補を使う。 */
   bookSkills(attribute:Attribute){return (this.state.mapState.loot?.skills??skillPool).filter(e=>e.weight>0&&SKILLS[e.value].attribute===attribute&&canRollSkill(this.state,e.value));}
-  returnBook():void{const s=this.state;if(!s.pendingSkillBooks)return;const bookAttributes=s.pendingBookAttributes?.shift();s.pendingSkillBooks--;let id='returned-book-'+s.playerActionCount;while(s.mapState.objects.some(o=>o.id===id))id+='-new';s.mapState.objects.push({id,type:'skillBook',bookAttributes,position:{...s.playerState.position},waitForLeave:true});this.log('スキルの書を足元に戻した。');}
+  returnBook():void{const s=this.state;if(!s.pendingSkillBooks)return;const bookAttributes=s.pendingBookAttributes?.shift();s.pendingSkillBooks--;let id='returned-book-'+s.playerActionCount;while(s.mapState.objects.some(o=>o.id===id))id+='-new';s.mapState.objects.push({id,type:'skillBook',bookAttributes,position:{...s.playerState.position},waitForLeave:true});this.log('魔導書を足元に戻した。');}
+  /** 切れ端はダンジョン内で保持。生成時に候補を固定し、抽選し直しを防ぐ。 */
+  useBookFragments():boolean{
+    const s=this.state;if((s.bookFragments??0)<3||s.pendingSkillBooks||s.pendingGemChoices?.length||s.pendingBag||s.status!=='playing')return false;
+    s.bookFragments!-=3;s.pendingSkillBooks=1;(s.pendingBookAttributes??=[]).push(rollBookAttributes(this.rng));
+    s.randomSeed=this.rng.seed;this.log('魔導書の切れ端3枚から魔導書を復元した！');return true;
+  }
   chooseBook(attribute:Attribute):boolean{
     const s=this.state,pool=this.bookSkills(attribute);if(!s.pendingSkillBooks||!s.pendingBookAttributes?.[0]?.includes(attribute)||!pool.length||s.status!=='playing')return false;
-    s.pendingSkillBooks--;s.pendingBookAttributes!.shift();this.acquireSkill(weighted(pool,this.rng));s.randomSeed=this.rng.seed;return true;
+    const id=rollSkillBySize(s,pool,this.rng);if(!id)return false;
+    s.pendingSkillBooks--;s.pendingBookAttributes!.shift();this.acquireSkill(id);s.randomSeed=this.rng.seed;return true;
   }
   chooseGem(index: number): boolean {
     const s = this.state, id = s.pendingGemChoices?.[0]?.[index], reward = id && GEM_REWARDS[id];
@@ -273,6 +286,12 @@ export class GameSession {
   }
   useItem(slot: number, skillId?: SkillId): boolean {
     const s = this.state, p = s.playerState, id = s.itemSlots[slot]; if (!id) return false;
+    const cellLimit=ITEMS[id].skillCellLimit;
+    if(cellLimit!==undefined){
+      if(!skillId||!s.skillBag.some(b=>b.skillId===skillId)||!s.skillLevels[skillId]||SKILLS[skillId].cells.length>cellLimit){this.log(cellLimit+'マス以下の所持スキルを選んでください。');return false;}
+      s.skillLevels[skillId]++;this.log(SKILLS[skillId].name+'がLv.'+s.skillLevels[skillId]+'に上がった！');
+      this.events.push({type:'heal',position:{...p.position},text:'スキルLv.UP',sound:'magicCast'});
+    }
     if (id === 'powerPotion') { applyBuff(p,{id:'item:powerPotion',attackBonus:5,attackMultiplier:1,detectionBonus:0,remainingTurns:10,appliedAt:s.playerActionCount});this.events.push({type:'heal',position:{...p.position},text:'攻撃力+5',sound:'healing'}); }
     if (id === 'hourglass') { if (!skillId || !s.skillLevels[skillId] || !(s.cooldowns[skillId]! > 0)) { this.log('再使用待ちのスキルを選んでください。'); return false; } s.cooldowns[skillId] = Math.max(0, s.cooldowns[skillId]! - 10); this.log(SKILLS[skillId].name + 'のクールタイムを短縮！'); }
     if (ITEMS[id].restoreHp && p.hp >= p.maxHp || ITEMS[id].restoreMp && p.mp >= p.maxMp) { this.log('今は使う必要がありません。'); return false; }
@@ -313,7 +332,7 @@ export class GameSession {
     const s = this.state, p = s.playerState, def = SKILLS[id]; p.facing = direction; p.mp -= skillMp(s, id); s.cooldowns[id] = def.cooldown;
     if (wearSkill(s, id, this.rng)) this.log(def.name + 'が劣化し、次回からの消費MPが増えた。');
     const fieldStart=this.events.length;this.groupingDamage=true;
-    const fieldCast=castFieldSkill(s,id,direction,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});this.groupingDamage=false;
+    const fieldCast=castFieldSkill(s,id,direction,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)},aim);this.groupingDamage=false;
     if(fieldCast){if(this.events.slice(fieldStart).some(e=>e.type==='damage'))this.logHits(def.name,fieldStart);else this.log(def.name+'を発動！');return;}
     if(id==='icePillar'){
       const cells=placeIcePillars(s,direction);
@@ -321,8 +340,8 @@ export class GameSession {
       this.log('アイス・ピラー！ 氷柱を'+cells.length+'本設置した。');return;
     }
     if(id==='thunderArmor'){
-      const level=effectiveLevel(s.skillBag,s.skillLevels,id),chance=level>=5?1:level>=3?.6:.4,turns=level>=5?10:level>=3?7:5;
-      applyBuff(p,{id:'skill:thunderArmor',name:'雷装',appliedAt:s.playerActionCount,remainingTurns:turns,attackMultiplier:1,detectionBonus:0,thunderFollowup:{chance,ratio:.3}});
+      const level=effectiveLevel(s.skillBag,s.skillLevels,id),chance=level>=5?1:level>=3?.7:.5,turns=level>=5?10:level>=3?8:7;
+      applyBuff(p,{id:'skill:thunderArmor',name:'雷装',appliedAt:s.playerActionCount,remainingTurns:turns,attackMultiplier:1,detectionBonus:0,thunderFollowup:{chance,ratio:.3*(1+(level-1)*.05)}});
       this.events.push({type:'trap',position:{...p.position},visual:'summonRing',sound:'magicCast',attribute:'thunder'});this.log('雷装！ '+turns+'ターン雷をまとう。');return;
     }
     if(id==='summonSpirit'){
@@ -460,13 +479,19 @@ export class GameSession {
   /** 夜・深夜・以降30行動ごとの復活。抽選数を保存し、未達分は空き床と撃破済みの敵が揃うまで再試行。 */
   private spawnReaper():void{
     const s=this.state,day=s.dayCount??1;if(s.status!=='playing'||timeOfDay(s)!=='night'||day%4!==0||s.lastReaperDay===day)return;
-    const enemy=actor('reaper-day-'+day,'reaper',{x:0,y:0}),cells:Point[]=[];
-    for(let y=1;y<s.mapState.height-1;y++)for(let x=1;x<s.mapState.width-1;x++){const p={x,y};if(canStand(s.mapState,enemy,p,this.actors)&&!s.mapState.objects.some(o=>same(o.position,p)))cells.push(p);}
+    const count=day/4,probe=actor('reaper-probe','reaper',{x:0,y:0}),cells:Point[]=[];
+    for(let y=1;y<s.mapState.height-1;y++)for(let x=1;x<s.mapState.width-1;x++){const p={x,y};if(canStand(s.mapState,probe,p,this.actors)&&!s.mapState.objects.some(o=>same(o.position,p)))cells.push(p);}
     if(!cells.length)return;
-    const distant=cells.filter(p=>!this.visible(p)),pool=distant.length?distant:cells;
-    enemy.position={...pool[this.rng.int(0,pool.length-1)]};enemy.hp=enemy.maxHp=4*(day/4);enemy.attack=4*(day/4);s.enemyStates.push(enemy);s.lastReaperDay=day;
-    const message='死神が現れた';this.log(day+'日目の夜。'+message+'！');this.events.push({type:'trap',position:{...enemy.position},visual:'summonRing',announcement:message});this.capture('enemy');
+    const spawned:Actor[]=[];
+    for(let n=0;n<count&&cells.length;n++){
+      const distant=cells.filter(p=>!this.visible(p)),pool=distant.length?distant:cells,position=pool[this.rng.int(0,pool.length-1)];
+      cells.splice(cells.findIndex(p=>same(p,position)),1);
+      const enemy=actor('reaper-day-'+day+'-'+n,'reaper',position);enemy.hp=enemy.maxHp=4*count;enemy.attack=4*count;s.enemyStates.push(enemy);spawned.push(enemy);
+    }
+    s.lastReaperDay=day;
+    const message='死神が'+spawned.length+'体現れた';this.log(day+'日目の夜。'+message+'！');this.events.push({type:'trap',position:{...spawned[0].position},visual:'summonRing',announcement:message});this.capture('enemy');
   }
+
   private reviveAtNight(): void {
     const s = this.state, rule = floorRules(this.stage, s.floorNumber).nightRevival;
     if (timeOfDay(s) !== 'night') return;
@@ -475,8 +500,8 @@ export class GameSession {
     if (s.nightWave !== wave) { s.nightWave = wave; s.nightRevived = 0; s.nightTarget = this.rng.int(rule.min, Math.max(rule.min, rule.max)); }
     const desired = s.nightTarget ?? rule.min;
     if (s.nightRevived! >= desired || wave===0&&!s.defeatedEnemies?.length) return;
-    const pool=s.reinforcementKinds ?? [];
-    const dead = wave===0 ? [...(s.defeatedEnemies??[])] : Array.from({length:desired-s.nightRevived!},(_,i)=>actor('reinforcement-'+i,pool.length?pool[this.rng.int(0,pool.length-1)]:'slime',{x:0,y:0},s.stageId,s.floorNumber));
+    const pool=(s.reinforcementKinds ?? []).filter(k=>k!=='reaper');
+    const dead = wave===0 ? (s.defeatedEnemies??[]).filter(e=>e.kind!=='reaper') : Array.from({length:desired-s.nightRevived!},(_,i)=>actor('reinforcement-'+i,pool.length?pool[this.rng.int(0,pool.length-1)]:'slime',{x:0,y:0},s.stageId,s.floorNumber));
     while (dead.length && s.nightRevived! < desired) {
       const old = dead.splice(this.rng.int(0, dead.length - 1), 1)[0];
       const enemy = actor(`night-${s.floorNumber}-${s.playerActionCount}-${s.nightRevived}`, old.kind, old.position, s.stageId, s.floorNumber), cells: Point[] = [];
@@ -503,6 +528,9 @@ export class GameSession {
     s.cooldowns = {}; s.mpRecoveryActions = 0;
     for (const a of this.actors) { a.buffs = []; a.afflictions = []; a.hp=a.maxHp; if(a.maxMp!==undefined)a.mp=a.maxMp; }
     s.allyStates=[];
+    s.enemyStates=s.enemyStates.filter(e=>e.kind!=='reaper');
+    s.defeatedEnemies=s.defeatedEnemies?.filter(e=>e.kind!=='reaper');
+    s.reinforcementKinds=s.reinforcementKinds?.filter(k=>k!=='reaper');
     const limit = this.stage.sleepRespawnCount ?? DAY_CYCLE.respawnCount;
     const dead = [...(s.defeatedEnemies ?? [])]; let count = 0;
     while (dead.length && count < limit) {

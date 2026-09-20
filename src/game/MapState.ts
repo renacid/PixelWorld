@@ -165,7 +165,7 @@ export function generateMap(base: Stage, rng: Random, floor = 1): { map: MapStat
     const supplies=(chest.contents??[]).filter(e=>e.type==='item');if(forest&&!supplies.some(e=>e.id==='potion'))supplies.push({type:'item',id:'potion'});
     chest.contents=[...chest.skillIds.map(id=>({type:'skill' as const,id})),...supplies];chest.randomSkillsResolved=true;
     const cells:Point[]=[];for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++){const p={x:chest.position.x+x,y:chest.position.y+y};if((x||y)&&!same(p,spawn)&&canStand(map,actor('book','slime',p),p,enemies)&&!map.objects.some(o=>same(o.position,p))&&!map.traps?.some(t=>same(t.position,p))&&!map.fields.some(f=>same(f.position,p)))cells.push(p);}
-    if(!cells.length)throw new Error(stage.name+': 初期宝箱の隣にスキルの書の空きマスがありません');
+    if(!cells.length)throw new Error(stage.name+': 初期宝箱の隣に魔導書の空きマスがありません');
     map.objects.push({id:'starting-skill-book',type:'skillBook',position:cells[0]});
   }
  }

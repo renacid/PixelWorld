@@ -224,6 +224,11 @@ export class GameCanvas {
         if (fall === 1) { ctx.strokeStyle = '#eaffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(p.x + 16, p.y + 22, age * 19, age * 9, 0, 0, Math.PI * 2); ctx.stroke(); }
       }
     }
+    else if(e.skillId==='meteor'){
+      const fall=Math.min(1,age*2),mx=to.x+16,my=to.y+16-(1-fall)*64;
+      ctx.fillStyle='#ffb744';ctx.fillRect(mx-5,my-20,10,20);ctx.fillStyle='#f1703e';ctx.fillRect(mx-9,my-9,18,18);ctx.fillStyle='#7b5146';ctx.fillRect(mx-6,my-4,12,11);ctx.fillStyle='#ffe0a0';ctx.fillRect(mx-4,my-6,5,5);
+      if(fall===1)for(const cell of e.path??[]){const p=screen(cell);ctx.fillStyle='#ff8a4566';ctx.fillRect(p.x+2,p.y+2,28,28);}
+    }
     else if (e.skillId === 'firerain') { for (const [i, cell] of (e.path ?? []).entries()) { const p = screen(cell), pulse = (age * 3 + i % 3 * .06) % 1; ctx.fillStyle = '#ff965c'; ctx.fillRect(p.x + 12, p.y - 13 + pulse * 30, 5, 12); ctx.fillStyle = '#fff19b'; ctx.fillRect(p.x + 13, p.y - 8 + pulse * 30, 3, 6); } }
     else { const angle = Math.atan2(to.y - from.y, to.x - from.x); ctx.strokeStyle = e.type === 'attack' ? e.actorId?.startsWith('ally') ? '#39bdb1' : '#ef6d85' : '#fff5bc'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(from.x + 16, from.y + 16, 23, angle - 1.2 + age, angle + .2 + age); ctx.stroke(); ctx.strokeStyle = '#fffefa'; ctx.lineWidth = 2; ctx.stroke(); }
   }
