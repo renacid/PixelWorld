@@ -1,3 +1,4 @@
+import { icePillarCells } from './IcePillar';
 /** スキルの対象・射線・ワープ候補を計算。プレビューと実発動で同じ判定を共有。 */
 import { SKILLS } from '../data/skills';
 import { effectiveLevel } from './SkillBag';
@@ -23,7 +24,23 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
   const definition = SKILLS[id], p = state.playerState.position;
   const result: TargetPreview = { cells: [], blocked: null, targetIds: [] };
   if(definition.kind==='passive')return result;
-  if(['pierce','wall','movingField','quake'].includes(definition.target)){
+  if(definition.target==='installation'){result.cells=icePillarCells(state,direction);return result;}
+  if(definition.target==='randomWalk'){
+    // 乱数を消費せず、実際に取り得る未訪問経路の全体を予告表示。
+    const level=effectiveLevel(state.skillBag,state.skillLevels,id),steps=level>=5?5:level>=3?4:3;
+    const seen=new Set<string>(),visit=(from:Point,left:number,path:Set<string>):void=>{
+      if(!left)return;
+      for(const v of Object.values(VECTORS)){const next={x:from.x+v.x,y:from.y+v.y},key=next.x+','+next.y;
+        if(path.has(key)||wall(state.mapState,next))continue;
+        if(!seen.has(key)){seen.add(key);result.cells.push(next);}
+        visit(next,left-1,new Set([...path,key]));
+      }
+    };
+    visit(p,steps,new Set([p.x+','+p.y]));
+    result.targetIds=attackTargets(state).filter(e=>e.hp>0&&occupied(e).some(c=>result.cells.some(t=>same(c,t)))).map(e=>e.id);
+    return result;
+  }
+  if(['pierce','wall','quake'].includes(definition.target)){
     const v=VECTORS[direction],side={x:-v.y,y:v.x};
     if(definition.target==='quake'){for(let y=-3;y<=3;y++)for(let x=-3;x<=3;x++){const c={x:p.x+x,y:p.y+y};if(!wall(state.mapState,c))result.cells.push(c);}}
     else if(definition.target==='wall'){for(let depth=1;depth<=(effectiveLevel(state.skillBag,state.skillLevels,id)>=5?2:1);depth++)for(let lateral=-1;lateral<=1;lateral++){const c={x:p.x+v.x*depth+side.x*lateral,y:p.y+v.y*depth+side.y*lateral};if(!wall(state.mapState,c)&&!wall(state.mapState,{x:c.x-v.x*(depth-1),y:c.y-v.y*(depth-1)}))result.cells.push(c);}}
@@ -31,7 +48,7 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
     const targets=attackTargets(state);for(const c of result.cells)for(const e of targets)if(e.hp>0&&!result.targetIds.includes(e.id)&&occupied(e).some(t=>same(c,t)))result.targetIds.push(e.id);
     return result;
   }
-  if(definition.target==='summon'){result.cells.push({...p});return result;}
+  if(definition.target==='summon'||definition.target==='selfBuff'){result.cells.push({...p});return result;}
   if (definition.target === 'sweep') {
     const f=VECTORS[direction], side={x:-f.y,y:f.x};
     for(const [forward,lateral] of [[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {const c={x:p.x+f.x*forward+side.x*lateral,y:p.y+f.y*forward+side.y*lateral};if(!wall(state.mapState,c))result.cells.push(c);}

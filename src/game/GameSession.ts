@@ -1,3 +1,5 @@
+import { icePillarCells, placeIcePillars } from '../skills/IcePillar';
+import { initializeBooks, rollBookAttributes } from './SkillBooks';
 import {castFieldSkill,contactSkillFields,tickSkillFields} from '../skills/FieldSkills';
 import { INSTALLATIONS } from '../data/installations';
 import { summonCells,createSpirit,summonMedia } from './Summoning';
@@ -6,7 +8,7 @@ import { itemCapacity } from './Inventory';
 import { passiveChance, passiveDamageScale } from '../skills/PassiveSkills';
 import { canRollSkill } from '../skills/SkillLoot';
 import { resolveChestSkills } from './LootSystem';
-import { hitInstallation, moveNearInstallations } from './InstallationSystem';
+import { hitInstallation, moveNearInstallations, tickInstallations } from './InstallationSystem';
 import { applyBuff } from './ActorStats';
 import { vacuumDestinations, chainHitLimit, nextChainTarget, chainOrigin } from '../skills/SkillResolver';
 import { PROGRESSION, requiredExperience, expandBag } from './Progression';
@@ -45,6 +47,12 @@ export class GameSession {
   private groupingDamage = false;
   constructor(public state: SaveData) {
     this.rng = new Random(state.randomSeed);
+    initializeBooks(state.mapState,this.rng);
+    state.pendingBookAttributes ??= [];
+    while(state.pendingBookAttributes.length<(state.pendingSkillBooks??0))state.pendingBookAttributes.push(rollBookAttributes(this.rng));
+    state.randomSeed=this.rng.seed;
+    // 旧仕様の持続竜巻はロード時に撤去する。
+    state.mapState.fields=state.mapState.fields.filter(f=>f.skillKind!=='tornadoSummon');
     state.playerLevel ??= 1; state.experience = Math.ceil(state.experience ?? 0); state.bagCells ??= initialBagCells(5);
     for (const list of [state.enemyStates, state.defeatedEnemies ?? []]) for (const a of list) {
       if ((a.kind as string) === 'boss' || a.kind === 'golem' && a.name === '守護岩') {
@@ -130,6 +138,12 @@ export class GameSession {
     const cells = occupied(target), position = { x: cells.reduce((n, c) => n + c.x, 0) / cells.length, y: cells.reduce((n, c) => n + c.y, 0) / cells.length };
     this.events.push({ type: 'damage', position, actorId: target.id, amount: value, attribute, critical });
     if (!this.groupingDamage) this.log(`${target.name}に${critical ? '会心' : ''}${value}ダメージ！`);
+    // 追加雷撃は物理ではないため再帰発動しない。反応は通常の属性処理へ渡す。
+    const followup=attacker?.buffs?.find(b=>b.remainingTurns>0&&b.thunderFollowup)?.thunderFollowup;
+    if(attribute==='physical'&&value>0&&target.hp>0&&followup&&this.rng.next()<followup.chance){
+      this.events.push({type:'reaction',actorId:target.id,position:{...target.position},attribute:'thunder',text:'雷装',sound:'magicCast'});
+      dealAttributeHit(target,Math.floor(value*followup.ratio),'thunder',this.state.playerActionCount,this.actors,(t,n,a,crit)=>this.damage(t,n,a,crit,attacker),this.events,()=>this.rng.next());
+    }
   };
   /** 一つの行動による各ヒット・反応を対象別に集計して、読みやすい一件のログにする。 */
   private logHits(label: string, start: number, multi = false): void {
@@ -158,7 +172,7 @@ export class GameSession {
     this.events.push({type:'trap',position:{...p.position},path:cells,visual:'iceShield',sound:'ice',durationMs:550});
     this.groupingDamage=true;
     for(const e of s.enemyStates)if(e.hp>0&&occupied(e).some(c=>cells.some(t=>same(c,t))))dealAttributeHit(e,attackPower(p)*passiveDamageScale(s,'iceShield'),'ice',s.playerActionCount,s.enemyStates,this.damage,this.events,()=>this.rng.next());
-    for(const i of [...s.mapState.installations??[]])if(cells.some(c=>same(c,i.position)))hitInstallation(s,i.id,{rng:this.rng,events:this.events,log:m=>this.log(m)});
+    for(const i of [...s.mapState.installations??[]])if(cells.some(c=>same(c,i.position)))hitInstallation(s,i.id,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     this.groupingDamage=false;this.logHits('アイスシールド',start);
   }
   /** スキル喪失時の後始末を集約。今後の設置効果も生成元IDで撤去できる。 */
@@ -168,6 +182,7 @@ export class GameSession {
     s.skillBag = s.skillBag.filter(b => b.skillId !== id);
     s.mapState.playerTraps = (s.mapState.playerTraps ?? []).filter(t => t.sourceSkillId !== id);
     s.mapState.fields = s.mapState.fields.filter(f => f.sourceSkillId !== id);
+    s.mapState.installations=s.mapState.installations?.filter(i=>i.sourceSkillId!==id);
   }
   acquireSkill(id: SkillId): void {
     this.state.skillWear![id] ??= { uses: 0, extraMp: 0 };
@@ -207,7 +222,7 @@ export class GameSession {
       if (obj.waitForLeave) { if (same(obj.position, s.playerState.position)) continue; obj.waitForLeave = false; }
       if (!same(obj.position, s.playerState.position) || obj.opened || obj.type === 'exit') continue;
       if(obj.type==='skillBook'){
-        s.pendingSkillBooks=(s.pendingSkillBooks??0)+1;s.mapState.objects=s.mapState.objects.filter(o=>o.id!==obj.id);this.log('スキルの書を手に入れた！');this.events.push({type:'pickup',position:{...obj.position},sound:'magicCast'});
+        s.pendingSkillBooks=(s.pendingSkillBooks??0)+1;(s.pendingBookAttributes??=[]).push(obj.bookAttributes??rollBookAttributes(this.rng));s.mapState.objects=s.mapState.objects.filter(o=>o.id!==obj.id);this.log('スキルの書を手に入れた！');this.events.push({type:'pickup',position:{...obj.position},sound:'magicCast'});
       } else if (obj.type === 'record') {
         s.objectiveChests++; s.mapState.objects = s.mapState.objects.filter(o => o.id !== obj.id);
         this.log('古代の記録を手に入れた！');
@@ -234,10 +249,10 @@ export class GameSession {
   }
   /** 書は出現表と所持最大ブロック数+1で候補を制限。属性ボタンと実際の抽選で同じ候補を使う。 */
   bookSkills(attribute:Attribute){return (this.state.mapState.loot?.skills??skillPool).filter(e=>e.weight>0&&SKILLS[e.value].attribute===attribute&&canRollSkill(this.state,e.value));}
-  returnBook():void{const s=this.state;if(!s.pendingSkillBooks)return;s.pendingSkillBooks--;let id='returned-book-'+s.playerActionCount;while(s.mapState.objects.some(o=>o.id===id))id+='-new';s.mapState.objects.push({id,type:'skillBook',position:{...s.playerState.position},waitForLeave:true});this.log('スキルの書を足元に戻した。');}
+  returnBook():void{const s=this.state;if(!s.pendingSkillBooks)return;const bookAttributes=s.pendingBookAttributes?.shift();s.pendingSkillBooks--;let id='returned-book-'+s.playerActionCount;while(s.mapState.objects.some(o=>o.id===id))id+='-new';s.mapState.objects.push({id,type:'skillBook',bookAttributes,position:{...s.playerState.position},waitForLeave:true});this.log('スキルの書を足元に戻した。');}
   chooseBook(attribute:Attribute):boolean{
-    const s=this.state,pool=this.bookSkills(attribute);if(!s.pendingSkillBooks||!pool.length||s.status!=='playing')return false;
-    s.pendingSkillBooks--;this.acquireSkill(weighted(pool,this.rng));s.randomSeed=this.rng.seed;return true;
+    const s=this.state,pool=this.bookSkills(attribute);if(!s.pendingSkillBooks||!s.pendingBookAttributes?.[0]?.includes(attribute)||!pool.length||s.status!=='playing')return false;
+    s.pendingSkillBooks--;s.pendingBookAttributes!.shift();this.acquireSkill(weighted(pool,this.rng));s.randomSeed=this.rng.seed;return true;
   }
   chooseGem(index: number): boolean {
     const s = this.state, id = s.pendingGemChoices?.[0]?.[index], reward = id && GEM_REWARDS[id];
@@ -279,7 +294,9 @@ export class GameSession {
       if(!summonMedia(this.state).length)return effectiveLevel(this.state.skillBag,this.state.skillLevels,id)>=3?'中級精霊にはレア階級2以上の道具が必要です。':'召喚の媒体にする道具がありません。';
       if(!summonCells(this.state).length)return '周囲に精霊が現れる空きマスがありません。';
     }
-    if(['fireWall','tornadoSummon'].includes(id)&&!previewSkill(this.state,id,this.state.playerState.facing).cells.length)return '前方が壁で設置できません。';
+    if(id==='icePillar'&&!icePillarCells(this.state,this.state.playerState.facing).length)return '前方に何もない空きマスが必要です。';
+    if(id==='fireWall'&&!previewSkill(this.state,id,this.state.playerState.facing).cells.length)return '前方が壁で設置できません。';
+    if(id==='tornadoSummon'&&!previewSkill(this.state,id,this.state.playerState.facing).cells.length)return '竜巻が移動できるマスがありません。';
     if (id === 'groundbreak') {
       const map = this.state.mapState, pos = this.state.playerState.position;
       if ((map.playerTraps?.length ?? 0) >= 2) return '地砕きは同時に2個までです。';
@@ -298,6 +315,16 @@ export class GameSession {
     const fieldStart=this.events.length;this.groupingDamage=true;
     const fieldCast=castFieldSkill(s,id,direction,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});this.groupingDamage=false;
     if(fieldCast){if(this.events.slice(fieldStart).some(e=>e.type==='damage'))this.logHits(def.name,fieldStart);else this.log(def.name+'を発動！');return;}
+    if(id==='icePillar'){
+      const cells=placeIcePillars(s,direction);
+      for(const position of cells)this.events.push({type:'trap',position,visual:'iceLance',sound:'magicCast',durationMs:450});
+      this.log('アイス・ピラー！ 氷柱を'+cells.length+'本設置した。');return;
+    }
+    if(id==='thunderArmor'){
+      const level=effectiveLevel(s.skillBag,s.skillLevels,id),chance=level>=5?1:level>=3?.6:.4,turns=level>=5?10:level>=3?7:5;
+      applyBuff(p,{id:'skill:thunderArmor',name:'雷装',appliedAt:s.playerActionCount,remainingTurns:turns,attackMultiplier:1,detectionBonus:0,thunderFollowup:{chance,ratio:.3}});
+      this.events.push({type:'trap',position:{...p.position},visual:'summonRing',sound:'magicCast',attribute:'thunder'});this.log('雷装！ '+turns+'ターン雷をまとう。');return;
+    }
     if(id==='summonSpirit'){
       const cells=summonCells(s),media=summonMedia(s),slot=media[this.rng.int(0,media.length-1)],item=s.itemSlots.splice(slot,1)[0];
       const ally=createSpirit(s,effectiveLevel(s.skillBag,s.skillLevels,id)>=3?'greaterSprite':'sprite',cells[this.rng.int(0,cells.length-1)]);
@@ -558,6 +585,7 @@ export class GameSession {
       if(actionCount>1)this.capture('enemy');
       }
     }
+    tickInstallations(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     tickSkillFields(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     for (const field of s.mapState.fields) {
       if(field.skillKind)continue;

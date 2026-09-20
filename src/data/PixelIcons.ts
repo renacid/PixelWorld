@@ -3,6 +3,8 @@ import type { SkillId, ItemId } from '../game/types';
 export type PixelIcon = { rows: string[]; color: string; image?: string };
 const make=(color:string,rows:string[]):PixelIcon=>({color,rows:rows.flatMap(row=>[...Array(2)].map(()=>[...row].map(c=>c+c).join('')))});
 export const SKILL_ICONS:Record<SkillId,PixelIcon>={
+ icePillar:make('#78cbe9',['...w....','..wwg...','..wwgg..','..wwgg..','..wwgg..','.gwwggg.','.gggggg.','..gggg..']),
+ thunderArmor:make('#ac78e1',['.gg..gg.','gggggggg','gg.wg.gg','ggwwgggg','.ggwggg.','.gggggg.','..gggg..','...gg...']),
  iceLance:make('#63badb',['......wg','.....wgg','....wgg.','...wg...','..wg....','.wg.....','gg......','g.......']),
  fireWall:make('#e97448',['.g.g.g..','.gwgwg..','ggwgwgg.','gwgwgwgg','gggggggg','gggggggg','gggggggg','........']),
  tornadoSummon:make('#55bfa5',['.gggggg.','g......g','.gggggg.','..gggg..','...gg...','..gg....','.g......','gggggggg']),

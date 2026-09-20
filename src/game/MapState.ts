@@ -1,3 +1,4 @@
+import { initializeBooks } from './SkillBooks';
 import { WORLD_SETTINGS } from './WorldSettings';
 import { placeInstallations } from './InstallationSystem';
 /** 占有・通行・視線判定とマップ生成。手作り地形は地域別ステージのlayoutへ指定します。 */
@@ -197,5 +198,6 @@ export function generateMap(base: Stage, rng: Random, floor = 1): { map: MapStat
    // 目標数分は出現枯渇後も残す。自然消滅で破壊目標が不足しないため。
    targets.slice(0,goal.count).forEach(i=>i.requiredForGoal=true);
  }
+ initializeBooks(map,rng);
  return result;
 }

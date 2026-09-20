@@ -7,7 +7,7 @@ import type { TrapInstance, TrapPlacement, TrapVisual, SoundCue } from '../data/
 export type Direction = 'up' | 'right' | 'down' | 'left';
 export const VECTORS: Record<Direction, Point> = { up: { x: 0, y: -1 }, right: { x: 1, y: 0 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 } };
 export type Attribute = 'fire' | 'ice' | 'thunder' | 'earth' | 'wind' | 'neutral' | 'physical' | 'nature';
-export type SkillId = 'iceLance' | 'fireWall' | 'tornadoSummon' | 'earthquake' | 'summonSpirit' | 'iceShield' | 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
+export type SkillId = 'icePillar' | 'thunderArmor' | 'iceLance' | 'fireWall' | 'tornadoSummon' | 'earthquake' | 'summonSpirit' | 'iceShield' | 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
 export type ItemId = 'powerPotion' | 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
 export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
 export type Actor = { lastActedAt?:number; movementLockedUntil?: number; frostErosion?: { spent:boolean; rootUntil?:number };
@@ -17,7 +17,7 @@ export type Actor = { lastActedAt?:number; movementLockedUntil?: number; frostEr
   experienceMultiplier?: number;
   criticalRate?: number; criticalMultiplier?: number;
   immobile?: boolean; skillChances?: Record<string, number>;
-  buffs?: { id: string; remainingTurns: number; appliedAt: number; attackBonus?: number; attackMultiplier: number; detectionBonus: number }[];
+  buffs?: { name?: string; thunderFollowup?: { chance:number; ratio:number }; id: string; remainingTurns: number; appliedAt: number; attackBonus?: number; attackMultiplier: number; detectionBonus: number }[];
   id: string; name: string; kind: ActorKind;
   position: Point; cells: Point[]; directions: Direction[]; attackCells: Point[]; facing: Direction;
   hp: number; maxHp: number; attack: number; attribute: Attribute; afflictions: Affliction[];
@@ -29,7 +29,7 @@ export type Actor = { lastActedAt?:number; movementLockedUntil?: number; frostEr
 };
 export type Player = Actor & { mp: number; maxMp: number; criticalRate: number; criticalMultiplier: number; facing: Direction; freeCamera: boolean; visionBonus?: number; movementLockedUntil?: number };
 export type BagBlock = { isNew?: boolean; skillId: SkillId; position: Point | null; rotation: number };
-export type GroundObject = { randomSkillsResolved?: boolean; id: string; position: Point; type: 'skillBook' | 'record' | 'chest' | 'item' | 'skill' | 'exit' | 'gem'; skillId?: SkillId; skillIds?: SkillId[]; itemId?: ItemId; chestTier?: ChestTier; waitForLeave?: boolean; fullNotified?: boolean; contents?: Loot[]; opened?: boolean; objective?: boolean };
+export type GroundObject = { bookAttributes?: Attribute[]; randomSkillsResolved?: boolean; id: string; position: Point; type: 'skillBook' | 'record' | 'chest' | 'item' | 'skill' | 'exit' | 'gem'; skillId?: SkillId; skillIds?: SkillId[]; itemId?: ItemId; chestTier?: ChestTier; waitForLeave?: boolean; fullNotified?: boolean; contents?: Loot[]; opened?: boolean; objective?: boolean };
 export type FieldEffect = { skillKind?: 'fireWall'|'tornadoSummon'; placedAt?:number; direction?:Direction; power?:number; hitAction?:number; hitIds?:string[]; sourceSkillId?: SkillId; effectId: string; position: Point; attribute: Attribute; remainingTurns: number; triggerType: 'enter' | 'turn'; damageMultiplier: number; onceOnly: boolean };
 export type MapState = { installations?: Installation[]; loot?: LootPools; width: number; height: number; tiles: number[]; objects: GroundObject[]; playerTraps?: { id: string; position: Point; damage: number; sourceSkillId?: SkillId; placedAt?: number }[]; traps?: TrapInstance[]; fields: FieldEffect[] };
 export type SaveData = {
@@ -43,6 +43,7 @@ export type SaveData = {
   passiveTriggeredAt?: Partial<Record<SkillId, number>>;
   skillWear?: Partial<Record<SkillId, { uses: number; extraMp: number; stage?: number }>>;
   pendingSkillBooks?: number;
+  pendingBookAttributes?: Attribute[][];
   pendingGemChoices?: string[][];
   daylightCount?: number;
   /** 睡眠ごとに進む日数。旧セーブは1日目から再開。 */

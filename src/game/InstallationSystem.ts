@@ -1,3 +1,4 @@
+import { dealAttributeHit, type DamageHandler } from '../skills/AttributeSystem';
 import { installationDefinition, type InstallationPlacement } from '../data/installations';
 import { actor } from '../actors/Actor';
 import { canStand, occupied, same, wall, key } from './MapState';
@@ -24,15 +25,28 @@ export function placeInstallations(map:MapState,rules:InstallationPlacement[],rn
   }
  }
 }
-type Context={rng:Random;events:GameEvent[];log:(s:string)=>void};
+type Context={damage?:DamageHandler;rng:Random;events:GameEvent[];log:(s:string)=>void};
 /** 全攻撃共通。一度取り除いてから抽選するので複数ヒットでも報酬は1回。 */
 export function hitInstallation(state:SaveData,id:string,context:Context):boolean{
  const map=state.mapState,i=map.installations?.find(i=>i.id===id);if(!i)return false;
  map.installations=map.installations!.filter(o=>o.id!==id);
  const counts=state.destroyedInstallations??={};counts[i.kind]=(counts[i.kind]??0)+1;
  const def=installationDefinition(i);
- context.events.push({type:'trap',position:{...i.position},visual:'shatter',sound:i.kind==='pot'?'shatter':'rocks',delayMs:160,durationMs:500});
+ context.events.push({type:'trap',position:{...i.position},visual:'shatter',sound:i.kind==='icePillar'?'ice':i.kind==='pot'?'shatter':'rocks',delayMs:160,durationMs:500});
  context.log(def.name+'が砕け散った！');
+ if(i.kind==='icePillar'){
+  const cells=neighbors(i.position).filter(p=>!wall(map,p));
+  context.events.push({type:'trap',position:{...i.position},path:cells,visual:'iceLance',sound:'ice',durationMs:500});
+  const actors=[state.playerState,...state.allyStates,...state.enemyStates];
+  const damage:DamageHandler=context.damage??((target,n,attribute,critical)=>{const amount=Math.max(0,Math.floor(n));target.hp=Math.max(0,target.hp-amount);context.events.push({type:'damage',actorId:target.id,position:{...target.position},amount,attribute,critical});});
+  // 味方の属性反応も処理するが、反応由来の追加分を含め全ダメージを0にする。
+  const safeDamage:DamageHandler=(target,n,attribute,critical)=>damage(target,state.enemyStates.some(e=>e.id===target.id)?n:0,attribute,critical);
+  for(const target of actors)if(target.hp>0&&occupied(target).some(p=>cells.some(c=>same(p,c)))){
+   const hostile=state.enemyStates.some(e=>e.id===target.id);
+   dealAttributeHit(target,hostile?(i.burstDamage??0):0,'ice',state.playerActionCount,actors,safeDamage,context.events,()=>context.rng.next());
+  }
+ }
+
  if(def.drop&&def.drop.pool.length&&context.rng.next()<def.drop.chance)map.objects.push({id:'drop-'+i.id,type:'item',position:{...i.position},itemId:weighted(def.drop.pool,context.rng)});
  return true;
 }
@@ -53,5 +67,12 @@ export function moveNearInstallations(state:SaveData,context:Context):void{
   choice.enemy.position={...choice.cells[context.rng.int(0,choice.cells.length-1)]};state.enemyStates.push(choice.enemy);i.spawned++;
   context.events.push({type:'trap',position:{...choice.enemy.position},visual:'summonRing',sound:'rocks',durationMs:450});context.log('巣穴から'+choice.enemy.name+'が現れた！');
   if(i.spawned>=rule.max&&!i.requiredForGoal){map.installations=map.installations!.filter(o=>o.id!==i.id);context.events.push({type:'trap',position:{...i.position},visual:'shatter',sound:'rocks',durationMs:500});}
+ }
+}
+
+/** 設置した行動は数えず、その後20行動で攻撃時と同じ破壊処理へ。 */
+export function tickInstallations(state:SaveData,context:Context):void{
+ for(const i of [...state.mapState.installations??[]])if(i.remainingTurns!==undefined&&(i.placedAt??-1)<state.playerActionCount){
+  i.remainingTurns--;if(i.remainingTurns<=0)hitInstallation(state,i.id,context);
  }
 }
