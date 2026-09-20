@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>アイコンプレビュー</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:20px;background:#eef3dd;color:#364c45;font:14px system-ui,sans-serif}h1{font-size:22px}h2{font-size:18px;margin-top:28px}p{line-height:1.7}a{color:#27695c}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}.card{background:#fffdf3;border:1px solid #ccd5bd;border-radius:12px;padding:14px}.pictures{display:flex;gap:22px;align-items:center;min-height:78px}.pixel-icon{width:24px;height:24px;image-rendering:pixelated}.large .pixel-icon{width:64px;height:64px}canvas{image-rendering:pixelated}small{display:block;color:#687d71;margin-top:7px;overflow-wrap:anywhere}.status canvas{background:#a2db83}.controls{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.demo{width:288px;height:192px;max-width:100%;border:1px solid #8ba978}code{font-size:12px}
+</style></head><body>
+<h1>アイコンプレビュー</h1><a href="./sprite-preview.html">キャラクタープレビューへ</a>
+<p>ゲームと同じ定義・描画処理を使用します。左が通常サイズ、右がドット確認用の拡大表示です。</p>
+<div class="controls"><label>背景色 <input id="background" type="color" value="#a2db83"></label></div>
+<h2>状態アイコン</h2><p>編集先：<code>src/render/StatusIcons.ts</code>。強化は剣、移動不可は赤い×。</p><div id="statuses" class="grid status"></div>
+<h2>キャラへの配置・切り替え</h2><p>属性はHPバー上に左詰めで配置（3枠でバーと同じ幅）。足元の4状態は3個ずつ1秒で切り替わります。敵視開始の「！」は右上に別表示します。</p><canvas id="demo" class="demo" width="96" height="64"></canvas>
+<h2>属性付着</h2><div id="attributes" class="grid status"></div>
+<h2>スキル</h2><p>編集先：<code>src/data/PixelIcons.ts</code>（SKILL_ICONS）</p><div id="skills" class="grid"></div>
+<h2>道具</h2><p>編集先：<code>src/data/PixelIcons.ts</code>（ITEM_ICONS）</p><div id="items" class="grid"></div>
+<script type="module">
+import { SKILL_ICONS, ITEM_ICONS, pixelIcon } from '/src/data/PixelIcons.ts';
+import { SKILLS, ATTRIBUTE_NAMES, ATTRIBUTE_COLORS } from '/src/data/skills.ts';
+import { ITEMS } from '/src/data/items.ts';
+import { STATUS_ICONS, drawStatusIcon, drawStatusIcons } from '/src/render/StatusIcons.ts';
+import { actor } from '/src/actors/Actor.ts';
+import { spritePixels, PIXEL_COLORS } from '/src/render/SpriteAtlas.ts';
+const card=(parent,name,id)=>{const el=document.createElement('article');el.className='card';const title=document.createElement('strong');title.textContent=name;el.append(title);const pictures=document.createElement('div');pictures.className='pictures';el.append(pictures);const label=document.createElement('small');label.textContent=id;el.append(label);document.querySelector(parent).append(el);return pictures;};
+for(const [container,icons,defs] of [['#skills',SKILL_ICONS,SKILLS],['#items',ITEM_ICONS,ITEMS]])for(const [id,icon] of Object.entries(icons)){const pictures=card(container,defs[id]?.name??id,id);pictures.innerHTML=pixelIcon(icon)+'<span class="large">'+pixelIcon(icon)+'</span>';}
+const names={buff:'強化',root:'移動不可',frost:'霜蝕',alert:'敵視開始'},colors={buff:'#ff982e',root:'#e8f3fa',frost:'#a77948',alert:'#ff675a'};
+function samples(parent,draw,w=8,h=8){for(const scale of [1,6]){const c=document.createElement('canvas');c.width=w;c.height=h;c.style.width=w*scale+'px';c.style.height=h*scale+'px';draw(c.getContext('2d'));parent.append(c);}}
+for(const id of Object.keys(STATUS_ICONS))samples(card('#statuses',names[id],id),ctx=>drawStatusIcon(ctx,id,colors[id],0,0));
+for(const id of ['fire','ice','thunder','earth','wind','neutral'])samples(card('#attributes',ATTRIBUTE_NAMES[id],id+(id==='wind'?'（付着なし・色見本）':'')),ctx=>{ctx.fillStyle='#fff';ctx.fillRect(0,0,8,6);ctx.fillStyle=ATTRIBUTE_COLORS[id];ctx.fillRect(1,1,6,4);},8,6);
+const a=actor('preview','goblin',{x:0,y:0});a.buffs=[{id:'preview',remainingTurns:10,appliedAt:0,attackMultiplier:1.25,detectionBonus:0},{id:'preview-secondary',remainingTurns:10,appliedAt:0,attackMultiplier:1,detectionBonus:1}];a.afflictions=[{attribute:'ice',remainingTurns:10,appliedAt:0},{attribute:'earth',remainingTurns:10,appliedAt:0}];a.movementLockedUntil=2;a.frostErosion={spent:false};a.mode='hostile';a.alertedAt=0;
+const canvas=document.querySelector('#demo'),ctx=canvas.getContext('2d'),input=document.querySelector('#background');
+function frame(clock){ctx.fillStyle=input.value;ctx.fillRect(0,0,96,64);ctx.strokeStyle='#73925f';ctx.strokeRect(32,16,32,32);const pixels=spritePixels('goblin','down');pixels.forEach((row,y)=>[...row].forEach((c,x)=>{if(PIXEL_COLORS[c]){ctx.fillStyle=PIXEL_COLORS[c];ctx.fillRect(32+x*2,12+y*2,2,2);}}));drawStatusIcons(ctx,a,32,16,32,32,clock,0);requestAnimationFrame(frame);}
+input.addEventListener('input',()=>document.querySelectorAll('.status canvas').forEach(c=>c.style.background=input.value));requestAnimationFrame(frame);
+</script></body></html>

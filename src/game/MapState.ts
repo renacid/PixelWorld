@@ -169,6 +169,28 @@ export function generateMap(base: Stage, rng: Random, floor = 1): { map: MapStat
   }
  }
  placeInstallations(map, stage.installationPlacements ?? [], rng, spawn, enemies);
+ // 手置き・開始地点の書も合算。追加の書は空き床へ配置し、階層単位の上限を守る。
+ const bookRules = stage.skillBooks ?? { max: Number(stage.code?.split('-')[1]) >= 4 ? 2 : 1, extraChance: .3 };
+ const bookMax = Math.max(0, Math.floor(bookRules.max));
+ let bookCount = 0;
+ map.objects = map.objects.filter(o => o.type !== 'skillBook' || ++bookCount <= bookMax);
+ bookCount = Math.min(bookCount, bookMax);
+ let desiredBooks = Math.min(1, bookMax);
+ for (let i = 1; i < bookMax; i++) if (rng.next() < bookRules.extraChance) desiredBooks++;
+ const bookCells: Point[] = [];
+ for (let y = 1; y < map.height - 1; y++) for (let x = 1; x < map.width - 1; x++) {
+   const p = { x, y };
+   if (same(p, spawn) || !canStand(map, actor('book-token', 'slime', p), p, enemies)) continue;
+   if (map.objects.some(o => same(o.position, p)) || map.traps?.some(t => same(t.position, p)) || map.fields.some(f => same(f.position, p))) continue;
+   bookCells.push(p);
+ }
+ while (bookCount < desiredBooks && bookCells.length) {
+   const position = bookCells.splice(rng.int(0, bookCells.length - 1), 1)[0];
+   let id = 'floor-skill-book-' + bookCount;
+   while (map.objects.some(o => o.id === id)) id += '-new';
+   map.objects.push({ id, type: 'skillBook', position }); bookCount++;
+ }
+
  if(goal?.type==='destroyInstallations'){
    let targets=map.installations!.filter(i=>i.kind===goal.kind);
    if(targets.length<goal.count)throw new Error(stage.name+': 破壊目標の設置物が不足しています');

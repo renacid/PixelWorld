@@ -337,7 +337,7 @@ function showPlayerStatus(onClose: () => void = closeModal): void {
 function openBook():void{
   if(!session?.state.pendingSkillBooks)return;
   const attributes:Attribute[]=['fire','ice','thunder','wind','earth'];
-  dialog('<div class="dialog-heading"><h2>スキルの書</h2><button id="return-book" class="icon-button" aria-label="書を床に戻す">×</button></div><p>習得したい属性を選んでください。</p>'+attributes.map(a=>'<button class="secondary" data-book="'+a+'" '+(session!.bookSkills(a).length?'':'disabled')+' style="border-color:'+ATTRIBUTE_COLORS[a]+'">'+ATTRIBUTE_NAMES[a]+'属性'+(session!.bookSkills(a).length?'':'（出現設定なし）')+'</button>').join(''));
+  dialog('<div class="dialog-heading"><h2>スキルの書</h2><button id="return-book" class="icon-button" aria-label="書を床に戻す">×</button></div><p>習得したい属性を選んでください。</p>'+attributes.map(a=>'<button class="secondary" data-book="'+a+'" '+(session!.bookSkills(a).length?'':'disabled')+' style="border-color:'+ATTRIBUTE_COLORS[a]+'">'+ATTRIBUTE_NAMES[a]+'属性'+(session!.bookSkills(a).length?'':'（入手可能なスキルなし）')+'</button>').join(''));
   on('return-book',()=>{session!.returnBook();persist();closeModal();update();if(session!.state.pendingSkillBooks)openBook();else if(session!.state.pendingBag)openBag(true);else if(session!.state.pendingGemChoices?.length)openGem();});
   document.querySelectorAll<HTMLButtonElement>('[data-book]').forEach(b=>b.onclick=()=>{if(!session!.chooseBook(b.dataset.book as Attribute))return;persist();closeModal();update();if(session!.state.pendingSkillBooks)openBook();else if(session!.state.pendingBag)openBag(true);else if(session!.state.pendingGemChoices?.length)openGem();});
 }

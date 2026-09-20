@@ -232,8 +232,8 @@ export class GameSession {
       else if (!obj.fullNotified) { obj.fullNotified = true; this.log('道具枠がいっぱい。道具は床に残ります。'); }
     }
   }
-  /** 書は地域・ステージ・階層のスキル出現表を参照。属性を選んだ後に重み付き抽選。 */
-  bookSkills(attribute:Attribute){return (this.state.mapState.loot?.skills??skillPool).filter(e=>e.weight>0&&SKILLS[e.value].attribute===attribute);}
+  /** 書は出現表と所持最大ブロック数+1で候補を制限。属性ボタンと実際の抽選で同じ候補を使う。 */
+  bookSkills(attribute:Attribute){return (this.state.mapState.loot?.skills??skillPool).filter(e=>e.weight>0&&SKILLS[e.value].attribute===attribute&&canRollSkill(this.state,e.value));}
   returnBook():void{const s=this.state;if(!s.pendingSkillBooks)return;s.pendingSkillBooks--;let id='returned-book-'+s.playerActionCount;while(s.mapState.objects.some(o=>o.id===id))id+='-new';s.mapState.objects.push({id,type:'skillBook',position:{...s.playerState.position},waitForLeave:true});this.log('スキルの書を足元に戻した。');}
   chooseBook(attribute:Attribute):boolean{
     const s=this.state,pool=this.bookSkills(attribute);if(!s.pendingSkillBooks||!pool.length||s.status!=='playing')return false;
@@ -381,7 +381,11 @@ export class GameSession {
       // 同時撃破も1体ずつ加算。撃破なしの行動を挟むと次の撃破から数え直す。
       if (s.lastKillAction === undefined || s.lastKillAction < s.playerActionCount - 1) s.killCombo = 0;
       s.killCombo = (s.killCombo ?? 0) + 1; s.lastKillAction = s.playerActionCount;
-      const base = Math.ceil(actorDefinition(e.kind).experience * (e.experienceMultiplier ?? 1));
+      const definition = actorDefinition(e.kind);
+      // 基礎HPに対する実際の最大HP比を経験値へ反映。被ダメージでは報酬を減らさない。
+      // ステージ加算・階層倍率を含め、夜の補正を掛けて切り上げた後に連続撃破ボーナスを適用。
+      const hpMultiplier = e.maxHp / Math.max(1, definition.hp);
+      const base = Math.ceil(definition.experience * hpMultiplier * (e.experienceMultiplier ?? 1));
       const multiplier = s.killCombo >= 4 ? 1.5 : s.killCombo >= 2 ? 1.2 : 1;
       const earned = Math.ceil(base * multiplier), bonus = earned - base;
       this.log(`${e.name}を倒した！経験値${earned}${bonus > 0 ? `(+${bonus})` : ''}獲得`);

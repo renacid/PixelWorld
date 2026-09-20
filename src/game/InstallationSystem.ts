@@ -46,7 +46,9 @@ export function moveNearInstallations(state:SaveData,context:Context):void{
   // 種類ごとに空きを調べ、大型候補を将来追加しても占有判定を共有。
   const choices=rule.pool.filter(e=>e.weight>0).map(entry=>{const enemy=actor(i.id+'-spawn-'+i.spawned,entry.value,i.position,state.stageId,state.floorNumber),cells:Point[]=[];
    for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++){const c={x:i.position.x+x,y:i.position.y+y};if((x||y)&&canStand(map,enemy,c,actors)&&occupied(enemy,c).every(t=>freeObject(map,t)))cells.push(c);}return {entry,enemy,cells};}).filter(e=>e.cells.length);
-  if(!choices.length||context.rng.next()>=rule.chance)continue;
+  // 保存済みの累計出現数から算出。失敗抽選では低下しない。
+  const chance=Math.max(0,Math.min(1,rule.chance-(rule.chanceDecay??0)*i.spawned));
+  if(!choices.length||context.rng.next()>=chance)continue;
   const choice=weighted(choices.map(value=>({value,weight:value.entry.weight})),context.rng);
   choice.enemy.position={...choice.cells[context.rng.int(0,choice.cells.length-1)]};state.enemyStates.push(choice.enemy);i.spawned++;
   context.events.push({type:'trap',position:{...choice.enemy.position},visual:'summonRing',sound:'rocks',durationMs:450});context.log('巣穴から'+choice.enemy.name+'が現れた！');

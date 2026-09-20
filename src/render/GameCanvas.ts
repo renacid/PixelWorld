@@ -1,3 +1,4 @@
+import { drawStatusIcons } from './StatusIcons';
 import { itemFieldColor } from '../data/items';
 import { drawInstallation } from './InstallationSprites';
 import { timeOfDay } from '../game/DayCycle';
@@ -70,18 +71,8 @@ export class GameCanvas {
       ctx.fillStyle = flash ? '#fffcef' : color; ctx.fillRect(Math.round(cx - scaleX * pixelWidth / 2 + px * scaleX), Math.round(spriteTop + py * scaleY + bob - foot), scaleX, scaleY);
     }
     if (a.kind !== 'player' && a.hp < a.maxHp) { ctx.fillStyle = '#fffefa'; ctx.fillRect(cx - 12, y, 24, 4); ctx.fillStyle = '#f27276'; ctx.fillRect(cx - 11, y + 1, 22 * a.hp / a.maxHp, 2); }
-    if (a.buffs?.some(b => b.remainingTurns > 0)) {
-      // 左下の交差した2本の剣だけで強化状態を示す。
-      ctx.save(); ctx.translate(x + 3, y + height - 14); ctx.strokeStyle = '#ef861c'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(1, 12); ctx.lineTo(12, 1); ctx.moveTo(1, 1); ctx.lineTo(12, 12);
-      ctx.moveTo(0, 7); ctx.lineTo(5, 12); ctx.moveTo(8, 12); ctx.lineTo(13, 7); ctx.stroke(); ctx.restore();
-    }
-    if(a.frostErosion){ctx.fillStyle='#b4e7ff';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.fillText('霜',cx,y-8);}
-    a.afflictions.forEach((f, i) => { ctx.fillStyle = ATTRIBUTE_COLORS[f.attribute]; ctx.fillRect(cx - 7 + i * 9, y - 5, 6, 4); });
-    if (a.mode === 'hostile' && a.kind !== 'player' && a.alertedAt === this.session?.state.playerActionCount) {
-      ctx.fillStyle = '#fff5d9'; ctx.fillRect(x + width - 6, y - 9, 10, 13); ctx.fillStyle = '#ee605d'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.fillText('!', x + width - 1, y + 1);
-    }
   }
+
   private tile(ctx: CanvasRenderingContext2D, x: number, y: number, tx: number, ty: number, isWall: boolean, explored: boolean): void {
     if (!explored) { ctx.fillStyle = '#080b10'; ctx.fillRect(x, y, TILE + .5, TILE + .5); return; }
     const map = this.session!.state.mapState, id = map.tiles[ty * map.width + tx], def = terrain(id);
@@ -192,6 +183,12 @@ export class GameCanvas {
       if (a.hp <= 0 || !occupied(a).some(p => visible(p))) continue;
       // 視界に入ったキャラは一体として描画。セル単位の切り抜きによる大型絵の欠けを防ぐ。
       const p = screen(a.position); ctx.save(); if(a.remainingLife!==undefined&&a.remainingLife<=5&&this.settings.motion)ctx.globalAlpha=.35+.65*(.5+.5*Math.sin(clock/140)); this.sprite(ctx, a, p.x, p.y, clock); ctx.restore();
+    }
+    // キャラ本体を描き終えてから状態列を重ね、隣接キャラで隠れないようにする。
+    for (const a of actors) {
+      if (a.hp <= 0 || !occupied(a).some(p => visible(p))) continue;
+      const p = screen(a.position);
+      drawStatusIcons(ctx, a, p.x, p.y, (Math.max(...a.cells.map(c => c.x)) + 1) * TILE, (Math.max(...a.cells.map(c => c.y)) + 1) * TILE, clock, state.playerActionCount);
     }
     this.effects = this.effects.filter(e => clock - e.born < e.duration);
     for (const e of this.effects) {
