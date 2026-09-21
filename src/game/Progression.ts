@@ -1,7 +1,7 @@
 /** 必要経験値・成長率はここで調整。宝石による増加も現在の最大値に含める。 */
 import type { SaveData, Point } from './types';
 import type { Random } from './Random';
-export const PROGRESSION = { maxBagSide: 9, maxLevel: 20, firstExperience: 10, experienceGrowth: .2, statGrowth: .1 };
+export const PROGRESSION = { maxBagSide: 9, maxLevel: 20, firstExperience: 10, experienceGrowth: .25, statGrowth: .8 };
 export function requiredExperience(level: number): number {
   let required = PROGRESSION.firstExperience;
   for (let n = 1; n < level; n++) required += Math.ceil(required * PROGRESSION.experienceGrowth);

@@ -42,7 +42,7 @@ function selectSkill(id: SkillId): void {
   if(SKILLS[id].kind==='passive'&&session){selected=null;aim=undefined;update();dialog('<div class="dialog-heading"><h2>'+SKILLS[id].name+'</h2><button id="close-passive" class="icon-button">×</button></div><p>パッシブ · '+skillMpLabel(session.state,id)+' / CT '+SKILLS[id].cooldown+'</p><p>'+skillDescription(session.state,id,session.state.skillBag)+'</p>');on('close-passive',closeModal);return;}
 
   selected = selected === id ? null : id; aim = undefined;
-  if (renderer && selected && ['pointArea','enemyWarp','chain'].includes(SKILLS[selected].target)) renderer.camera = null;
+  if (renderer && selected && ['pointArea','installation','enemyWarp','chain'].includes(SKILLS[selected].target)) renderer.camera = null;
   update();
   if (selected) { const strip = document.getElementById('skill-buttons'), button = strip?.querySelector<HTMLElement>('[data-skill="' + selected + '"]'); if (strip && button) { const r = button.getBoundingClientRect(), box = strip.getBoundingClientRect(); if (r.left < box.left || r.right > box.right) strip.scrollBy({ left: r.left < box.left ? r.left - box.left - 4 : r.right - box.right + 4, behavior: 'smooth' }); } }
 }
@@ -221,7 +221,7 @@ function showGame(): void {
   let drag: { x: number; y: number; camera: Point } | null = null;
   canvas.addEventListener('pointerdown', e => {
     if (modal || actionLocked) return;
-    if (selected && ['pointArea', 'enemyWarp', 'chain'].includes(SKILLS[selected].target)) {
+    if (selected && ['pointArea', 'installation', 'enemyWarp', 'chain'].includes(SKILLS[selected].target)) {
       const target = renderer!.mapPoint(e.clientX, e.clientY);
       if (validSkillTarget(s.state, selected, target)) { aim = target; update(); }
       return;
@@ -290,7 +290,7 @@ function update(): void {
   cast.hidden = !selected;
   cast.textContent = selected ? castError ?? `${SKILLS[selected].short}を発動 ↗` : '';
   cast.setAttribute('aria-label', selected ? `${SKILLS[selected].name}：${castError ?? '発動確定'}` : 'スキルを選択');
-  if (selected && !aim && ['pointArea', 'enemyWarp', 'chain'].includes(SKILLS[selected].target)) text('objective-text', SKILLS[selected].target === 'chain' ? '隣接8マスの敵をタップして起点を選択' : SKILLS[selected].target === 'enemyWarp' ? 'マップで表示範囲内の敵をタップして選択' : 'マップをタップして着弾点を選択');
+  if (selected && !aim && ['pointArea', 'installation', 'enemyWarp', 'chain'].includes(SKILLS[selected].target)) text('objective-text', SKILLS[selected].target === 'chain' ? '隣接8マスの敵をタップして起点を選択' : SKILLS[selected].target === 'enemyWarp' ? 'マップで表示範囲内の敵をタップして選択' : SKILLS[selected].target === 'installation' ? '周囲十字4マスから設置場所を選択' : 'マップをタップして着弾点を選択');
   if (renderer) { renderer.selected = selected; renderer.aim = aim; }
   document.getElementById('camera-reset')!.hidden = !renderer?.camera;
 }

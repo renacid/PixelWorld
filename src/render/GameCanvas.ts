@@ -1,3 +1,4 @@
+import { drawCrystal } from './CrystalSprites';
 import { drawStatusIcons } from './StatusIcons';
 import { itemFieldColor } from '../data/items';
 import { drawInstallation } from './InstallationSprites';
@@ -129,12 +130,22 @@ export class GameCanvas {
         ctx.save();ctx.fillStyle='rgba(23,38,56,0.07)';for(let i=0;i<8;i++){const spread=i*1.5;ctx.beginPath();ctx.rect(0,0,VIEW_SIZE,VIEW_SIZE);ctx.rect(top.x-spread,top.y-spread,size+spread*2,size+spread*2);ctx.fill('evenodd');}ctx.restore();
       }
     }
+    // 予告済みセルは旅人が移動しても固定。次の予告時だけ配置し直す。
+    for(const storm of state.mapState.thunderPrisons??[])for(const cell of storm.cells)if(visible(cell)){
+      const p=screen(cell);ctx.fillStyle='#33264e88';ctx.beginPath();ctx.ellipse(p.x+16,p.y+19,12,7,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#d5b1f3';ctx.lineWidth=1;ctx.stroke();
+    }
     for (const f of state.mapState.fields) if (visible(f.position)) {
       if(f.skillKind==='tornadoSummon'){if(this.effects.some(e=>e.visual==='windVortex'&&e.target?.x===f.position.x&&e.target?.y===f.position.y&&clock>=e.born&&clock<e.born+e.duration))continue;drawTrapEffect(ctx,{type:'trap',position:f.position,visual:'windVortex'},(clock%700)/700,screen);ctx.globalAlpha=1;continue;} const p = screen(f.position); ctx.fillStyle = '#ffad7070'; ctx.fillRect(p.x + 3, p.y + 3, 26, 26); ctx.fillStyle = '#ff755c'; ctx.fillRect(p.x + 11, p.y + 15, 10, 8); ctx.fillStyle = '#fff295'; ctx.fillRect(p.x + 14, p.y + 9, 5, 11); }
     for (const trap of state.mapState.playerTraps ?? []) if (visible(trap.position)) {
       const p = screen(trap.position); ctx.fillStyle = '#53844e'; ctx.fillRect(p.x + 4, p.y + 22, 24, 5); ctx.strokeStyle = '#d5eb88'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x + 6, p.y + 15); ctx.lineTo(p.x + 15, p.y + 21); ctx.lineTo(p.x + 12, p.y + 8); ctx.lineTo(p.x + 25, p.y + 17); ctx.stroke();
     }
     for(const i of state.mapState.installations??[])if(visible(i.position)){const p=screen(i.position);drawInstallation(ctx,i.kind,p.x,p.y);}
+    const crystalCounts=new Map<string,number>();
+    for(const crystal of state.mapState.crystals??[])if(visible(crystal.position)){
+      const p=screen(crystal.position),key=crystal.position.x+','+crystal.position.y,index=crystalCounts.get(key)??0;
+      drawCrystal(ctx,crystal,p.x,p.y,this.settings.motion?clock:0,Math.min(index,5));crystalCounts.set(key,index+1);
+    }
+    for(const [key,count] of crystalCounts)if(count>1){const [x,y]=key.split(',').map(Number),p=screen({x,y});ctx.font='bold 9px monospace';ctx.textAlign='right';ctx.strokeStyle='#324258';ctx.lineWidth=2;ctx.strokeText(String(count),p.x+30,p.y+30);ctx.fillStyle='#fff';ctx.fillText(String(count),p.x+30,p.y+30);}
     for (const obj of state.mapState.objects) {
       if (!visible(obj.position)) continue;
       const { x, y } = screen(obj.position);
@@ -163,10 +174,12 @@ export class GameCanvas {
     }
     if (this.selected && !sample) {
       const target = previewSkill(state, this.selected, state.playerState.facing, this.aim), color = ATTRIBUTE_COLORS[SKILLS[this.selected].attribute];
-      if (['pointArea','enemyWarp','chain'].includes(SKILLS[this.selected].target)) {
+      if (['pointArea','installation','enemyWarp','chain'].includes(SKILLS[this.selected].target)) {
         const r = selectionRange(state, this.selected), center = state.playerState.position;
         ctx.strokeStyle = color; ctx.lineWidth = 1;
         for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+          // 氷柱の設置範囲は上下左右のみ。共通の正方形ガイドで斜めを表示しない。
+          if (SKILLS[this.selected].target === 'installation' && Math.abs(dx) + Math.abs(dy) !== 1) continue;
           const cell = { x: center.x + dx, y: center.y + dy };
           if (cell.x < 0 || cell.y < 0 || cell.x >= state.mapState.width || cell.y >= state.mapState.height) continue;
           const p = screen(cell); ctx.strokeRect(p.x + 2, p.y + 2, 28, 28);
@@ -213,9 +226,13 @@ export class GameCanvas {
     else if (e.enemySkillId === 'arrowShot') { const angle = Math.atan2(to.y - from.y, to.x - from.x); ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.strokeStyle = '#715237'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(9,0); ctx.moveTo(4,-4); ctx.lineTo(9,0); ctx.lineTo(4,4); ctx.stroke(); ctx.restore(); }
     else if (e.enemySkillId === 'fireball') { for (let i=1;i<=5;i++) { const t=Math.max(0, Math.min(1,age*1.5)-i*.055); ctx.fillStyle=i%2?'#f6854288':'#ffc866bb'; ctx.fillRect(from.x+16+(to.x-from.x)*t-3,from.y+16+(to.y-from.y)*t-3,6,6); } ctx.fillStyle = '#fa773e'; ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fill(); ctx.fillStyle = '#ffe59b'; ctx.fillRect(x-3,y-3,6,6); }
     else if (e.visual === 'stone') { ctx.fillStyle = '#5e7359'; ctx.fillRect(x - 4, y - 4, 8, 8); ctx.fillStyle = '#d1d8b7'; ctx.fillRect(x - 3, y - 3, 5, 3); }
+    else if(e.crystalAttribute){
+      ctx.fillStyle=e.crystalAttribute==='ice'?'#a5e9ff':'#c08aff';ctx.fillRect(x-4,y-4,8,8);ctx.fillStyle='#fff8dd';ctx.fillRect(x-2,y-2,3,3);
+    }
     else if (e.skillId === 'warp') { ctx.strokeStyle = '#a481e8'; ctx.lineWidth = 3; for (const p of [from, to]) { ctx.beginPath(); ctx.ellipse(p.x + 16, p.y + 16, 8 + age * 15, 17 * (1 - age) + 3, age * 5, 0, Math.PI * 2); ctx.stroke(); } }
     else if (e.skillId === 'fireball') { for (let i = 4; i >= 0; i--) { const t = Math.max(0, age * 1.5 - i * .035); ctx.fillStyle = i ? '#ff9868' : '#fff19b'; const size = i ? 4 : 10; ctx.fillRect(from.x + 16 + (to.x - from.x) * Math.min(1, t) - size / 2, from.y + 16 + (to.y - from.y) * Math.min(1, t) - size / 2, size, size); } }
-    else if (e.skillId === 'thunder') { if (age > .15) { ctx.strokeStyle = '#b887f9'; ctx.lineWidth = 6; const path = () => { ctx.beginPath(); ctx.moveTo(to.x + 20, to.y - 27); ctx.lineTo(to.x + 9, to.y - 5); ctx.lineTo(to.x + 22, to.y - 5); ctx.lineTo(to.x + 13, to.y + 19); ctx.stroke(); }; path(); ctx.strokeStyle = '#fffde4'; ctx.lineWidth = 2; path(); } }
+    else if(e.skillId==='thunderPrison'&&!e.path?.length){ctx.strokeStyle='#c7a1f2';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(from.x+16,from.y+18,8+age*14,5+age*8,0,0,Math.PI*2);ctx.stroke();}
+    else if (e.skillId === 'thunder' || e.skillId==='thunderPrison') { if (age > .15) { ctx.strokeStyle = '#b887f9'; ctx.lineWidth = 6; const path = () => { ctx.beginPath(); ctx.moveTo(to.x + 20, to.y - 27); ctx.lineTo(to.x + 9, to.y - 5); ctx.lineTo(to.x + 22, to.y - 5); ctx.lineTo(to.x + 13, to.y + 19); ctx.stroke(); }; path(); ctx.strokeStyle = '#fffde4'; ctx.lineWidth = 2; path(); } }
     else if (e.skillId === 'tornado') { ctx.strokeStyle = '#f6ffe9'; ctx.lineWidth = 3; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.ellipse(x + Math.sin(age * 25 + i) * 3, y + 8 - i * 6, 4 + i * 3, 2 + i, age * 8, .3, Math.PI * 1.8); ctx.stroke(); } }
     else if (e.skillId === 'icestone') {
       for (const cell of e.path ?? []) {

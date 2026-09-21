@@ -1,3 +1,4 @@
+import { targetableCrystals } from '../game/CrystalTargets';
 import { icePillarCells } from './IcePillar';
 /** スキルの対象・射線・ワープ候補を計算。プレビューと実発動で同じ判定を共有。 */
 import { SKILLS } from '../data/skills';
@@ -5,7 +6,7 @@ import { effectiveLevel } from './SkillBag';
 import { canStand, occupied, same, wall } from '../game/MapState';
 import { VECTORS, type Direction, type Point, type SaveData, type SkillId } from '../game/types';
 export function attackTargets(state:SaveData) {
- return [...state.enemyStates, ...(state.mapState.installations??[]).map(i=>({...state.playerState,id:i.id,position:i.position,cells:[{x:0,y:0}],hp:1}))];
+ return [...state.enemyStates, ...[...(state.mapState.installations??[]),...targetableCrystals(state.mapState,state.playerActionCount)].map(i=>({...state.playerState,id:i.id,position:i.position,cells:[{x:0,y:0}],hp:1}))];
 }
 export type TargetPreview = { cells: Point[]; blocked: Point | null; targetIds: string[] };
 /** 指定地点型の選択範囲。実効レベルの拡張をUIと実発動で共有。 */
@@ -15,6 +16,15 @@ export function selectionRange(state: SaveData, id: SkillId): number {
 }
 export function validSkillTarget(state: SaveData, id: SkillId, target?: Point): boolean {
   if(SKILLS[id].target==='chain')return !!chainOrigin(state,target);
+  if(SKILLS[id].target==='installation'){
+    if(!target||Math.abs(target.x-state.playerState.position.x)+Math.abs(target.y-state.playerState.position.y)!==1)return false;
+    const blocked=state.mapState.objects.some(o=>same(o.position,target))
+      ||(state.mapState.traps??[]).some(t=>same(t.position,target))
+      ||(state.mapState.playerTraps??[]).some(t=>same(t.position,target))
+      ||state.mapState.fields.some(f=>same(f.position,target))
+      ||(state.mapState.crystals??[]).some(c=>same(c.position,target));
+    return !blocked&&canStand(state.mapState,state.playerState,target,[...state.enemyStates,...state.allyStates]);
+  }
   if (SKILLS[id].target === 'enemyWarp') return !!target && !!vacuumTarget(state,target);
   if (SKILLS[id].target !== 'pointArea') return true;
   const p = state.playerState.position;
@@ -24,7 +34,12 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
   const definition = SKILLS[id], p = state.playerState.position;
   const result: TargetPreview = { cells: [], blocked: null, targetIds: [] };
   if(definition.kind==='passive')return result;
-  if(definition.target==='installation'){result.cells=icePillarCells(state,direction);return result;}
+  if(definition.target==='installation'){
+    // 選択候補は常にプレイヤー周囲の上下左右4マス。追加柱は確定時だけ計算。
+    const p=state.playerState.position;
+    result.cells=Object.values(VECTORS).map(v=>({x:p.x+v.x,y:p.y+v.y})).filter(cell=>validSkillTarget(state,id,cell));
+    return result;
+  }
   if(definition.target==='randomWalk'){
     // 乱数を消費せず、実際に取り得る未訪問経路の全体を予告表示。
     const level=effectiveLevel(state.skillBag,state.skillLevels,id),steps=level>=5?7:level>=3?5:4;

@@ -11,6 +11,7 @@ export function skillDescription(state:SaveData,id:SkillId,bag:BagBlock[]):strin
  else if(d.kind==='passive')detail='現在の発動率：'+red(passiveChance(state,id,bag))+'、冷気の攻撃力倍率：'+red(d.multiplier*scale);
  else if(id==='iceLance')detail='命中順の倍率：'+[.7,.9,1.2,...(level>=3?[1.5]:[])].map(n=>red(n*scale)).join(' → ');
  else if(id==='tornadoSummon')detail='現在の攻撃力倍率：'+red(scale)+'〜'+red(1.3*scale)+'、移動回数：'+(level>=5?7:level>=3?5:4)+'回';
+ else if(id==='thunderPrison')detail='現在の攻撃力倍率：'+red(.7*scale)+'〜'+red(scale)+' × 2ヒット（落雷3回）';
  else if(id==='meteor')detail='初撃：'+red(.8*scale)+(level>=3?'、炎上：'+red(.3*scale):'');
  else if(id==='fireWall')detail='初撃：'+red(.5*scale)+'、炎フィールド：'+red(.3*scale);
  else if(id==='attack')detail='現在の攻撃力倍率：'+red(.5*scale)+'〜'+red(.7*scale);

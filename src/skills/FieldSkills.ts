@@ -1,3 +1,4 @@
+import { targetableCrystals } from '../game/CrystalTargets';
 /** 設置・移動スキルはこのモジュールへ集約。威力は発動時の攻撃力を保存。 */
 import {SKILLS} from '../data/skills';
 import {attackPower,criticalChance} from '../game/ActorStats';
@@ -27,7 +28,7 @@ export function castFieldSkill(s:SaveData,id:SkillId,direction:Direction,c:Conte
     const multiplier=1+c.rng.next()*.3,critical=c.rng.next()<criticalChance(s.playerState,enemy,d.attribute);
     dealAttributeHit(enemy,power*multiplier*(critical?s.playerState.criticalMultiplier:1),d.attribute,s.playerActionCount,s.enemyStates,c.damage,c.events,()=>c.rng.next(),critical);
    }
-   for(const installation of [...s.mapState.installations??[]])if(same(installation.position,next))hitInstallation(s,installation.id,c);
+   for(const installation of [...s.mapState.installations??[],...targetableCrystals(s.mapState,s.playerActionCount)])if(same(installation.position,next))hitInstallation(s,installation.id,c);
    for(const event of c.events.slice(eventStart))event.delayMs=delay+120;
   }
   return true;

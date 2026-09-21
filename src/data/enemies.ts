@@ -35,9 +35,9 @@ function define(config: Pick<ActorDefinition, 'name' | 'hp' | 'attack' | 'sprite
 /** 敵の追加はこの一覧から。IDの型もこのキーから自動生成されます。 */
 export const ENEMIES = {
   reaper:define({name:'死神',hp:4,mp:40,attack:4,detectionRange:7,experience:0,sprite:'reaper',bob:true,skills:['flowAcceleration','sweepingStrike']}),
-  goblinFighter:define({name:'ゴブリン・ファイター',hp:35,mp:15,attack:5, hpPerStage: 1, detectionRange:4,experience:10,sprite:'fighter',skills:['dash','heavyStrike']}),
-  goblinArcher: define({ name: 'ゴブリン・アーチャー', hp: 16, attack: 2, hpPerStage: 1, detectionRange: 4, mp: 3, experience: 4, criticalRate: .1, sprite: 'archer', skills: ['arrowShot'] }),
-  goblinMage: define({ name: 'ゴブリン・メイジ', hp: 25, attack: 3, hpPerStage: 1,detectionRange: 3, mp: 15, experience: 8, sprite: 'mage', skills: ['fireball', 'teleport', 'prayer'] }),
+  goblinFighter:define({name:'ゴブリン・ファイター',hp:35,mp:15,attack:5, hpPerStage: 1, detectionRange:4, experience:8, sprite:'fighter',skills:['dash','heavyStrike']}),
+  goblinArcher: define({ name: 'ゴブリン・アーチャー', hp: 16, attack: 2, hpPerStage: 1, detectionRange: 4, mp: 3, experience: 3, criticalRate: .1, sprite: 'archer', skills: ['arrowShot'] }),
+  goblinMage: define({ name: 'ゴブリン・メイジ', hp: 25, attack: 3, hpPerStage: 1,detectionRange: 3, mp: 15, experience: 7, sprite: 'mage', skills: ['fireball', 'teleport', 'prayer'] }),
   treant: define({ experience: 5, name: 'トレント', hp: 35, hpPerStage: 1, attack: 5, sprite: 'treant', renderHeight: 44, immobile: true, attribute: 'earth', innateAttribute: 'earth', mp: 20, detectionRange: 5, skills: ['forestBlessing', 'stoneThrow'], skillChances: { stoneThrow: .5, forestBlessing: .2 }, drops: [{ loot: { type: 'item', id: 'potion' }, chance: .7 }] }),
   slime: define({ experience: 2, name: 'スライム', hp: 12, hpPerStage: 1, attack: 2, sprite: 'slime',　detectionRange: 3, pattern: 'patrol', bob: true, drops: [{ loot: { type: 'item', id: 'potion' }, chance: .08 }, { loot: { type: 'skill', id: 'fireball' }, chance: .02 }] }),
   goblin: define({ experience: 3, name: 'ゴブリン', hp: 17, hpPerStage: 1, attack: 3, sprite: 'goblin', detectionRange: 4, mp: 5, skills: ['stoneThrow'], drops: [{ loot: { type: 'item', id: 'ether' }, chance: .07 }, { loot: { type: 'item', id: 'potion' }, chance: .03 }, { loot: { type: 'skill', id: 'thunder' }, chance: .02 }] }),

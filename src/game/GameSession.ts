@@ -1,3 +1,7 @@
+import { targetableCrystals } from './CrystalTargets';
+import { startThunderPrison, tickThunderPrisons } from '../skills/ThunderPrison';
+import { createCrystal, crystalSource, hitCrystalsAt, tickCrystals } from './CrystalSystem';
+import { bindCrystalReaction } from '../skills/AttributeSystem';
 import { icePillarCells, placeIcePillars } from '../skills/IcePillar';
 import { initializeBooks, rollBookAttributes } from './SkillBooks';
 import {castFieldSkill,contactSkillFields,tickSkillFields} from '../skills/FieldSkills';
@@ -105,6 +109,10 @@ export class GameSession {
     }
     for (const f of state.mapState.fields) if (f.attribute === 'nature') f.attribute = 'earth';
     state.log = state.log.slice(-100);
+    state.mapState.crystals??=[];this.prepareCrystalReactions();
+  }
+  private prepareCrystalReactions():void{
+    bindCrystalReaction(this.events,(target,attribute,source)=>createCrystal(this.state,target,attribute,source??crystalSource(this.state,this.state.playerState),{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)}));
   }
   private capture(phase: TurnFrame['phase']): void {
     this.frames.push({ phase, actors: structuredClone(this.actors), events: structuredClone(this.events.slice(this.frameEventStart)) });
@@ -130,6 +138,7 @@ export class GameSession {
   isOnScreen?: (point: Point) => boolean;
   private inPlayerScreen(point: Point): boolean { return this.visible(point) && (this.isOnScreen?.(point) ?? Math.max(Math.abs(point.x - this.state.playerState.position.x), Math.abs(point.y - this.state.playerState.position.y)) <= 5); }
   damage = (target: Actor, amount: number, attribute: Attribute, critical = false, attacker: Actor | null = this.state.playerState): void => {
+    hitCrystalsAt(this.state,occupied(target),{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     // All damage paths (including reactions and fields) truncate only at this boundary.
     const value = Math.max(0, Math.floor(amount));
     target.hp = Math.max(0, Math.floor(target.hp) - value);
@@ -147,7 +156,7 @@ export class GameSession {
     const followup=attacker?.buffs?.find(b=>b.remainingTurns>0&&b.thunderFollowup)?.thunderFollowup;
     if(attribute==='physical'&&value>0&&target.hp>0&&followup&&this.rng.next()<followup.chance){
       this.events.push({type:'reaction',actorId:target.id,position:{...target.position},attribute:'thunder',text:'雷装',sound:'magicCast'});
-      dealAttributeHit(target,Math.floor(value*followup.ratio),'thunder',this.state.playerActionCount,this.actors,(t,n,a,crit)=>this.damage(t,n,a,crit,attacker),this.events,()=>this.rng.next());
+      dealAttributeHit(target,Math.floor(value*followup.ratio),'thunder',this.state.playerActionCount,this.actors,(t,n,a,crit)=>this.damage(t,n,a,crit,attacker),this.events,()=>this.rng.next(),false,true,attacker?crystalSource(this.state,attacker):undefined);
     }
   };
   /** 一つの行動による各ヒット・反応を対象別に集計して、読みやすい一件のログにする。 */
@@ -165,7 +174,7 @@ export class GameSession {
     if(shield){const s=this.state;s.playerState.mp-=skillMp(s,'iceShield');s.cooldowns.iceShield=SKILLS.iceShield.cooldown;(s.passiveTriggeredAt??={}).iceShield=s.playerActionCount;if(wearSkill(s,'iceShield',this.rng))this.log('アイスシールドが劣化し、次回からの消費MPが増えた。');raw*=SKILLS.iceShield.passive!.reduction;}
     const start = this.events.length, critical = this.rng.next() < criticalChance(a, b, attribute);
     this.groupingDamage = true;
-    try { dealAttributeHit(b, raw * (critical ? a.criticalMultiplier ?? 1.5 : 1), attribute, this.state.playerActionCount, this.state.allyStates.some(ally=>ally.id===a.id) ? this.state.enemyStates : [this.state.playerState, ...this.state.allyStates], (t, n, attr, crit) => this.damage(t, n, attr, crit, a), this.events, () => this.rng.next(), critical); }
+    try { dealAttributeHit(b, raw * (critical ? a.criticalMultiplier ?? 1.5 : 1), attribute, this.state.playerActionCount, this.state.allyStates.some(ally=>ally.id===a.id) ? this.state.enemyStates : [this.state.playerState, ...this.state.allyStates], (t, n, attr, crit) => this.damage(t, n, attr, crit, a), this.events, () => this.rng.next(), critical,true,crystalSource(this.state,a)); }
     finally { this.groupingDamage = false; }
     this.logHits(a.name + 'の' + label, start);
     if(shield && b.hp>0)this.releaseIceShield();
@@ -177,13 +186,14 @@ export class GameSession {
     this.events.push({type:'trap',position:{...p.position},path:cells,visual:'iceShield',sound:'ice',durationMs:550});
     this.groupingDamage=true;
     for(const e of s.enemyStates)if(e.hp>0&&occupied(e).some(c=>cells.some(t=>same(c,t))))dealAttributeHit(e,attackPower(p)*passiveDamageScale(s,'iceShield'),'ice',s.playerActionCount,s.enemyStates,this.damage,this.events,()=>this.rng.next());
-    for(const i of [...s.mapState.installations??[]])if(cells.some(c=>same(c,i.position)))hitInstallation(s,i.id,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
+    for(const i of [...s.mapState.installations??[],...targetableCrystals(s.mapState,s.playerActionCount)])if(cells.some(c=>same(c,i.position)))hitInstallation(s,i.id,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     this.groupingDamage=false;this.logHits('アイスシールド',start);
   }
   /** スキル喪失時の後始末を集約。今後の設置効果も生成元IDで撤去できる。 */
   loseSkill(id: SkillId): void {
     const s = this.state;
     if(s.skillBag.some(b=>b.skillId===id)){const count=s.skillLevels[id]??1;s.bookFragments=(s.bookFragments??0)+count;this.log('魔導書の切れ端を'+count+'枚獲得！（所持'+s.bookFragments+'枚）');}
+    if(id==='thunderPrison')s.mapState.thunderPrisons=[];
     delete s.skillLevels[id]; delete s.cooldowns[id]; delete s.skillWear?.[id];
     s.skillBag = s.skillBag.filter(b => b.skillId !== id);
     s.mapState.playerTraps = (s.mapState.playerTraps ?? []).filter(t => t.sourceSkillId !== id);
@@ -313,7 +323,7 @@ export class GameSession {
       if(!summonMedia(this.state).length)return effectiveLevel(this.state.skillBag,this.state.skillLevels,id)>=3?'中級精霊にはレア階級2以上の道具が必要です。':'召喚の媒体にする道具がありません。';
       if(!summonCells(this.state).length)return '周囲に精霊が現れる空きマスがありません。';
     }
-    if(id==='icePillar'&&!icePillarCells(this.state,this.state.playerState.facing).length)return '前方に何もない空きマスが必要です。';
+    if(id==='icePillar'&&!(['up','right','down','left'] as const).some(direction=>icePillarCells(this.state,direction).length>0))return '周囲十字に空きマスが必要です。';
     if(id==='fireWall'&&!previewSkill(this.state,id,this.state.playerState.facing).cells.length)return '前方が壁で設置できません。';
     if(id==='tornadoSummon'&&!previewSkill(this.state,id,this.state.playerState.facing).cells.length)return '竜巻が移動できるマスがありません。';
     if (id === 'groundbreak') {
@@ -329,13 +339,15 @@ export class GameSession {
     return null;
   }
   cast(id: SkillId, direction: keyof typeof VECTORS, aim?: Point): void {
+    this.prepareCrystalReactions();
     const s = this.state, p = s.playerState, def = SKILLS[id]; p.facing = direction; p.mp -= skillMp(s, id); s.cooldowns[id] = def.cooldown;
     if (wearSkill(s, id, this.rng)) this.log(def.name + 'が劣化し、次回からの消費MPが増えた。');
     const fieldStart=this.events.length;this.groupingDamage=true;
     const fieldCast=castFieldSkill(s,id,direction,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)},aim);this.groupingDamage=false;
     if(fieldCast){if(this.events.slice(fieldStart).some(e=>e.type==='damage'))this.logHits(def.name,fieldStart);else this.log(def.name+'を発動！');return;}
+    if(id==='thunderPrison'){startThunderPrison(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});return;}
     if(id==='icePillar'){
-      const cells=placeIcePillars(s,direction);
+      const cells=placeIcePillars(s,direction,aim);
       for(const position of cells)this.events.push({type:'trap',position,visual:'iceLance',sound:'magicCast',durationMs:450});
       this.log('アイス・ピラー！ 氷柱を'+cells.length+'本設置した。');return;
     }
@@ -497,7 +509,14 @@ export class GameSession {
     if (timeOfDay(s) !== 'night') return;
     const count = s.daylightCount ?? 0;
     const wave = count < DAY_CYCLE.midnight ? 0 : 1 + Math.floor((count - DAY_CYCLE.midnight) / DAY_CYCLE.revivalInterval);
-    if (s.nightWave !== wave) { s.nightWave = wave; s.nightRevived = 0; s.nightTarget = this.rng.int(rule.min, Math.max(rule.min, rule.max)); }
+    if (s.nightWave !== wave) {
+      s.nightWave = wave; s.nightRevived = 0;
+      // 夜の通常復活(wave0)は階層設定、深夜の追加波は波数に比例して拡大。
+      // wave1=1〜2、wave2=2〜4、wave3=3〜6…となる。
+      const min = wave === 0 ? rule.min : wave;
+      const max = wave === 0 ? Math.max(rule.min, rule.max) : wave * 2;
+      s.nightTarget = this.rng.int(min, Math.max(min, max));
+    }
     const desired = s.nightTarget ?? rule.min;
     if (s.nightRevived! >= desired || wave===0&&!s.defeatedEnemies?.length) return;
     const pool=(s.reinforcementKinds ?? []).filter(k=>k!=='reaper');
@@ -527,7 +546,7 @@ export class GameSession {
     // 一晩で期限付き状態と再使用待ちを解消。回復カウントも新しい朝から開始。
     s.cooldowns = {}; s.mpRecoveryActions = 0;
     for (const a of this.actors) { a.buffs = []; a.afflictions = []; a.hp=a.maxHp; if(a.maxMp!==undefined)a.mp=a.maxMp; }
-    s.allyStates=[];
+    s.allyStates=[];s.mapState.thunderPrisons=[];
     s.enemyStates=s.enemyStates.filter(e=>e.kind!=='reaper');
     s.defeatedEnemies=s.defeatedEnemies?.filter(e=>e.kind!=='reaper');
     s.reinforcementKinds=s.reinforcementKinds?.filter(k=>k!=='reaper');
@@ -555,7 +574,7 @@ export class GameSession {
     const s = this.state, p = s.playerState;
     let walked = false;
     this.events = [];
-    this.frames = []; this.frameEventStart = 0;
+    this.frames = []; this.frameEventStart = 0;this.prepareCrystalReactions();
     if (s.status !== 'playing' || s.pendingBag || s.pendingGemChoices?.length || s.pendingSkillBooks) return false;
     if (command.type === 'cast') { const error = this.canCast(command.skillId); if (error) { this.log(error); return false; } if (!validSkillTarget(s, command.skillId, command.target)) { this.log('選択範囲内の着弾点を選んでください。'); return false; } }
     if (command.type === 'move') {
@@ -578,6 +597,9 @@ export class GameSession {
     if (walked) triggerPlayerTraps(s, { rng: this.rng, events: this.events, damage: (target, amount, attribute, critical) => this.damage(target, amount, attribute, critical, null), log: message => this.log(message) });
     if(walked) moveNearInstallations(s,{rng:this.rng,events:this.events,log:m=>this.log(m)});
     if (p.hp > 0) this.collect(); this.reap();
+    this.groupingDamage=true;
+    tickThunderPrisons(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
+    this.groupingDamage=false;this.reap();
     this.capture('player');
     for (const ally of s.allyStates) { if (p.hp <= 0) break; actSummon(s, ally, this.rng, this.events, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, message => this.log(message)); }
     for(const ally of s.allyStates){if(ally.remainingLife!==undefined&&--ally.remainingLife<=0){ally.hp=0;this.log(ally.name+'は役目を終え、消えていった。');this.events.push({type:'defeat',actorId:ally.id,position:{...ally.position},text:'消滅'});}}
@@ -613,6 +635,7 @@ export class GameSession {
       if(actionCount>1)this.capture('enemy');
       }
     }
+    tickCrystals(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     tickInstallations(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     tickSkillFields(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     for (const field of s.mapState.fields) {

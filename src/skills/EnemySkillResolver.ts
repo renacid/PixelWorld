@@ -1,3 +1,4 @@
+import { targetableCrystals } from '../game/CrystalTargets';
 import { ENEMY_SKILLS, type EnemySkillDefinition } from '../data/enemySkills';
 import { canStand, distance, lineOfSight, occupied, same, wall } from '../game/MapState';
 import type { Random } from '../game/Random';
@@ -25,7 +26,7 @@ function prepare(skill: EnemySkillDefinition, caster: Actor, target: Actor, cont
         const cell = { x: origin.x + v.x * range, y: origin.y + v.y * range };
         if (wall(context.map, cell)) break;
         path.push(cell);
-        const installation=context.map.installations?.find(i=>same(i.position,cell));
+        const installation=[...context.map.installations??[],...targetableCrystals(context.map,context.action)].find(i=>same(i.position,cell));
         if(installation&&!obstruction)obstruction={id:installation.id,position:cell,path:[...path]};
         const hit = context.actors.find(a => a.id !== caster.id && a.hp > 0 && occupied(a).some(p => same(p, cell)));
         if (hit) {
@@ -70,7 +71,7 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
       if(!victims.length||(!exclusive&&context.rng.next()>=(caster.skillChances?.[id]??skill.chance)))continue;
       consume();context.events.push({type:'cast',actorId:caster.id,position:{...p},path:cells,target:{x:p.x+f.x,y:p.y+f.y},skillId:'sweep',sound:skill.sound});
       for(const target of victims)if(caster.hp>0)context.damage(target,attackPower(caster)*(skill.effect.damageMin+context.rng.next()*(skill.effect.damageMax-skill.effect.damageMin)),skill.effect.attribute,false,skill.name);
-      for(const i of [...context.map.installations??[]])if(cells.some(c=>same(c,i.position)))context.hitInstallation?.(i.id);
+      for(const i of [...context.map.installations??[],...targetableCrystals(context.map,context.action)])if(cells.some(c=>same(c,i.position)))context.hitInstallation?.(i.id);
       return true;
     }
     if(skill.effect.type==='dash'){

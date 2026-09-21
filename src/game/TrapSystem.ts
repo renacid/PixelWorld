@@ -1,3 +1,4 @@
+import { targetableCrystals } from './CrystalTargets';
 import { hitInstallation } from './InstallationSystem';
 import { DEFAULT_TRAP_POOL, TRAPS, type TrapPlacement } from '../data/traps';
 import { CHESTS } from '../data/loot';
@@ -79,7 +80,7 @@ export function triggerPlayerTraps(state: SaveData, context: Context): void {
         else cells.push(...pool);
         const delay = 250 + hit * 220; emit(cells, delay);
         const before = context.events.length, attribute = effect.type === 'blast' ? 'fire' : 'earth';
-        for(const i of [...map.installations??[]])if(cells.some(c=>same(c,i.position)))hitInstallation(state,i.id,context);
+        for(const i of [...map.installations??[],...targetableCrystals(map,state.playerActionCount)])if(cells.some(c=>same(c,i.position)))hitInstallation(state,i.id,context);
         for (const target of actors) if (target.hp > 0 && occupied(target).some(c => cells.some(t => same(c, t)))) {
           dealAttributeHit(target, effect.damage, attribute, state.playerActionCount, actors, context.damage, context.events, () => context.rng.next());
         }

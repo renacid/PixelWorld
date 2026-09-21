@@ -1,3 +1,4 @@
+import { hitCrystal } from './CrystalSystem';
 import { dealAttributeHit, type DamageHandler } from '../skills/AttributeSystem';
 import { installationDefinition, type InstallationPlacement } from '../data/installations';
 import { actor } from '../actors/Actor';
@@ -28,6 +29,7 @@ export function placeInstallations(map:MapState,rules:InstallationPlacement[],rn
 type Context={damage?:DamageHandler;rng:Random;events:GameEvent[];log:(s:string)=>void};
 /** 全攻撃共通。一度取り除いてから抽選するので複数ヒットでも報酬は1回。 */
 export function hitInstallation(state:SaveData,id:string,context:Context):boolean{
+ if(id.startsWith('crystal-'))return hitCrystal(state,id,{...context,damage:context.damage??((a,n)=>{a.hp=Math.max(0,a.hp-Math.floor(n));})});
  const map=state.mapState,i=map.installations?.find(i=>i.id===id);if(!i)return false;
  map.installations=map.installations!.filter(o=>o.id!==id);
  const counts=state.destroyedInstallations??={};counts[i.kind]=(counts[i.kind]??0)+1;

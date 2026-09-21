@@ -1,0 +1,10 @@
+import {it,expect} from 'vitest';
+import {GameSession} from '../src/game/GameSession';
+import {actor} from '../src/actors/Actor';
+import {startThunderPrison,tickThunderPrisons} from '../src/skills/ThunderPrison';
+import {SKILLS} from '../src/data/skills';
+const setup=()=>{const g=GameSession.create(1,41);g.state.playerState.position={x:5,y:5};g.state.playerState.criticalRate=0;g.state.enemyStates=[];g.state.mapState.tiles.fill(0);g.state.mapState.objects=[];g.state.mapState.installations=[];g.state.mapState.crystals=[];return g;};
+const ctx=(g:GameSession)=>({rng:g.rng,events:g.events,damage:g.damage,log:(s:string)=>g.log(s)});
+it('6行動で予告3回と落雷3回、再予告は現在位置を中心にする',()=>{const g=setup();startThunderPrison(g.state,ctx(g));const storm=g.state.mapState.thunderPrisons![0];expect(storm.cells).toHaveLength(9);expect(new Set(storm.cells.map(p=>p.x+','+p.y)).size).toBe(9);const initial=structuredClone(storm.cells);g.state.playerState.position={x:12,y:12};tickThunderPrisons(g.state,ctx(g));expect(storm.cells).toEqual(initial);for(let action=1;action<=5;action++){g.state.playerActionCount=action;tickThunderPrisons(g.state,ctx(g));if(action%2===0){expect(storm.cells).toHaveLength(9);expect(storm.cells.every(p=>Math.max(Math.abs(p.x-12),Math.abs(p.y-12))<=3)).toBe(true);}}expect(g.state.mapState.thunderPrisons).toHaveLength(0);expect(g.events.filter(e=>e.type==='cast'&&e.path?.length)).toHaveLength(54);});
+it('1マスの落雷で2ヒット、1行動に二重処理しない',()=>{const g=setup();startThunderPrison(g.state,ctx(g));const e=actor('e','slime',{x:6,y:5});e.hp=e.maxHp=100;g.state.enemyStates=[e];g.state.mapState.thunderPrisons![0].cells=[{x:6,y:5}];g.state.playerActionCount=1;tickThunderPrisons(g.state,ctx(g));const hits=g.events.filter(e=>e.type==='damage');expect(hits).toHaveLength(2);expect(hits.every(e=>e.amount!>=7&&e.amount!<=10)).toBe(true);const hp=e.hp;tickThunderPrisons(g.state,ctx(g));expect(e.hp).toBe(hp);});
+it('指定の7マス形状・MP25・CT20',()=>{expect(SKILLS.thunderPrison.cells).toEqual([{x:0,y:0},{x:1,y:-1},{x:1,y:-2},{x:2,y:-2},{x:-1,y:1},{x:-1,y:-2},{x:-2,y:-2}]);expect(SKILLS.thunderPrison.mp).toBe(25);expect(SKILLS.thunderPrison.cooldown).toBe(20);});

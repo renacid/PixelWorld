@@ -7,7 +7,7 @@ import type { TrapInstance, TrapPlacement, TrapVisual, SoundCue } from '../data/
 export type Direction = 'up' | 'right' | 'down' | 'left';
 export const VECTORS: Record<Direction, Point> = { up: { x: 0, y: -1 }, right: { x: 1, y: 0 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 } };
 export type Attribute = 'fire' | 'ice' | 'thunder' | 'earth' | 'wind' | 'neutral' | 'physical' | 'nature';
-export type SkillId = 'meteor' | 'icePillar' | 'thunderArmor' | 'iceLance' | 'fireWall' | 'tornadoSummon' | 'earthquake' | 'summonSpirit' | 'iceShield' | 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
+export type SkillId = 'thunderPrison' | 'meteor' | 'icePillar' | 'thunderArmor' | 'iceLance' | 'fireWall' | 'tornadoSummon' | 'earthquake' | 'summonSpirit' | 'iceShield' | 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
 export type ItemId = 'bookmarkLesser' | 'bookmarkMiddle' | 'bookmarkGreater' | 'powerPotion' | 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
 export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
 export type Actor = { lastActedAt?:number; movementLockedUntil?: number; frostErosion?: { spent:boolean; rootUntil?:number };
@@ -31,7 +31,10 @@ export type Player = Actor & { mp: number; maxMp: number; criticalRate: number; 
 export type BagBlock = { isNew?: boolean; skillId: SkillId; position: Point | null; rotation: number };
 export type GroundObject = { bookAttributes?: Attribute[]; randomSkillsResolved?: boolean; id: string; position: Point; type: 'skillBook' | 'record' | 'chest' | 'item' | 'skill' | 'exit' | 'gem'; skillId?: SkillId; skillIds?: SkillId[]; itemId?: ItemId; chestTier?: ChestTier; waitForLeave?: boolean; fullNotified?: boolean; contents?: Loot[]; opened?: boolean; objective?: boolean };
 export type FieldEffect = { skillKind?: 'fireWall'|'tornadoSummon'; placedAt?:number; direction?:Direction; power?:number; hitAction?:number; hitIds?:string[]; sourceSkillId?: SkillId; effectId: string; position: Point; attribute: Attribute; remainingTurns: number; triggerType: 'enter' | 'turn'; damageMultiplier: number; onceOnly: boolean };
-export type MapState = { installations?: Installation[]; loot?: LootPools; width: number; height: number; tiles: number[]; objects: GroundObject[]; playerTraps?: { id: string; position: Point; damage: number; sourceSkillId?: SkillId; placedAt?: number }[]; traps?: TrapInstance[]; fields: FieldEffect[] };
+export type CrystalSource = { actorId:string; team:'player'|'enemy'; attack:number };
+export type Crystal = { id:string; position:Point; attribute:'ice'|'thunder'; source:CrystalSource; damage:number; placedAt:number; remainingTurns:number };
+export type ThunderPrison = { id:string; startedAt:number; lastProcessedAt:number; cells:Point[]; power:number; source:CrystalSource; criticalRate:number; criticalMultiplier:number };
+export type MapState = { thunderPrisons?:ThunderPrison[]; crystals?:Crystal[]; installations?: Installation[]; loot?: LootPools; width: number; height: number; tiles: number[]; objects: GroundObject[]; playerTraps?: { id: string; position: Point; damage: number; sourceSkillId?: SkillId; placedAt?: number }[]; traps?: TrapInstance[]; fields: FieldEffect[] };
 export type SaveData = {
   version: 1; stageId: number; randomSeed: number; initialSeed: number;
   mapState: MapState; playerState: Player; allyStates: Actor[]; enemyStates: Actor[];
@@ -62,7 +65,7 @@ export type SaveData = {
   status: 'playing' | 'cleared' | 'defeated'; objectiveChests: number; pendingBag: boolean;
   log: string[];
 };
-export type GameEvent = { announcement?: string; type: 'damage' | 'heal' | 'cast' | 'defeat' | 'reaction' | 'attack' | 'pickup' | 'trap' | 'levelup'; position: Point; amount?: number; attribute?: Attribute; critical?: boolean; text?: string; actorId?: string; target?: Point; skillId?: SkillId; enemySkillId?: string; visual?: TrapVisual | 'stone' | 'strike'; sound?: SoundCue; delayMs?: number; durationMs?: number; path?: Point[] };
+export type GameEvent = { crystalAttribute?: 'ice'|'thunder'; announcement?: string; type: 'damage' | 'heal' | 'cast' | 'defeat' | 'reaction' | 'attack' | 'pickup' | 'trap' | 'levelup'; position: Point; amount?: number; attribute?: Attribute; critical?: boolean; text?: string; actorId?: string; target?: Point; skillId?: SkillId; enemySkillId?: string; visual?: TrapVisual | 'stone' | 'strike'; sound?: SoundCue; delayMs?: number; durationMs?: number; path?: Point[] };
 export type TurnFrame = { phase: 'player' | 'ally' | 'enemy'; actors: Actor[]; events: GameEvent[] };
 /** 出現順と個数を定義。固定配置の敵はpositionを指定します。 */
 export type EnemySpawn = { kind: EnemyKind; count: number; position?: Point };

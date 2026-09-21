@@ -9,13 +9,14 @@
 <h2>状態アイコン</h2><p>編集先：<code>src/render/StatusIcons.ts</code>。強化は剣、移動不可は赤い×。</p><div id="statuses" class="grid status"></div>
 <h2>キャラへの配置・切り替え</h2><p>属性はHPバー上に左詰めで配置（3枠でバーと同じ幅）。足元の4状態は3個ずつ1秒で切り替わります。敵視開始の「！」は右上に別表示します。</p><canvas id="demo" class="demo" width="96" height="64"></canvas>
 <h2>属性付着</h2><div id="attributes" class="grid status"></div>
-<h2>スキル</h2><p>編集先：<code>src/data/PixelIcons.ts</code>（SKILL_ICONS）</p><div id="skills" class="grid"></div>
+<h2>属性反応の結晶</h2><p>編集先：<code>src/render/CrystalSprites.ts</code>。氷結晶／雷結晶／同一マスの蓄積。</p><canvas id="crystals" class="demo" width="96" height="64"></canvas><h2>スキル</h2><p>編集先：<code>src/data/PixelIcons.ts</code>（SKILL_ICONS）</p><div id="skills" class="grid"></div>
 <h2>道具</h2><p>編集先：<code>src/data/PixelIcons.ts</code>（ITEM_ICONS）</p><div id="items" class="grid"></div>
 <script type="module">
 import { SKILL_ICONS, ITEM_ICONS, pixelIcon } from '/src/data/PixelIcons.ts';
 import { SKILLS, ATTRIBUTE_NAMES, ATTRIBUTE_COLORS } from '/src/data/skills.ts';
 import { ITEMS } from '/src/data/items.ts';
 import { STATUS_ICONS, drawStatusIcon, drawStatusIcons } from '/src/render/StatusIcons.ts';
+import { drawCrystal } from '/src/render/CrystalSprites.ts';
 import { actor } from '/src/actors/Actor.ts';
 import { spritePixels, PIXEL_COLORS } from '/src/render/SpriteAtlas.ts';
 const card=(parent,name,id)=>{const el=document.createElement('article');el.className='card';const title=document.createElement('strong');title.textContent=name;el.append(title);const pictures=document.createElement('div');pictures.className='pictures';el.append(pictures);const label=document.createElement('small');label.textContent=id;el.append(label);document.querySelector(parent).append(el);return pictures;};
@@ -26,6 +27,10 @@ for(const id of Object.keys(STATUS_ICONS))samples(card('#statuses',names[id],id)
 for(const id of ['fire','ice','thunder','earth','wind','neutral'])samples(card('#attributes',ATTRIBUTE_NAMES[id],id+(id==='wind'?'（付着なし・色見本）':'')),ctx=>{ctx.fillStyle='#fff';ctx.fillRect(0,0,8,6);ctx.fillStyle=ATTRIBUTE_COLORS[id];ctx.fillRect(1,1,6,4);},8,6);
 const a=actor('preview','goblin',{x:0,y:0});a.buffs=[{id:'preview',remainingTurns:10,appliedAt:0,attackMultiplier:1.25,detectionBonus:0},{id:'preview-secondary',remainingTurns:10,appliedAt:0,attackMultiplier:1,detectionBonus:1}];a.afflictions=[{attribute:'ice',remainingTurns:10,appliedAt:0},{attribute:'earth',remainingTurns:10,appliedAt:0}];a.movementLockedUntil=2;a.frostErosion={spent:false};a.mode='hostile';a.alertedAt=0;
 const canvas=document.querySelector('#demo'),ctx=canvas.getContext('2d'),input=document.querySelector('#background');
-function frame(clock){ctx.fillStyle=input.value;ctx.fillRect(0,0,96,64);ctx.strokeStyle='#73925f';ctx.strokeRect(32,16,32,32);const pixels=spritePixels('goblin','down');pixels.forEach((row,y)=>[...row].forEach((c,x)=>{if(PIXEL_COLORS[c]){ctx.fillStyle=PIXEL_COLORS[c];ctx.fillRect(32+x*2,12+y*2,2,2);}}));drawStatusIcons(ctx,a,32,16,32,32,clock,0);requestAnimationFrame(frame);}
+const crystalCtx=document.querySelector('#crystals').getContext('2d');
+function frame(clock){
+ crystalCtx.fillStyle=input.value;crystalCtx.fillRect(0,0,96,64);
+ for(let n=0;n<3;n++)for(let i=0;i<(n===2?3:1);i++)drawCrystal(crystalCtx,{attribute:n===1?'thunder':'ice'},n*32,16,clock,i);
+ctx.fillStyle=input.value;ctx.fillRect(0,0,96,64);ctx.strokeStyle='#73925f';ctx.strokeRect(32,16,32,32);const pixels=spritePixels('goblin','down');pixels.forEach((row,y)=>[...row].forEach((c,x)=>{if(PIXEL_COLORS[c]){ctx.fillStyle=PIXEL_COLORS[c];ctx.fillRect(32+x*2,12+y*2,2,2);}}));drawStatusIcons(ctx,a,32,16,32,32,clock,0);requestAnimationFrame(frame);}
 input.addEventListener('input',()=>document.querySelectorAll('.status canvas').forEach(c=>c.style.background=input.value));requestAnimationFrame(frame);
 </script></body></html>
