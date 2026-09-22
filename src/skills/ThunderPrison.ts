@@ -12,7 +12,7 @@ type Context={rng:Random;events:GameEvent[];damage:DamageHandler;log:(message:st
 function chooseCells(s:SaveData,c:Context):Point[]{
  const p=s.playerState.position,pool:Point[]=[];
  for(let y=-3;y<=3;y++)for(let x=-3;x<=3;x++){const cell={x:p.x+x,y:p.y+y};if(!wall(s.mapState,cell))pool.push(cell);}
- const cells:Point[]=[];while(cells.length<9&&pool.length)cells.push(pool.splice(c.rng.int(0,pool.length-1),1)[0]);return cells;
+ const cells:Point[]=[];while(cells.length<12&&pool.length)cells.push(pool.splice(c.rng.int(0,pool.length-1),1)[0]);return cells;
 }
 export function startThunderPrison(s:SaveData,c:Context):void{
  const level=effectiveLevel(s.skillBag,s.skillLevels,'thunderPrison');

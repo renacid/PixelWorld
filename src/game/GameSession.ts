@@ -121,8 +121,18 @@ export class GameSession {
   static create(stageId: number, seed: number): GameSession {
     const stage = STAGES.find(s => s.id === stageId)!;
     const rng = new Random(seed); const floorCount = stage.dungeon?.floors ?? 1; const { map, enemies, spawn } = generateMap(stage, rng);
-    const session = new GameSession({ version: 1, stageId, playerLevel: 1, experience: 0, bagCells: initialBagCells(), floorNumber: 1, floorCount, nightRevived: 0, initialSeed: seed, randomSeed: rng.seed, mapState: map, playerState: createPlayer(), enemyStates: enemies, allyStates: [], skillBag: [], skillLevels: {}, cooldowns: {}, itemSlots: [], exploredMap: new Array(map.width * map.height).fill(false), turnCount: 0, playerActionCount: 0, status: 'playing', objectiveChests: 0, pendingBag: false, log: ['目の前の宝箱へ進み、斬撃を手に入れよう。'] });
+    const player = createPlayer();
+    if (stage.initialPlayerMp !== undefined) player.maxMp = player.mp = Math.max(0, Math.floor(stage.initialPlayerMp));
+    const session = new GameSession({ version: 1, stageId, playerLevel: 1, experience: 0, bagCells: initialBagCells(stage.initialBagSize ?? 4), floorNumber: 1, floorCount, nightRevived: 0, initialSeed: seed, randomSeed: rng.seed, mapState: map, playerState: player, enemyStates: enemies, allyStates: [], skillBag: [], skillLevels: {}, cooldowns: {}, itemSlots: [], exploredMap: new Array(map.width * map.height).fill(false), turnCount: 0, playerActionCount: 0, status: 'playing', objectiveChests: 0, pendingBag: false, log: ['目の前の宝箱へ進み、斬撃を手に入れよう。'] });
     session.state.playerState.position = { ...spawn };
+    if (stage.initialSkillLevels) {
+      for (const [id, level] of Object.entries(stage.initialSkillLevels) as [SkillId, number][]) {
+        if (!(id in SKILLS) || !Number.isInteger(level) || level < 1) continue;
+        session.state.skillLevels[id] = level;
+        session.state.skillBag.push({ skillId: id, position: null, rotation: 0, isNew: false });
+        autoPlace(session.state.skillBag, id, session.state.bagCells);
+      }
+    }
     session.state.log = []; session.explore(); return session;
   }
   get stage() { return stageForFloor(STAGES.find(s => s.id === this.state.stageId)!, this.state.floorNumber ?? 1); }
@@ -323,7 +333,7 @@ export class GameSession {
       if(!summonMedia(this.state).length)return effectiveLevel(this.state.skillBag,this.state.skillLevels,id)>=3?'中級精霊にはレア階級2以上の道具が必要です。':'召喚の媒体にする道具がありません。';
       if(!summonCells(this.state).length)return '周囲に精霊が現れる空きマスがありません。';
     }
-    if(id==='icePillar'&&!(['up','right','down','left'] as const).some(direction=>icePillarCells(this.state,direction).length>0))return '周囲十字に空きマスが必要です。';
+    if(id==='icePillar'&&!(['up','right','down','left'] as const).some(direction=>icePillarCells(this.state,direction,this.rng).length>0))return '周囲十字に空きマスが必要です。';
     if(id==='fireWall'&&!previewSkill(this.state,id,this.state.playerState.facing).cells.length)return '前方が壁で設置できません。';
     if(id==='tornadoSummon'&&!previewSkill(this.state,id,this.state.playerState.facing).cells.length)return '竜巻が移動できるマスがありません。';
     if (id === 'groundbreak') {
@@ -347,7 +357,7 @@ export class GameSession {
     if(fieldCast){if(this.events.slice(fieldStart).some(e=>e.type==='damage'))this.logHits(def.name,fieldStart);else this.log(def.name+'を発動！');return;}
     if(id==='thunderPrison'){startThunderPrison(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});return;}
     if(id==='icePillar'){
-      const cells=placeIcePillars(s,direction,aim);
+      const cells=placeIcePillars(s,direction,this.rng,aim);
       for(const position of cells)this.events.push({type:'trap',position,visual:'iceLance',sound:'magicCast',durationMs:450});
       this.log('アイス・ピラー！ 氷柱を'+cells.length+'本設置した。');return;
     }

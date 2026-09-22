@@ -161,7 +161,7 @@ export function generateMap(base: Stage, rng: Random, floor = 1): { map: MapStat
  if(floor===1){
   const chest=map.objects.find(o=>o.type==='chest'&&(o.skillId==='attack'||o.skillIds?.includes('attack')));
   if(chest){const forest=(Number(stage.code?.split('-')[0])||1)>=2||stage.regionId==='forest';
-    chest.skillId=undefined;chest.skillIds=forest?['attack','warp','sweep']:['attack','warp'];chest.itemId=forest?'potion':undefined;
+    chest.skillId=undefined;chest.skillIds=forest?['attack','warp','sweep']:['attack','warp','icePillar'];chest.itemId=forest?'potion':undefined;
     const supplies=(chest.contents??[]).filter(e=>e.type==='item');if(forest&&!supplies.some(e=>e.id==='potion'))supplies.push({type:'item',id:'potion'});
     chest.contents=[...chest.skillIds.map(id=>({type:'skill' as const,id})),...supplies];chest.randomSkillsResolved=true;
     const cells:Point[]=[];for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++){const p={x:chest.position.x+x,y:chest.position.y+y};if((x||y)&&!same(p,spawn)&&canStand(map,actor('book','slime',p),p,enemies)&&!map.objects.some(o=>same(o.position,p))&&!map.traps?.some(t=>same(t.position,p))&&!map.fields.some(f=>same(f.position,p)))cells.push(p);}
