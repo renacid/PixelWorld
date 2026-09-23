@@ -63,6 +63,40 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
   for (const id of ids) {
     const skill = ENEMY_SKILLS[id];
     if (!skill || (caster.mp ?? 0) < skill.mpCost || (caster.enemyCooldownUntil?.[id] ?? 0) > context.action) continue;
+    if(skill.effect.type==='elementArmor'){
+      if(caster.mode!=='hostile'||caster.buffs?.some(b=>b.id===id&&b.remainingTurns>0)||context.rng.next()>=(caster.skillChances?.[id]??skill.chance))continue;
+      caster.mp!-=skill.mpCost;
+      applyBuff(caster,{id,name:skill.name,remainingTurns:skill.effect.duration,appliedAt:context.action,attackMultiplier:1,detectionBonus:0,iceFollowup:{chance:skill.effect.chance,ratio:skill.effect.ratio}});
+      context.events.push({type:'trap',actorId:caster.id,position:{...caster.position},visual:'iceShield',sound:'ice'});context.log(caster.name+'の氷装！');return true;
+    }
+    if(skill.effect.type==='charge'){
+      if(movementLocked(caster,context.action))continue;
+      let hit:{target?:Actor;installationId?:string;destination:Point;impact:Point;facing:Direction}|undefined;
+      for(const facing of caster.directions){const v=VECTORS[facing];
+        for(let n=1;n<=skill.maxRange;n++){
+          const cell={x:caster.position.x+v.x*n,y:caster.position.y+v.y*n};if(wall(context.map,cell))break;
+          const object=context.map.installations?.find(o=>same(o.position,cell));
+          const occupant=context.actors.find(a=>a.id!==caster.id&&a.hp>0&&occupied(a).some(p=>same(p,cell)));
+          if(object||occupant){
+            const enemy=occupant&&targets.some(t=>t.id===occupant.id)?occupant:undefined;
+            if(n>=skill.minRange&&(enemy||object?.sourceSkillId||object?.kind==='icePillar'))hit={target:enemy,installationId:object?.id,destination:{x:cell.x-v.x,y:cell.y-v.y},impact:cell,facing};
+            break;
+          }
+        }if(hit)break;
+      }
+      if(!hit)continue;
+      const origin={...caster.position};caster.position=hit.destination;caster.facing=hit.facing;caster.mp!-=skill.mpCost;
+      context.events.push({type:'attack',actorId:caster.id,position:origin,target:hit.impact,enemySkillId:id,visual:'strike',sound:'strike',durationMs:360});
+      if(hit.target)context.damage(hit.target,attackPower(caster)*skill.effect.ratio,'physical',false,skill.name);
+      if(hit.installationId)context.hitInstallation?.(hit.installationId);
+      // 行動nで命中したらn+1を休み、n+2で再行動。氷柱への命中も同じ反動を受ける。
+      const rest=skill.effect.selfStunTurns??0;
+      if(rest>0&&caster.hp>0){
+        caster.stunnedUntil=Math.max(caster.stunnedUntil??0,context.action+rest+1);
+        context.log(caster.name+'は突進の反動で'+rest+'ターン行動不能！');
+      }
+      return true;
+    }
     if(movementLocked(caster,context.action)&&['dash','teleport','approachStrike'].includes(skill.effect.type))continue;
     const consume = () => { caster.mp = (caster.mp ?? 0) - skill.mpCost; (caster.enemyCooldownUntil ??= {})[id] = context.action + (skill.cooldown ?? 0) + 1; };
     if(skill.effect.type==='extraActions')continue; // 行動開始時だけ別枠で抽選し、再帰加速を防ぐ。

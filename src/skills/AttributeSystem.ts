@@ -33,7 +33,7 @@ function resolveAttributeHit(target: Actor, raw: number, attribute: Attribute, a
   const amount = Math.max(0, Math.floor(raw * (melt ? 1.5 + random() * .5 : 1)));
   if (melt) {
     target.afflictions = target.afflictions.filter(a => a.attribute !== 'fire' && a.attribute !== 'ice');
-    events.push({ type: 'reaction', position: { ...target.position }, attribute, text: '融激' });
+    events.push({ type: 'reaction', position: { ...target.position }, attribute, text: '融解' });
   }
   if(melt)labeledDamage(events,'融撃',()=>reactionDamage(target,amount,attribute,damage,events,critical,frostReady));else damage(target, amount, attribute, critical);
   if (!melt) applyAttribute(target, attribute, amount, action, actors, damage, events, allowSwirl, random, source);

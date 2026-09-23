@@ -28,7 +28,7 @@ export function drawStatusIcons(ctx: CanvasRenderingContext2D, actor: Actor, x: 
   const icons: Icon[] = [];
   if((actor.bossLinkUntil??0)>action)icons.push({kind:'bond',color:'#d95d84'});
   for (const buff of actor.buffs ?? []) if (buff.remainingTurns > 0) icons.push({ kind: 'buff', color: '#ff982e' });
-  if (movementLocked(actor, action)) icons.push({ kind: 'root', color: '#e8f3fa' });
+  if ((actor.stunnedUntil??0)>action || movementLocked(actor, action)) icons.push({ kind: 'root', color: '#e8f3fa' });
   if (actor.frostErosion) icons.push({ kind: 'frost', color: '#a77948' });
   // 敵視開始だけは例外。従来どおり右上にはみ出す大きな「!」を1行動表示。
   if (actor.kind !== 'player' && actor.mode === 'hostile' && actor.alertedAt === action) {

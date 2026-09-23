@@ -45,13 +45,13 @@ export function kingPhases(s:SaveData,king:Actor,c:Context):void {
   if(king.hp>threshold||king.bossPhases.includes(threshold))continue;
   king.bossPhases.push(threshold);const cells=freeCells(s,king,arena),from={...king.position};
   if(cells.length)king.position=cells.splice(c.rng.int(0,cells.length-1),1)[0];
-  c.events.push({type:'attack',actorId:king.id,position:from,target:{...king.position},bossJump:true,visual:'strike',sound:'rocks',durationMs:750});
+  c.events.push({type:'attack',actorId:king.id,position:from,target:{...king.position},bossJump:true,visual:'strike',sound:'rocks',delayMs:1000,durationMs:750});
   king.mp=Math.min(king.maxMp??50,(king.mp??0)+KING_RULES.phaseMp);
   for(const kind of [...Array(KING_RULES.bannerCount).fill('goblinBanner'),...Array(threshold===100?KING_RULES.nestCount:0).fill('goblinNest')] as ('goblinBanner'|'goblinNest')[]){
    const available=freeCells(s,king,arena);if(!available.length)break;
    const position=available[c.rng.int(0,available.length-1)];
    (s.mapState.installations??=[]).push({id:`king-${king.id}-${threshold}-${kind}-${s.mapState.installations!.length}`,kind,position,spawned:0});
-   c.events.push({type:'trap',position,visual:'summonRing',sound:'rocks',delayMs:750});
+   c.events.push({type:'trap',position,visual:'summonRing',sound:'rocks',delayMs:1750});
   }
   c.log(king.name+'が大ジャンプ！ 戦旗を掲げ、MPを回復した！');
  }

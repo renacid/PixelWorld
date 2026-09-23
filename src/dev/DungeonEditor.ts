@@ -1,3 +1,4 @@
+import { drawTerrainPreview } from '../render/TerrainPreview';
 import './dungeon-editor.css';
 import { TERRAIN } from '../data/terrain';
 import { ENEMIES, type EnemyKind } from '../data/enemies';
@@ -75,7 +76,7 @@ function entries():[string,string,string][] {
   if(category==='spawn')return [['spawn','旅人の開始地点','#5f9de0']];
   return [...['wood','iron','silver','gold'].map((id,i):[string,string,string]=>['chest:'+id,['木の宝箱','鉄の宝箱','銀の宝箱','金の宝箱'][i],'#d4ad5b']),['exit','出口','#f0e0a0'],['record','古代の記録','#b6b4a6'],['gem','宝石','#a58ee8'],['skillBook','魔導書','#d5a3dd'],...Object.entries(ITEMS).map(([id,d]):[string,string,string]=>['item:'+id,d.name,'#5eae8d']),...Object.entries(SKILLS).map(([id,d]):[string,string,string]=>['skill:'+id,d.name,'#879cdb'])];
 }
-function palette(){const all=entries();if(!all.some(e=>e[0]===brush))brush=all[0][0];$('palette').innerHTML=all.map(([id,name,color])=>`<button data-brush="${id}" class="${brush===id?'active':''}"><i style="background:${color}"></i>${escape(name)}</button>`).join('');document.querySelectorAll<HTMLElement>('[data-brush]').forEach(b=>b.onclick=()=>{brush=b.dataset.brush!;palette();});}
+function palette(){const all=entries();if(!all.some(e=>e[0]===brush))brush=all[0][0];$('palette').innerHTML=all.map(([id,name,color])=>`<button data-brush="${id}" class="${brush===id?'active':''}"><i style="background:${color}"></i>${escape(name)}</button>`).join('');if(category==='tile')document.querySelectorAll<HTMLElement>('[data-brush]').forEach(b=>{const c=document.createElement('canvas');c.width=24;c.height=24;c.style.cssText='width:24px;height:24px;display:inline-block;vertical-align:middle;margin-right:5px';drawTerrainPreview(c.getContext('2d')!,Number(b.dataset.brush),0,0,24);b.querySelector('i')?.replaceWith(c);});document.querySelectorAll<HTMLElement>('[data-brush]').forEach(b=>b.onclick=()=>{brush=b.dataset.brush!;palette();});}
 function same(a:Point,b:Point){return a.x===b.x&&a.y===b.y;}
 function enemyAt(p:Point){return floor().enemies.find(e=>p.x>=e.position.x&&p.y>=e.position.y&&p.x<e.position.x+ENEMIES[e.kind].size&&p.y<e.position.y+ENEMIES[e.kind].size);}
 function erase(p:Point){const f=floor(),enemy=enemyAt(p);f.enemies=f.enemies.filter(e=>e!==enemy);f.objects=f.objects.filter(o=>!same(o.position,p));f.traps=f.traps.filter(o=>!same(o.position,p));f.installations=f.installations.filter(o=>!same(o.position,p));}
@@ -98,7 +99,7 @@ function paint(p:Point){
 }
 function draw(){
  const f=floor();canvas.width=f.width*zoom;canvas.height=f.height*zoom;ctx.imageSmoothingEnabled=false;
- for(let y=0;y<f.height;y++)for(let x=0;x<f.width;x++){const d=TERRAIN[f.tiles[y*f.width+x]];ctx.fillStyle=d.color;ctx.fillRect(x*zoom,y*zoom,zoom,zoom);if(d.solid){ctx.fillStyle='#20302b50';ctx.fillRect(x*zoom+2,y*zoom+2,zoom-4,zoom-4);}ctx.strokeStyle='#17372925';ctx.strokeRect(x*zoom,y*zoom,zoom,zoom);}
+ for(let y=0;y<f.height;y++)for(let x=0;x<f.width;x++){drawTerrainPreview(ctx,f.tiles[y*f.width+x],x*zoom,y*zoom,zoom);ctx.strokeStyle='#17372925';ctx.strokeRect(x*zoom,y*zoom,zoom,zoom);}
  const label=(p:Point,text:string,color:string,size=1)=>{ctx.fillStyle=color;ctx.fillRect(p.x*zoom+2,p.y*zoom+2,zoom*size-4,zoom*size-4);ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(10,zoom*.45)}px sans-serif`;ctx.textAlign='center';ctx.fillText(text,p.x*zoom+zoom*size/2,p.y*zoom+zoom*size/2+4);};
  for(const o of f.objects)label(o.position,({chest:'箱',exit:'出',record:'記',gem:'宝',skillBook:'書',item:'薬',skill:'技'})[o.type],'#80714c');
  for(const t of f.traps)label(t.position,'罠','#b86742');

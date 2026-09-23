@@ -6,7 +6,14 @@ function make(kind: SpriteId, facing: 'down' | 'up' | 'left'): string[] {
   if (kind === 'golem') return makeGolem(facing);
   const pixels = Array.from({ length: 16 }, () => Array<string>(16).fill('.'));
   const rect = (x: number, y: number, w: number, h: number, color: string) => { for (let dy = y; dy < y + h; dy++) for (let dx = x; dx < x + w; dx++) if (dy >= 0 && dy < 16 && dx >= 0 && dx < 16) pixels[dy][dx] = color; };
-  if(kind==='reaper'){
+  if(kind==='frostBoar'){
+    // 斜め上から見た丸い胴体、太い脚と白い牙。横向きは右向きで反転する。
+    rect(4,4,9,8,'a');rect(3,6,11,6,'c');rect(5,4,6,2,'C');rect(4,12,3,3,'d');rect(10,12,3,3,'d');
+    if(facing==='left'){rect(1,7,6,5,'a');rect(0,9,3,3,'c');rect(3,5,2,3,'d');rect(2,8,1,1,'r');rect(0,11,2,3,'w');rect(4,11,2,3,'w');rect(0,10,1,2,'w');}
+    else if(facing==='down'){rect(4,8,8,5,'a');rect(6,10,4,3,'c');rect(4,4,2,3,'d');rect(10,4,2,3,'d');rect(5,8,1,1,'r');rect(10,8,1,1,'r');rect(3,10,2,4,'w');rect(11,10,2,4,'w');rect(3,9,1,2,'w');rect(12,9,1,2,'w');}
+    else{rect(5,3,2,3,'d');rect(10,3,2,3,'d');rect(7,11,2,3,'a');}
+    for(const [x,y] of [[6,5],[10,6],[8,9],[12,8]]){rect(x,y,2,2,'b');rect(x,y,1,1,'w');}
+  }else if(kind==='reaper'){
     rect(4,2,7,2,'a');rect(3,4,9,7,'k');rect(4,4,7,5,'d');rect(5,5,2,1,'r');rect(9,5,2,1,'r');rect(4,9,7,3,'a');rect(3,11,3,2,'k');rect(8,11,4,2,'k');rect(5,12,2,2,'a');
     const x=facing==='left'?1:13;rect(x,3,1,11,'O');rect(Math.max(0,x-4),1,5,1,'C');rect(Math.max(0,x-5),2,2,2,'w');rect(Math.max(0,x-5),4,1,2,'c');
     if(facing==='up'){rect(4,4,7,4,'a');rect(6,4,2,5,'k');}

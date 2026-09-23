@@ -169,7 +169,11 @@ export class GameCanvas {
       drawCrystal(ctx,crystal,p.x,p.y,this.settings.motion?clock:0,Math.min(index,5));crystalCounts.set(key,index+1);
     }
     for(const [key,count] of crystalCounts)if(count>1){const [x,y]=key.split(',').map(Number),p=screen({x,y});ctx.font='bold 9px monospace';ctx.textAlign='right';ctx.strokeStyle='#324258';ctx.lineWidth=2;ctx.strokeText(String(count),p.x+30,p.y+30);ctx.fillStyle='#fff';ctx.fillText(String(count),p.x+30,p.y+30);}
-    for (const obj of state.mapState.objects) {
+    // 同一セルの床アイテムは1秒ごとに最前面を交代する。
+    const objectGroups=new Map<string,typeof state.mapState.objects>();
+    for(const o of state.mapState.objects){const key=o.position.x+','+o.position.y;const group=objectGroups.get(key)??[];group.push(o);objectGroups.set(key,group);}
+    const orderedObjects=[...objectGroups.values()].flatMap(group=>{const fixed=group.filter(o=>o.type!=='item'&&o.type!=='skill'),items=group.filter(o=>o.type==='item'||o.type==='skill');const shift=items.length?Math.floor(clock/1000)%items.length:0;return [...fixed,...items.slice(shift),...items.slice(0,shift)];});
+    for (const obj of orderedObjects) {
       if (!visible(obj.position)) continue;
       const { x, y } = screen(obj.position);
       if (obj.type === 'gem') {
@@ -243,11 +247,6 @@ export class GameCanvas {
         if (e.text) this.popup(ctx, e.text, p.x + 16, p.y - age * 20, color, true);
       } else { ctx.globalAlpha = Math.min(1, (1 - age) * 3); this.popup(ctx, e.text ?? `${e.amount}${e.critical ? '!' : ''}`, Math.max(20, Math.min(300, p.x + 16 + (e.index % 3 - 1) * 7)), Math.max(18, Math.min(305, p.y + 5 - age * 22 - e.index % 3 * 7)), e.type === 'heal' ? '#24a991' : color, !!e.critical); }
       ctx.restore();
-    }
-    const boss=actors.find(a=>a.kind==='goblinKing'&&a.hp>0);
-    if(boss&&state.mapState.bossArena?.started){
-      ctx.fillStyle='#241a2bea';ctx.fillRect(22,34,276,29);ctx.font='bold 10px sans-serif';ctx.textAlign='left';ctx.fillStyle='#ffe6ad';ctx.fillText(boss.name,29,45);
-      ctx.fillStyle='#583741';ctx.fillRect(29,50,262,7);ctx.fillStyle='#eb5970';ctx.fillRect(29,50,262*boss.hp/boss.maxHp,7);ctx.textAlign='right';ctx.fillStyle='#fff';ctx.fillText(`${boss.hp} / ${boss.maxHp}`,290,45);
     }
     if(this.bossIntro&&elapsed>650&&elapsed<2150){ctx.fillStyle='#160e25b8';ctx.fillRect(0,120,320,74);ctx.textAlign='center';ctx.font='bold 23px sans-serif';ctx.fillStyle='#ffd485';ctx.fillText(this.bossIntro.name,160,163);}
     this.drawMini();

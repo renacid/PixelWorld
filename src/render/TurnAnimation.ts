@@ -32,7 +32,8 @@ export class TurnAnimation {
         a.position = { x: interpolate(prev.position.x, next.position.x, moveProgress), y: interpolate(prev.position.y, next.position.y, moveProgress) };
         if (step.events.some(e => e.skillId === 'warp' && e.actorId === id)) a.position = { ...(progress < .5 ? prev.position : next.position) };
         if(step.events.some(e=>e.bossJump&&e.actorId===id)){
-          const t=Math.min(1,(elapsed-step.start)/750);
+          const jump=step.events.find(e=>e.bossJump&&e.actorId===id)!;
+          const t=Math.max(0,Math.min(1,(elapsed-step.start-(jump.delayMs??0))/750));
           a.position={x:interpolate(prev.position.x,next.position.x,t),y:interpolate(prev.position.y,next.position.y,t)-Math.sin(t*Math.PI)*2.5};
         }
         if (progress < .55) { a.hp = prev.hp; a.afflictions = prev.afflictions; }
@@ -60,10 +61,10 @@ export class TurnAnimation {
           const group=grouped.get(event.actorId+':'+(event.delayMs??0))!;
           if(group.some(e=>e.reaction==='爆破'||e.reaction==='霜蝕撃')){
             if(event!==group[group.length-1])return [];
-            const sum=group.reduce((n,e)=>n+(e.amount??0),0);event={...event,amount:sum,text:'合計'+sum+'のダメージ'};
-          }else if(event.reaction==='融撃')event={...event,text:(event.amount??0)+'の融撃ダメージ'};
+            const sum=group.reduce((n,e)=>n+(e.amount??0),0);event={...event,amount:sum,text:sum+' '+[...new Set(group.map(e=>e.reaction).filter(Boolean))].join('・')};
+          }else if(event.reaction==='融撃')event={...event,text:(event.amount??0)+' 融解'};
         }
-        return [{event,delay:step.start+(event.delayMs??(['damage','reaction','defeat'].includes(event.type)?step.duration*.5+i%3*40:0)),duration:event.durationMs??step.duration,phase:step.phase}];
+        return [{event,delay:step.start+(event.delayMs??(['damage','reaction','defeat'].includes(event.type)?Math.min(300,step.duration*.5)+i%3*40:0)),duration:event.durationMs??(['attack','cast'].includes(event.type)?Math.min(580,step.duration):step.duration),phase:step.phase}];
       });
     });
   }

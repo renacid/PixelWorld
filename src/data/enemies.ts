@@ -3,7 +3,7 @@ import { ENEMY_SKILLS } from './enemySkills';
 import type { DropEntry } from './loot';
 
 /** 絵の種類は敵の種類から独立。新しい敵でも既存の絵を再利用できます。 */
-export type SpriteId = 'reaper' | 'fighter' | 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'sprite' | 'greaterSprite' | 'treant';
+export type SpriteId = 'frostBoar' | 'reaper' | 'fighter' | 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'sprite' | 'greaterSprite' | 'treant';
 export type ActorDefinition = {
   lifetime?: number;
   wideAttack?: boolean; skillSelection?: 'exclusive';
@@ -34,6 +34,7 @@ function define(config: Pick<ActorDefinition, 'name' | 'hp' | 'attack' | 'sprite
 
 /** 敵の追加はこの一覧から。IDの型もこのキーから自動生成されます。 */
 export const ENEMIES = {
+  frostBoar: define({name:'フロストボア',hp:23,attack:5,mp:10,detectionRange:4,sprite:'frostBoar',experience:5,skills:['chargingStrike','iceArmor','sweepingStrike']}),
   goblinKing: define({name:'ゴブリン・キング',hp:300,attack:6,mp:50,sprite:'fighter',experience:30,detectionRange:15,chaseMoveLimit:99999}),
   reaper:define({name:'死神',hp:13,mp:40,attack:4,detectionRange:7,experience:0,sprite:'reaper',bob:true,skills:['flowAcceleration','sweepingStrike']}),
   goblinFighter:define({name:'ゴブリン・ファイター',hp:35,mp:15,attack:5, hpPerStage: 1, detectionRange:4, experience:8, sprite:'fighter',skills:['dash','heavyStrike']}),

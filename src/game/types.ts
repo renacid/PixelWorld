@@ -10,14 +10,14 @@ export type Attribute = 'fire' | 'ice' | 'thunder' | 'earth' | 'wind' | 'neutral
 export type SkillId = 'thunderPrison' | 'meteor' | 'icePillar' | 'thunderArmor' | 'iceLance' | 'fireWall' | 'tornadoSummon' | 'earthquake' | 'summonSpirit' | 'iceShield' | 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
 export type ItemId = 'bookmarkLesser' | 'bookmarkMiddle' | 'bookmarkGreater' | 'powerPotion' | 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
 export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
-export type Actor = { bossPhases?: number[]; bossLinkUntil?: number; summonedBy?: string; lastActedAt?:number; movementLockedUntil?: number; frostErosion?: { spent:boolean; rootUntil?:number };
+export type Actor = { stunnedUntil?: number; bossPhases?: number[]; bossLinkUntil?: number; summonedBy?: string; lastActedAt?:number; movementLockedUntil?: number; frostErosion?: { spent:boolean; rootUntil?:number };
   wideAttack?: boolean; skillSelection?: 'exclusive';
   enemyCooldownUntil?: Record<string, number>; mpRecoveryTurns?: number;
   remainingLife?: number;
   experienceMultiplier?: number;
   criticalRate?: number; criticalMultiplier?: number;
   immobile?: boolean; skillChances?: Record<string, number>;
-  buffs?: { name?: string; thunderFollowup?: { chance:number; ratio:number }; id: string; remainingTurns: number; appliedAt: number; attackBonus?: number; attackMultiplier: number; detectionBonus: number }[];
+  buffs?: { name?: string; iceFollowup?: { chance:number; ratio:number }; thunderFollowup?: { chance:number; ratio:number }; id: string; remainingTurns: number; appliedAt: number; attackBonus?: number; attackMultiplier: number; detectionBonus: number }[];
   id: string; name: string; kind: ActorKind;
   position: Point; cells: Point[]; directions: Direction[]; attackCells: Point[]; facing: Direction;
   hp: number; maxHp: number; attack: number; attribute: Attribute; afflictions: Affliction[];
@@ -77,7 +77,7 @@ export type ClearCondition = {type:'destroyInstallations';kind:import('../data/i
 export type LayoutSource = StageLayout | ((stage: Stage, floor: number) => StageLayout);
 /** 1層あたりの書の上限と、2冊目以降の追加抽選確率。初期配置も上限に含む。 */
 export type SkillBookPlacement = { max: number; extraChance: number };
-export type FloorSettings = { skillBooks?: SkillBookPlacement; installationPlacements?: InstallationPlacement[]; width?: number; height?: number; clearCondition?: ClearCondition; enemySpawns?: EnemySpawn[]; trapPlacements?: TrapPlacement[]; trapPool?: TrapPlacement['pool']; loot?: LootPools; enemyDrops?: Partial<Record<EnemyKind, DropEntry[]>>; layout?: LayoutSource };
+export type FloorSettings = { /** 階層専用の目標表示。省略時はクリア条件から自動生成。 */ objective?: string; skillBooks?: SkillBookPlacement; installationPlacements?: InstallationPlacement[]; width?: number; height?: number; clearCondition?: ClearCondition; enemySpawns?: EnemySpawn[]; trapPlacements?: TrapPlacement[]; trapPool?: TrapPlacement['pool']; loot?: LootPools; enemyDrops?: Partial<Record<EnemyKind, DropEntry[]>>; layout?: LayoutSource };
 export type Stage = { skillBooks?: SkillBookPlacement; installationPlacements?: InstallationPlacement[]; regionId?: string; code?: string; clearCondition?: ClearCondition; floorSettings?: Record<number, FloorSettings>; layout?: LayoutSource; loot?: LootPools; trapPool?: TrapPlacement['pool']; enemyDrops?: Partial<Record<EnemyKind, DropEntry[]>>; dungeon?: FloorRules & { floors: number; enemyScaling?: { everyFloors: number; multiplier: number }; overrides?: Record<number, Partial<FloorRules>> }; /** 開始時に全スキルを配る開発用設定。 */ initialSkillLevels?: Partial<Record<SkillId, number>>; initialBagSize?: number; initialPlayerMp?: number; id: number; name: string; subtitle: string; description: string; objective: string; vision: number; width: number; height: number; enemyCount: number; enemySpawns?: EnemySpawn[]; trapPlacements?: TrapPlacement[]; sleepRespawnCount?: number };
 /** ASCII文字と地形IDを対応させ、手作りダンジョンを定義できます。 */
 export type StageLayout = { bossArena?: import("./BossEncounter").BossArena; installations?: Installation[]; randomEnemies?: EnemySpawn[]; randomChests?: number; gemCount?: number; rows: string[]; legend: Record<string, number>; spawn: Point; objects: GroundObject[]; enemies: { kind: EnemyKind; position: Point }[]; fields?: FieldEffect[]; trapPlacements?: TrapPlacement[]; traps?: TrapInstance[] };

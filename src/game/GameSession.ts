@@ -181,10 +181,12 @@ export class GameSession {
     this.events.push({ type: 'damage', position, actorId: target.id, amount: value, attribute, critical, reaction });
     if (!this.groupingDamage) this.log(`${target.name}に${critical ? '会心' : ''}${value}${reaction==='融撃'?'の融撃ダメージ':'ダメージ'}！`);
     // 追加雷撃は物理ではないため再帰発動しない。反応は通常の属性処理へ渡す。
-    const followup=attacker?.buffs?.find(b=>b.remainingTurns>0&&b.thunderFollowup)?.thunderFollowup;
+    const activeArmor=attacker?.buffs?.find(b=>b.remainingTurns>0&&(b.thunderFollowup||b.iceFollowup));
+    const followup=activeArmor?.thunderFollowup??activeArmor?.iceFollowup;
+    const followupAttribute=activeArmor?.iceFollowup?'ice':'thunder';
     if(attribute==='physical'&&value>0&&target.hp>0&&followup&&this.rng.next()<followup.chance){
-      this.events.push({type:'reaction',actorId:target.id,position:{...target.position},attribute:'thunder',text:'雷装',sound:'magicCast'});
-      dealAttributeHit(target,Math.floor(value*followup.ratio),'thunder',this.state.playerActionCount,this.actors,(t,n,a,crit)=>this.damage(t,n,a,crit,attacker),this.events,()=>this.rng.next(),false,true,attacker?crystalSource(this.state,attacker):undefined);
+      this.events.push({type:'reaction',actorId:target.id,position:{...target.position},attribute:followupAttribute,text:followupAttribute==='ice'?'氷装':'雷装',sound:followupAttribute==='ice'?'ice':'magicCast'});
+      dealAttributeHit(target,Math.floor(value*followup.ratio),followupAttribute,this.state.playerActionCount,this.actors,(t,n,a,crit)=>this.damage(t,n,a,crit,attacker),this.events,()=>this.rng.next(),false,true,attacker?crystalSource(this.state,attacker):undefined);
     }
   };
   /** 一つの行動による各ヒット・反応を対象別に集計して、読みやすい一件のログにする。 */
@@ -511,6 +513,8 @@ export class GameSession {
     return true;
   }
   objectiveLabel(): string {
+    const custom=this.stage.floorSettings?.[this.state.floorNumber??1]?.objective;
+    if(custom)return custom;
     const goal = this.stage.clearCondition;
     if (goal?.type === 'records') return `古代の記録 ${this.state.objectiveChests}/${goal.count}個を回収し、出口へ`;
     if(goal?.type==='destroyInstallations')return INSTALLATIONS[goal.kind].name+' '+(this.state.destroyedInstallations?.[goal.kind]??0)+'/'+goal.count+'個を破壊し、出口へ';
@@ -630,6 +634,7 @@ export class GameSession {
     this.events = [];
     this.frames = []; this.frameEventStart = 0;this.prepareCrystalReactions();
     if (s.status !== 'playing' || s.pendingBag || s.pendingGemChoices?.length || s.pendingSkillBooks) return false;
+    if((p.stunnedUntil??0)>s.playerActionCount){command={type:'wait'};this.log('旅人は行動不能で動けない！');}
     if (command.type === 'cast') { const error = this.canCast(command.skillId); if (error) { this.log(error); return false; } if (!validSkillTarget(s, command.skillId, command.target)) { this.log('選択範囲内の着弾点を選んでください。'); return false; } }
     if (command.type === 'move') {
       p.facing = command.direction;
@@ -657,17 +662,19 @@ export class GameSession {
     tickThunderPrisons(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     this.groupingDamage=false;this.reap();
     this.capture('player');
-    for (const ally of s.allyStates) { if (p.hp <= 0) break; const from={...ally.position}; actSummon(s, ally, this.rng, this.events, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, message => this.log(message)); if(!same(from,ally.position))contactBossFire(s,ally,(t,n,a,c)=>this.damage(t,n,a,c,null),this.events,this.rng); }
+    for (const ally of s.allyStates) { if (p.hp <= 0) break; if((ally.stunnedUntil??0)>s.playerActionCount)continue; const from={...ally.position}; actSummon(s, ally, this.rng, this.events, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, message => this.log(message)); if(!same(from,ally.position))contactBossFire(s,ally,(t,n,a,c)=>this.damage(t,n,a,c,null),this.events,this.rng); }
     for(const ally of s.allyStates){if(ally.remainingLife!==undefined&&--ally.remainingLife<=0){ally.hp=0;this.log(ally.name+'は役目を終え、消えていった。');this.events.push({type:'defeat',actorId:ally.id,position:{...ally.position},text:'消滅'});}}
     this.reap(); this.capture('ally');
     tickBanners(s);
     for (const enemy of [...s.enemyStates]) {
       if (p.hp <= 0) break;
       if(enemy.hp<=0)continue;
+      if((enemy.stunnedUntil??0)>s.playerActionCount){this.log(enemy.name+'は行動不能！');continue;}
       const canRollSkills=enemy.mode==='hostile'||occupied(enemy).some(c=>occupied(p).some(t=>Math.max(Math.abs(c.x-t.x),Math.abs(c.y-t.y))<=detection(enemy)*2));
       const actionCount=canRollSkills?enemyActionCount(enemy,{rng:this.rng,events:this.events,log:m=>{if(this.inPlayerScreen(enemy.position))this.log(m);}}):1;
       for(let extra=0;extra<actionCount;extra++){
       if(p.hp<=0||enemy.hp<=0)break;
+      if((enemy.stunnedUntil??0)>s.playerActionCount)break;
       contactSkillFields(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
       if(enemy.hp<=0)break;
       const beforePosition = { ...enemy.position };
@@ -679,7 +686,9 @@ export class GameSession {
       enemy.enemyCooldownUntil ??= {};
       const support = { ...enemy, enemySkillIds: (enemy.enemySkillIds ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type === 'allyBuff') };
       if (canRollSkills && tryEnemySkill(support, [], skillContext)) { enemy.mp = support.mp; continue; }
-      if (!actKing(s,enemy,{rng:this.rng,events:this.events,log:m=>this.log(m),hit:(a,b,n,attribute,label)=>this.strike(a,b,n,attribute,label)})) actEnemy(s.mapState, enemy, [p, ...s.allyStates], this.actors, this.rng, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, s.playerActionCount, (caster, targets) => { const ids = caster.enemySkillIds; caster.enemySkillIds = (ids ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type !== 'allyBuff'); try { return tryEnemySkill(caster, targets, skillContext); } finally { caster.enemySkillIds = ids; } });
+      const chargeIds=(enemy.enemySkillIds??[]).filter(id=>ENEMY_SKILLS[id]?.effect.type==='charge');
+      const charged=chargeIds.length>0&&(()=>{const ids=enemy.enemySkillIds;enemy.enemySkillIds=chargeIds;try{return tryEnemySkill(enemy,[p,...s.allyStates],skillContext);}finally{enemy.enemySkillIds=ids;}})();
+      if (!charged && !actKing(s,enemy,{rng:this.rng,events:this.events,log:m=>this.log(m),hit:(a,b,n,attribute,label)=>this.strike(a,b,n,attribute,label)})) actEnemy(s.mapState, enemy, [p, ...s.allyStates], this.actors, this.rng, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, s.playerActionCount, (caster, targets) => { const ids = caster.enemySkillIds; caster.enemySkillIds = (ids ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type !== 'allyBuff'); try { return tryEnemySkill(caster, targets, skillContext); } finally { caster.enemySkillIds = ids; } });
       // 移動先のダメージで倒れる場合も、到着した姿を先に描画できるよう保存。
       const arrivalActors = !same(beforePosition, enemy.position) ? structuredClone(this.actors) : null;
       const arrivalEventStart = this.events.length;
