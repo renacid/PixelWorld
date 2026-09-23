@@ -1,5 +1,5 @@
 /** 演出名はモンスター・罠の名前から独立させ、複数の効果で共有します。 */
-export type TrapVisual = 'quake'|'iceLance'|'windVortex' | 'iceShield' | 'shatter' | 'chestBurst' | 'snare' | 'fireBlast' | 'fallingRocks' | 'healingGlow' | 'summonRing';
+export type TrapVisual = 'elementalSwirl' | 'quake'|'iceLance'|'windVortex' | 'iceShield' | 'shatter' | 'chestBurst' | 'snare' | 'fireBlast' | 'fallingRocks' | 'healingGlow' | 'summonRing';
 export type SoundCue = 'shatter' | 'ancientRecord' | 'magicCast' | 'treasure' | 'snap' | 'explosion' | 'rocks' | 'healing' | 'stone' | 'strike' | 'ice' | 'howl';
 export type Tone = { from: number; to: number; duration: number; wave: OscillatorType; delay?: number; volume?: number };
 export const SOUND_CUES: Record<SoundCue, Tone[]> = {

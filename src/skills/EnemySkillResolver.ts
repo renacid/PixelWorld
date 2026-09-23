@@ -1,4 +1,5 @@
 import { targetableCrystals } from '../game/CrystalTargets';
+import { canMeleeAttack } from '../ai/EnemyAI';
 import { ENEMY_SKILLS, type EnemySkillDefinition } from '../data/enemySkills';
 import { canStand, distance, lineOfSight, occupied, same, wall } from '../game/MapState';
 import type { Random } from '../game/Random';
@@ -94,7 +95,13 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
         }
         if (!cells.length) continue;
         if ((!exclusive && context.rng.next() >= (caster.skillChances?.[id] ?? skill.chance))) continue;
-        destination = cells[context.rng.int(0, cells.length - 1)];
+        // 元の転移範囲・空き判定を守り、プレイヤーへの射線を作れる場所を優先。
+        const player = targets.find(t => t.kind === 'player' && t.hp > 0);
+        const preferred = player ? cells.filter(cell => occupied(player).some(p =>
+          (cell.x === p.x || cell.y === p.y) && distance(cell, p) >= 1 && distance(cell, p) <= 2
+          && lineOfSight(context.map, cell, p))) : [];
+        const pool = preferred.length ? preferred : cells;
+        destination = pool[context.rng.int(0, pool.length - 1)];
       } else {
         if (!skill.effect.allowFull && (caster.mp ?? 0) >= (caster.maxMp ?? 0) || (!exclusive && context.rng.next() >= (caster.skillChances?.[id] ?? skill.chance))) continue;
       }
@@ -123,6 +130,10 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
       return range >= skill.minRange && range <= skill.maxRange && (!skill.cardinalOnly || c.x === p.x || c.y === p.y) && (!skill.requiresSight || lineOfSight(context.map, c, p));
     })));
     const prepared = candidates.map(target => ({ target, action: prepare(skill, caster, target, context) })).find(entry => entry.action !== null);
+    // 通常攻撃(100%)より平均威力の低い飛び道具は、接敵中には使わない。
+    // 強撃など近接スキルの抽選は維持し、通常AIへ戻れば通常攻撃する。
+    if (prepared && skill.effect.type === 'projectile' && canMeleeAttack(caster, prepared.target)
+      && (skill.effect.damageMin + skill.effect.damageMax) / 2 < 1) continue;
     if (!prepared || !prepared.action || (!exclusive && context.rng.next() >= (caster.skillChances?.[id] ?? skill.chance))) continue;
     const { target, action } = prepared;
     consume(); caster.position = action.position; caster.facing = action.facing;

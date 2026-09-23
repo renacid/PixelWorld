@@ -330,8 +330,10 @@ export class GameSession {
   canCast(id: SkillId, automatic = false): string | null {
     if(SKILLS[id].kind==='passive'&&!automatic)return '攻撃を受けたときに自動発動';
     if(id==='summonSpirit'){
-      if(!summonMedia(this.state).length)return effectiveLevel(this.state.skillBag,this.state.skillLevels,id)>=3?'中級精霊にはレア階級2以上の道具が必要です。':'召喚の媒体にする道具がありません。';
-      if(!summonCells(this.state).length)return '周囲に精霊が現れる空きマスがありません。';
+      if(!summonMedia(this.state).length)
+        return '召喚の媒体にする道具がありません。';
+      if(!summonCells(this.state).length)
+        return '周囲に精霊が現れる空きマスがありません。';
     }
     if(id==='icePillar'&&!(['up','right','down','left'] as const).some(direction=>icePillarCells(this.state,direction,this.rng).length>0))return '周囲十字に空きマスが必要です。';
     if(id==='fireWall'&&!previewSkill(this.state,id,this.state.playerState.facing).cells.length)return '前方が壁で設置できません。';
@@ -367,9 +369,19 @@ export class GameSession {
       this.events.push({type:'trap',position:{...p.position},visual:'summonRing',sound:'magicCast',attribute:'thunder'});this.log('雷装！ '+turns+'ターン雷をまとう。');return;
     }
     if(id==='summonSpirit'){
-      const cells=summonCells(s),media=summonMedia(s),slot=media[this.rng.int(0,media.length-1)],item=s.itemSlots.splice(slot,1)[0];
-      const ally=createSpirit(s,effectiveLevel(s.skillBag,s.skillLevels,id)>=3?'greaterSprite':'sprite',cells[this.rng.int(0,cells.length-1)]);
-      this.events.push({type:'trap',position:{...ally.position},visual:'summonRing',sound:'magicCast'});this.log(ITEMS[item].name+'を媒体に'+ally.name+'を召喚！');return;
+      const cells = summonCells(s);const media = summonMedia(s);
+      const slot = media[this.rng.int(0, media.length - 1)];
+      const item = s.itemSlots.splice(slot, 1)[0];
+      const level = effectiveLevel(s.skillBag,s.skillLevels,id);
+
+      // Lv3以上かつ、実際に使った媒体がrareRank 2以上なら中級精霊。
+      // rank1へフォールバックした場合は下級精霊。
+      const spiritKind =level >= 3 && ITEMS[item].rareRank >= 2?'greaterSprite':'sprite';
+      const ally = createSpirit(s,spiritKind,cells[this.rng.int(0, cells.length - 1)]);
+      this.events.push({type: 'trap',position: { ...ally.position },visual: 'summonRing',sound: 'magicCast'});
+
+      this.log(ITEMS[item].name +'を媒体に'+ally.name+'を召喚！');
+      return;
     }
     if (id === 'chainLightning') {
       let origins=occupied(p), source={...p.position}; const hit=new Set<string>(), start=this.events.length;
@@ -631,7 +643,10 @@ export class GameSession {
       const support = { ...enemy, enemySkillIds: (enemy.enemySkillIds ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type === 'allyBuff') };
       if (tryEnemySkill(support, [], skillContext)) { enemy.mp = support.mp; continue; }
       actEnemy(s.mapState, enemy, [p, ...s.allyStates], this.actors, this.rng, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, s.playerActionCount, (caster, targets) => { const ids = caster.enemySkillIds; caster.enemySkillIds = (ids ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type !== 'allyBuff'); try { return tryEnemySkill(caster, targets, skillContext); } finally { caster.enemySkillIds = ids; } });
-      if (!same(beforePosition, enemy.position)) for (const trap of [...s.mapState.playerTraps!]) {
+      // 移動先のダメージで倒れる場合も、到着した姿を先に描画できるよう保存。
+      const arrivalActors = !same(beforePosition, enemy.position) ? structuredClone(this.actors) : null;
+      const arrivalEventStart = this.events.length;
+      if (arrivalActors) for (const trap of [...s.mapState.playerTraps!]) {
         if (enemy.hp <= 0 || !occupied(enemy).some(c => same(c, trap.position))) continue;
         s.mapState.playerTraps = s.mapState.playerTraps!.filter(t => t.id !== trap.id);
         const start = this.events.length; this.groupingDamage = true;
@@ -642,6 +657,13 @@ export class GameSession {
       }
       enemy.lastActedAt=s.playerActionCount;
       contactSkillFields(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
+      if (arrivalActors && this.events.length > arrivalEventStart) {
+        // 到着→罠・床・反応の順に再生。戦闘処理の順序や乱数は変えない。
+        this.frames.push({ phase: 'enemy', actors: arrivalActors, events: structuredClone(this.events.slice(this.frameEventStart, arrivalEventStart)) });
+        this.frameEventStart = arrivalEventStart;
+        for (const event of this.events.slice(arrivalEventStart)) event.delayMs ??= 0;
+        this.capture('enemy');
+      }
       if(actionCount>1)this.capture('enemy');
       }
     }

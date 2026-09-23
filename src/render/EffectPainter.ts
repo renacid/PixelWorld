@@ -1,4 +1,5 @@
 import type { GameEvent, Point } from '../game/types';
+import { ATTRIBUTE_COLORS } from '../data/skills';
 
 /** データ側のvisualキーで再利用する罠演出。地形には描かず発動イベントだけを描画。 */
 export function drawTrapEffect(ctx: CanvasRenderingContext2D, event: GameEvent, age: number, screen: (p: Point) => Point): void {
@@ -6,7 +7,17 @@ export function drawTrapEffect(ctx: CanvasRenderingContext2D, event: GameEvent, 
   for (const cell of event.path ?? [event.position]) {
     const visualCell=event.visual==='windVortex'&&event.target?{x:cell.x+(event.target.x-cell.x)*Math.min(1,age*2),y:cell.y+(event.target.y-cell.y)*Math.min(1,age*2)}:cell;
     const p = screen(visualCell), x = p.x + 16, y = p.y + 16;
-    if(event.visual==='quake'){
+    if(event.visual==='elementalSwirl'){
+      // 細い風の弧と粒を、発生地点から隣接マスへゆっくり広げる。
+      const radius=3+36*(1-Math.pow(1-age,1.6));
+      ctx.globalAlpha=Math.sin(Math.PI*Math.min(1,age*2))*.2+(1-age)*.65;
+      ctx.strokeStyle=ATTRIBUTE_COLORS[event.attribute??'wind'];ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=2;
+      for(let i=0;i<6;i++){
+        const angle=i*Math.PI/3+age*1.8;
+        ctx.beginPath();ctx.arc(x,y,radius,angle,angle+.65);ctx.stroke();
+        ctx.fillRect(x+Math.cos(angle+.7)*radius-1,y+Math.sin(angle+.7)*radius-1,2,2);
+      }
+    }else if(event.visual==='quake'){
       ctx.strokeStyle='#a98351';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x+3,p.y+25);ctx.lineTo(p.x+12,p.y+14);ctx.lineTo(p.x+19,p.y+20);ctx.lineTo(p.x+29,p.y+6);ctx.stroke();
     }else if(event.visual==='iceLance'){
       ctx.fillStyle='#d9faff';ctx.beginPath();ctx.moveTo(x,y-13);ctx.lineTo(x+5,y+5);ctx.lineTo(x,y+12);ctx.lineTo(x-5,y+5);ctx.closePath();ctx.fill();ctx.strokeStyle='#67b7e0';ctx.stroke();

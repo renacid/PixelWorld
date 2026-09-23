@@ -48,7 +48,12 @@ export class GameCanvas {
   }
   destroy(): void { cancelAnimationFrame(this.frame); this.effects = []; }
   animateTurn(before: Actor[], frames: TurnFrame[]): number {
-    this.animation = new TurnAnimation(before, frames, a => occupied(a).some(p => this.session!.visible(p)));
+    const pointVisible = (p: Point) => this.onScreen(p) && this.session!.visible({ x: Math.round(p.x), y: Math.round(p.y) });
+    const actorVisible = (a: Actor) => occupied(a).some(pointVisible);
+    const eventVisible = (event: GameEvent, actors: Actor[]) => event.actorId === 'player'
+      || pointVisible(event.position) || !!event.target && pointVisible(event.target)
+      || !!event.path?.some(pointVisible) || actors.some(a => a.id === event.actorId && actorVisible(a));
+    this.animation = new TurnAnimation(before, frames, actorVisible, eventVisible);
     this.animationStart = performance.now();
     this.effects.push(...this.animation.events().map(({ event, delay, duration }, i) => ({ ...event, born: this.animationStart + (this.settings.motion ? delay : 0), duration: event.durationMs ?? (['cast', 'attack'].includes(event.type) ? duration : 1000), index: i, played: false, shown: event.actorId === 'player' || this.session!.visible({ x: Math.round(event.position.x), y: Math.round(event.position.y) }) || [...before, ...frames.flatMap(f => f.actors)].some(a => a.id === event.actorId && occupied(a).some(p => this.session!.visible(p))) })));
     if (!this.settings.motion) { this.animation = null; return 100; }
@@ -208,7 +213,11 @@ export class GameCanvas {
       if (clock < e.born || !e.shown) continue;
       if (!e.played) { e.played = true; this.onSound?.(e); }
       const age = Math.min(1, (clock - e.born) / e.duration), p = screen(e.position), color = e.attribute ? ATTRIBUTE_COLORS[e.attribute] : '#ffc654'; ctx.save();
-      if (e.type === 'trap') drawTrapEffect(ctx, e, age, screen);
+      if (e.visual === 'elementalSwirl') {
+        drawTrapEffect(ctx, e, age, screen);
+        if(e.text)this.popup(ctx,e.text,p.x+16,p.y-age*20,color,true);
+      }
+      else if (e.type === 'trap') drawTrapEffect(ctx, e, age, screen);
       else if (e.type === 'cast' || e.type === 'attack') this.skillEffect(ctx, e, age, screen);
       else if (e.type === 'levelup' || e.type === 'defeat' || e.type === 'pickup' || e.type === 'reaction') {
         ctx.globalAlpha = 1 - age; ctx.fillStyle = color;

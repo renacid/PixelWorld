@@ -34,7 +34,7 @@ export function applyAttribute(target: Actor, attribute: Attribute, hitDamage: n
   const opposite = attribute === 'fire' ? 'thunder' : attribute === 'thunder' ? 'fire' : null;
   if (opposite && target.afflictions.some(a => a.attribute === opposite)) {
     target.afflictions = target.afflictions.filter(a => a.attribute !== 'fire' && a.attribute !== 'thunder');
-    reactionDamage(target,hitDamage*1.2,'fire',damage,events);
+    reactionDamage(target,hitDamage*.8,'fire',damage,events);
     events.push({ type: 'reaction', position: { ...target.position }, text: '爆破', attribute: 'fire' });
     syncFrost(target,action,events);
     return;
@@ -43,12 +43,13 @@ export function applyAttribute(target: Actor, attribute: Attribute, hitDamage: n
   if (attribute === 'wind' && spread.length && allowSwirl) {
     // 元の炎・氷・雷と残り持続時間は維持し、風は付着させない。
     target.afflictions = target.afflictions.filter(a => a.attribute !== 'wind');
-    events.push({ type: 'reaction', position: { ...target.position }, text: '風散', attribute: 'wind' });
+    // 拡散する属性色で風を描く。演出の長さはダメージ判定やターン数に影響しない。
+    spread.forEach((element, index) => events.push({ type: 'reaction', position: { ...target.position }, text: index === 0 ? '風散' : undefined, attribute: element.attribute, visual: 'elementalSwirl', durationMs: 1200 }));
     for (const other of enemies) {
       if (other.id === target.id || other.hp <= 0) continue;
       if (!occupied(other).some(c => occupied(target).some(t => Math.max(Math.abs(c.x - t.x), Math.abs(c.y - t.y)) <= 1))) continue;
       for (const spreadElement of spread) {
-        const splash = Math.floor(hitDamage * .1);
+        const splash = Math.ceil(hitDamage * .2);
         let first=true;
         dealAttributeHit(other,splash,spreadElement.attribute,action,enemies,(t,n,a,crit)=>{if(first){first=false;reactionDamage(t,n,a,damage,events,crit);}else damage(t,n,a,crit);},events,random,false,false,source);
       }

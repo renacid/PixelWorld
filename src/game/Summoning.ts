@@ -8,4 +8,50 @@ export function summonCells(s:SaveData):Point[]{const cells:Point[]=[],p=s.playe
 export function createSpirit(s:SaveData,kind:'sprite'|'greaterSprite',position:Point):Actor{let id='ally-'+s.playerActionCount+'-'+s.allyStates.length;while(s.allyStates.some(a=>a.id===id))id+='-new';const ally=actor(id,kind,position);ally.remainingLife=actorDefinition(kind).lifetime??30;ally.detectionRange=7;s.allyStates.push(ally);return ally;}
 
 /** Lv3以降はレア2以上が必要。同じ最低レア階級の道具からランダムに1個消費。 */
-export function summonMedia(s:SaveData):number[]{const minimum=effectiveLevel(s.skillBag,s.skillLevels,'summonSpirit')>=3?2:1;const slots=s.itemSlots.map((id,index)=>({index,rank:ITEMS[id].rareRank})).filter(e=>e.rank>=minimum);const rank=Math.min(...slots.map(e=>e.rank));return slots.filter(e=>e.rank===rank).map(e=>e.index);}
+// export function summonMedia(s:SaveData):number[]{const minimum=effectiveLevel(s.skillBag,s.skillLevels,'summonSpirit')>=3?2:1;const slots=s.itemSlots.map((id,index)=>({index,rank:ITEMS[id].rareRank})).filter(e=>e.rank>=minimum);const rank=Math.min(...slots.map(e=>e.rank));return slots.filter(e=>e.rank===rank).map(e=>e.index);}
+/**
+ * 精霊召喚術の媒体候補。
+ *
+ * Lv1～2:
+ *   所持品の中で最も低いレア階級の道具を使う。
+ *
+ * Lv3以上:
+ *   rareRank 2以上の道具が1個でもあれば、
+ *   その中で最も低い階級を使う。
+ *
+ *   rareRank 2以上が1個も無ければ、
+ *   rareRank 1の道具へフォールバックする。
+ */
+export function summonMedia(s: SaveData): number[] {
+  const level = effectiveLevel(
+    s.skillBag,
+    s.skillLevels,
+    'summonSpirit'
+  );
+
+  const slots = s.itemSlots.map((id, index) => ({
+    index,
+    rank: ITEMS[id].rareRank
+  }));
+
+  if (!slots.length) return [];
+
+  let candidates = slots;
+
+  if (level >= 3) {
+    const advanced = slots.filter(e => e.rank >= 2);
+
+    // 中級以上の媒体が存在する場合だけ、そちらを優先する。
+    if (advanced.length) {
+      candidates = advanced;
+    }
+  }
+
+  const rank = Math.min(
+    ...candidates.map(e => e.rank)
+  );
+
+  return candidates
+    .filter(e => e.rank === rank)
+    .map(e => e.index);
+}

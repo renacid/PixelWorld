@@ -5,6 +5,10 @@ import { detection, movementLocked } from '../game/ActorStats';
 import { VECTORS, type Actor, type Direction, type MapState, type Point } from '../game/types';
 export function faceToward(a: Actor, target: Point): Direction { const dx = target.x - a.position.x, dy = target.y - a.position.y; return Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up'; }
 export function actorDistance(a: Actor, b: Actor): number { return Math.min(...occupied(a).flatMap(c => occupied(b).map(t => distance(c, t)))); }
+/** 通常攻撃とスキル選択で同じ占有セル・攻撃範囲を使う。 */
+export function canMeleeAttack(a: Actor, target: Actor): boolean {
+  return target.hp > 0 && actorDistance(a, target) <= a.attackRange && occupied(a).some(c => a.attackCells.some(offset => occupied(target).some(t => same(t, { x: c.x + offset.x, y: c.y + offset.y }))));
+}
 /** 占有は正方形なので、向きが変わっても占有セルは変わりません。 */
 export function oriented(a: Actor, facing: Direction): Actor {
   return { ...a, facing };
@@ -52,8 +56,7 @@ export function actEnemy(map: MapState, enemy: Actor, targets: Actor[], blockers
     turn(map, enemy, faceToward(enemy, target.position), blockers);
     enemy.mode = 'hostile'; enemy.lastSeen = { ...target.position }; enemy.pursuitLeft = enemy.pursuitTurns;
     if (skill?.(enemy, visible)) { enemy.chaseMoves = 0; return; }
-    const inAttackCell = occupied(enemy).some(c => enemy.attackCells.some(offset => occupied(target).some(t => same(t, { x: c.x + offset.x, y: c.y + offset.y }))));
-    if (actorDistance(enemy, target) <= enemy.attackRange && inAttackCell) { enemy.chaseMoves = 0;
+    if (canMeleeAttack(enemy, target)) { enemy.chaseMoves = 0;
       if (enemy.wideAttack) {
         // 正方形の一辺から前方1マス。2×2なら幅2マスにいる敵対対象を攻撃する。
         const own = occupied(enemy), hit = occupied(target).find(t => own.some(c => distance(c, t) === 1));

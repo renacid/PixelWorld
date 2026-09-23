@@ -5,8 +5,10 @@ export function interpolate(from: number, to: number, progress: number): number 
 export class TurnAnimation {
   steps: AnimationStep[] = [];
   duration = 0;
-  constructor(before: Actor[], frames: TurnFrame[], visible: (actor: Actor) => boolean) {
-    for (const frame of frames) {
+  constructor(before: Actor[], frames: TurnFrame[], visible: (actor: Actor) => boolean, eventVisible: (event: GameEvent, actors: Actor[]) => boolean = () => true) {
+    for (const source of frames) {
+      // 画面外だけで完結する演出には待ち時間を付けない。行動結果は維持する。
+      const frame = { ...source, events: source.events.filter(event => eventVisible(event, [...before, ...source.actors])) };
       const changed = frame.events.length > 0 || frame.actors.some(a => { const b = before.find(o => o.id === a.id); return (!b || a.position.x !== b.position.x || a.position.y !== b.position.y) && (visible(a) || !!b && visible(b)); });
       if (frame.phase === 'player' || changed) {
         const duration = Math.max(frame.events.some(e => e.type === 'cast') ? 580 : frame.events.some(e => e.type === 'attack') ? 340 : 230, ...frame.events.filter(e => e.type === 'trap' || e.skillId === 'chainLightning').map(e => (e.delayMs ?? 0) + (e.durationMs ?? 550)));
