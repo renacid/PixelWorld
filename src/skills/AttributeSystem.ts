@@ -3,11 +3,29 @@ import type { Actor, Attribute, GameEvent, CrystalSource } from '../game/types';
 import { occupied } from '../game/MapState';
 /** セッション単位の結晶生成フック。独立した属性計算にもゲーム状態を強制しない。 */
 const crystalHandlers=new WeakMap<GameEvent[],(target:Actor,attribute:'ice'|'thunder',source?:CrystalSource)=>void>();
+const swirlHandlers=new WeakMap<GameEvent[],(target:Actor,resolve:()=>void)=>void>();
+export function bindSwirlReaction(events:GameEvent[],handler:(target:Actor,resolve:()=>void)=>void):void{swirlHandlers.set(events,handler);}
+export type ReactionLabel = '融撃' | '爆破' | '霜蝕撃' | '風散';
+const damageLabels=new WeakMap<GameEvent[],ReactionLabel>();
+export function reactionLabel(events:GameEvent[]):ReactionLabel|undefined{return damageLabels.get(events);}
+function labeledDamage(events:GameEvent[],label:ReactionLabel,run:()=>void):void {
+ const previous=damageLabels.get(events);damageLabels.set(events,label);
+ try{run();}finally{if(previous)damageLabels.set(events,previous);else damageLabels.delete(events);}
+}
 export function bindCrystalReaction(events:GameEvent[],handler:(target:Actor,attribute:'ice'|'thunder',source?:CrystalSource)=>void):void{crystalHandlers.set(events,handler);}
 export const ATTRIBUTE_DURATION: Record<Attribute, number> = { fire: 10, ice: 10, thunder: 10, earth: 10, wind: 0, neutral: 0, physical: 0, nature: 10 };
 export type DamageHandler = (target: Actor, damage: number, attribute: Attribute, critical?: boolean) => void;
+const batchHandlers=new WeakMap<GameEvent[],(resolve:()=>number)=>number>();
+const activeBatches=new WeakSet<GameEvent[]>();
+export function bindAttributeBatch(events:GameEvent[],handler:(resolve:()=>number)=>number):void{batchHandlers.set(events,handler);}
 /** 先に融激倍率を適用してから整数化。反応で両属性を消費するため、後続ヒットは通常付着。 */
 export function dealAttributeHit(target: Actor, raw: number, attribute: Attribute, action: number, actors: Actor[], damage: DamageHandler, events: GameEvent[], random: () => number, critical = false, allowSwirl = true, source?:CrystalSource): number {
+  const resolve=()=>resolveAttributeHit(target,raw,attribute,action,actors,damage,events,random,critical,allowSwirl,source);
+  const handler=batchHandlers.get(events);
+  if(!handler||activeBatches.has(events))return resolve();
+  activeBatches.add(events);try{return handler(resolve);}finally{activeBatches.delete(events);}
+}
+function resolveAttributeHit(target: Actor, raw: number, attribute: Attribute, action: number, actors: Actor[], damage: DamageHandler, events: GameEvent[], random: () => number, critical: boolean, allowSwirl: boolean, source?:CrystalSource): number {
   if (attribute === 'nature') attribute = 'earth';
   const opposite = attribute === 'fire' ? 'ice' : attribute === 'ice' ? 'fire' : null;
   const frostReady=!!target.frostErosion&&!target.frostErosion.spent&&hasFrostAttributes(target);
@@ -17,7 +35,7 @@ export function dealAttributeHit(target: Actor, raw: number, attribute: Attribut
     target.afflictions = target.afflictions.filter(a => a.attribute !== 'fire' && a.attribute !== 'ice');
     events.push({ type: 'reaction', position: { ...target.position }, attribute, text: '融激' });
   }
-  if(melt)reactionDamage(target,amount,attribute,damage,events,critical,frostReady);else damage(target, amount, attribute, critical);
+  if(melt)labeledDamage(events,'融撃',()=>reactionDamage(target,amount,attribute,damage,events,critical,frostReady));else damage(target, amount, attribute, critical);
   if (!melt) applyAttribute(target, attribute, amount, action, actors, damage, events, allowSwirl, random, source);
   syncFrost(target,action,events);
   return amount;
@@ -34,7 +52,7 @@ export function applyAttribute(target: Actor, attribute: Attribute, hitDamage: n
   const opposite = attribute === 'fire' ? 'thunder' : attribute === 'thunder' ? 'fire' : null;
   if (opposite && target.afflictions.some(a => a.attribute === opposite)) {
     target.afflictions = target.afflictions.filter(a => a.attribute !== 'fire' && a.attribute !== 'thunder');
-    reactionDamage(target,hitDamage*.8,'fire',damage,events);
+    labeledDamage(events,'爆破',()=>reactionDamage(target,hitDamage*.8,'fire',damage,events));
     events.push({ type: 'reaction', position: { ...target.position }, text: '爆破', attribute: 'fire' });
     syncFrost(target,action,events);
     return;
@@ -44,16 +62,17 @@ export function applyAttribute(target: Actor, attribute: Attribute, hitDamage: n
     // 元の炎・氷・雷と残り持続時間は維持し、風は付着させない。
     target.afflictions = target.afflictions.filter(a => a.attribute !== 'wind');
     // 拡散する属性色で風を描く。演出の長さはダメージ判定やターン数に影響しない。
-    spread.forEach((element, index) => events.push({ type: 'reaction', position: { ...target.position }, text: index === 0 ? '風散' : undefined, attribute: element.attribute, visual: 'elementalSwirl', durationMs: 1200 }));
-    for (const other of enemies) {
+    spread.forEach((element, index) => events.push({ type: 'reaction', position: { ...target.position }, text: index === 0 ? '風散' : undefined, attribute: element.attribute, visual: 'elementalSwirl', delayMs: 0, durationMs: 1200 }));
+    const resolve=()=>{for (const other of enemies) {
       if (other.id === target.id || other.hp <= 0) continue;
       if (!occupied(other).some(c => occupied(target).some(t => Math.max(Math.abs(c.x - t.x), Math.abs(c.y - t.y)) <= 1))) continue;
       for (const spreadElement of spread) {
         const splash = Math.ceil(hitDamage * .2);
         let first=true;
-        dealAttributeHit(other,splash,spreadElement.attribute,action,enemies,(t,n,a,crit)=>{if(first){first=false;reactionDamage(t,n,a,damage,events,crit);}else damage(t,n,a,crit);},events,random,false,false,source);
+        labeledDamage(events,'風散',()=>dealAttributeHit(other,splash,spreadElement.attribute,action,enemies,(t,n,a,crit)=>{if(first){first=false;reactionDamage(t,n,a,damage,events,crit);}else damage(t,n,a,crit);},events,random,false,false,source));
       }
-    }
+    }};
+    const handler=swirlHandlers.get(events);if(handler)handler(target,resolve);else resolve();
     return;
   }
   // 風は反応だけを起こし、反応しなくても付着しない。
@@ -84,7 +103,7 @@ function syncFrost(a:Actor,action:number,events:GameEvent[]):void{
 function reactionDamage(a:Actor,amount:number,attribute:Attribute,damage:DamageHandler,events:GameEvent[],critical=false,eligible=!!a.frostErosion&&!a.frostErosion.spent&&hasFrostAttributes(a)):void{
  const value=Math.max(0,Math.floor(amount));if(eligible&&a.frostErosion)a.frostErosion.spent=true;
  damage(a,value,attribute,critical);
- if(eligible){damage(a,value,'ice');events.push({type:'reaction',position:{...a.position},text:'霜蝕ダメージ',attribute:'ice'});}
+ if(eligible){labeledDamage(events,'霜蝕撃',()=>damage(a,value,'ice'));events.push({type:'reaction',position:{...a.position},text:'霜蝕撃',attribute:'ice'});}
 }
 
 /** 結晶などの反応攻撃。霜蝕の追撃は最初のダメージだけに適用する。 */

@@ -6,7 +6,7 @@ import type { Random } from '../game/Random';
 import { VECTORS, type Actor, type Direction, type GameEvent, type MapState, type Point } from '../game/types';
 import { applyBuff, attackPower, movementLocked } from '../game/ActorStats';
 
-type Context = { hitInstallation?: (id:string)=>boolean; action: number; allies: Actor[]; map: MapState; actors: Actor[]; rng: Random; events: GameEvent[]; damage: (target: Actor, amount: number, attribute: import("../game/types").Attribute, critical?: boolean, label?: string) => void; log: (message: string) => void };
+type Context = { allowSkills?: boolean; hitInstallation?: (id:string)=>boolean; action: number; allies: Actor[]; map: MapState; actors: Actor[]; rng: Random; events: GameEvent[]; damage: (target: Actor, amount: number, attribute: import("../game/types").Attribute, critical?: boolean, label?: string) => void; log: (message: string) => void };
 type PreparedAction = { installationId?:string; position: Point; facing: Direction; origin?: Point; impact?: Point; path?: Point[] };
 /** 効果ごとの事前検証。新効果はここに分岐を追加し、抽選前に実行可能性を確定します。 */
 function prepare(skill: EnemySkillDefinition, caster: Actor, target: Actor, context: Context): PreparedAction | null {
@@ -52,6 +52,7 @@ function prepare(skill: EnemySkillDefinition, caster: Actor, target: Actor, cont
 }
 /** 条件成立時だけ抽選。失敗なら通常AIを続行、成功ならその行動はスキルだけで終了。 */
 export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context): boolean {
+  if(context.allowSkills===false)return false;
   let ids = caster.enemySkillIds ?? [];
   // 排他的抽選では各技が指定通り20%を占める。条件外・MP不足の枠は通常AIへ戻す。
   const exclusive = caster.skillSelection === 'exclusive';

@@ -6,6 +6,16 @@ import { attackPower } from './ActorStats';
 import { dealReactionHit, type DamageHandler } from '../skills/AttributeSystem';
 import { hitInstallation } from './InstallationSystem';
 export type CrystalContext={rng:Random;events:GameEvent[];damage:DamageHandler;log:(text:string)=>void};
+// 風散のダメージと物体への命中をすべて解決してから結晶を破裂させる。
+const deferredBursts=new WeakMap<SaveData,Set<string>>();
+export function afterSwirlCrystals(s:SaveData,c:CrystalContext,resolve:()=>void):void{
+ if(deferredBursts.has(s)){resolve();return;}
+ const pending=new Set<string>();deferredBursts.set(s,pending);
+ try{resolve();}finally{deferredBursts.delete(s);}
+ const start=c.events.length;
+ for(const id of pending)hitCrystal(s,id,c);
+ for(const event of c.events.slice(start))event.delayMs=(event.delayMs??0)+650;
+}
 export function crystalSource(s:SaveData,a:Actor):CrystalSource{return {actorId:a.id,team:s.enemyStates.some(e=>e.id===a.id)?'enemy':'player',attack:attackPower(a)};}
 /** 結晶は通行を妨げず、既存の結晶だけは同じマスへの追加生成を許可する。 */
 export function createCrystal(s:SaveData,target:Actor,attribute:Crystal['attribute'],source:CrystalSource,c:CrystalContext):void{
@@ -23,6 +33,7 @@ export function createCrystal(s:SaveData,target:Actor,attribute:Crystal['attribu
 /** 生成行動中の結晶は保護。同じマスの破裂可能な結晶だけを先に除去し二重破裂を防ぐ。 */
 export function hitCrystal(s:SaveData,id:string,c:CrystalContext):boolean{
  const hit=s.mapState.crystals?.find(i=>i.id===id);if(!hit)return id.startsWith('crystal-');
+ const pending=deferredBursts.get(s);if(pending){if(hit.placedAt<s.playerActionCount)pending.add(id);return true;}
  const group=s.mapState.crystals!.filter(i=>same(i.position,hit.position)&&i.placedAt<s.playerActionCount);
  const ids=new Set(group.map(i=>i.id));
  s.mapState.crystals=s.mapState.crystals!.filter(i=>!ids.has(i.id));

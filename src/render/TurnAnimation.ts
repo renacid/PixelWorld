@@ -11,7 +11,7 @@ export class TurnAnimation {
       const frame = { ...source, events: source.events.filter(event => eventVisible(event, [...before, ...source.actors])) };
       const changed = frame.events.length > 0 || frame.actors.some(a => { const b = before.find(o => o.id === a.id); return (!b || a.position.x !== b.position.x || a.position.y !== b.position.y) && (visible(a) || !!b && visible(b)); });
       if (frame.phase === 'player' || changed) {
-        const duration = Math.max(frame.events.some(e => e.type === 'cast') ? 580 : frame.events.some(e => e.type === 'attack') ? 340 : 230, ...frame.events.filter(e => e.type === 'trap' || e.skillId === 'chainLightning').map(e => (e.delayMs ?? 0) + (e.durationMs ?? 550)));
+        const duration = Math.max(frame.events.some(e => e.type === 'cast') ? 580 : frame.events.some(e => e.type === 'attack') ? 340 : 230, ...frame.events.filter(e => e.type === 'trap' || e.skillId === 'chainLightning' || (e.delayMs??0)>0).map(e => (e.delayMs ?? 0) + (e.durationMs ?? 550)));
         this.steps.push({ ...frame, before, start: this.duration, duration }); this.duration += duration;
       }
       before = frame.actors;
@@ -31,10 +31,14 @@ export class TurnAnimation {
         const moveProgress = step.events.some(e => e.type === 'trap') ? Math.min(1, (elapsed - step.start) / 230) : progress;
         a.position = { x: interpolate(prev.position.x, next.position.x, moveProgress), y: interpolate(prev.position.y, next.position.y, moveProgress) };
         if (step.events.some(e => e.skillId === 'warp' && e.actorId === id)) a.position = { ...(progress < .5 ? prev.position : next.position) };
+        if(step.events.some(e=>e.bossJump&&e.actorId===id)){
+          const t=Math.min(1,(elapsed-step.start)/750);
+          a.position={x:interpolate(prev.position.x,next.position.x,t),y:interpolate(prev.position.y,next.position.y,t)-Math.sin(t*Math.PI)*2.5};
+        }
         if (progress < .55) { a.hp = prev.hp; a.afflictions = prev.afflictions; }
       }
       const attack = step.events.find(e => (e.type === 'attack' || e.type === 'cast') && e.actorId === id);
-      if (attack?.target && attack.skillId !== 'warp' && attack.enemySkillId !== 'dash') {
+      if (attack?.target && !attack.bossJump && attack.skillId !== 'warp' && attack.enemySkillId !== 'dash') {
         const dx = attack.target.x - attack.position.x, dy = attack.target.y - attack.position.y, len = Math.hypot(dx, dy) || 1;
         const lunge = Math.sin(Math.min(1, progress / .7) * Math.PI) * .22;
         a.position = { x: a.position.x + dx / len * lunge, y: a.position.y + dy / len * lunge };
@@ -44,6 +48,23 @@ export class TurnAnimation {
     return { step, progress, actors };
   }
   events(): { event: GameEvent; delay: number; duration: number; phase: TurnFrame['phase'] }[] {
-    return this.steps.flatMap(step => step.events.map((event, i) => ({ event, delay: step.start + (event.delayMs ?? (['damage', 'reaction', 'defeat'].includes(event.type) ? step.duration * .5 + i % 3 * 40 : 0)), duration: event.durationMs ?? step.duration, phase: step.phase })));
+    return this.steps.flatMap(step => {
+      // 追加反応がある対象だけ、同時点のダメージを一つの合計表示にする。
+      const grouped=new Map<string,GameEvent[]>();
+      for(const e of step.events)if(e.type==='damage'){
+        const key=e.actorId+':'+(e.delayMs??0);const list=grouped.get(key)??[];list.push(e);grouped.set(key,list);
+      }
+      return step.events.flatMap((source,i)=>{
+        let event=source;
+        if(event.type==='damage'){
+          const group=grouped.get(event.actorId+':'+(event.delayMs??0))!;
+          if(group.some(e=>e.reaction==='爆破'||e.reaction==='霜蝕撃')){
+            if(event!==group[group.length-1])return [];
+            const sum=group.reduce((n,e)=>n+(e.amount??0),0);event={...event,amount:sum,text:'合計'+sum+'のダメージ'};
+          }else if(event.reaction==='融撃')event={...event,text:(event.amount??0)+'の融撃ダメージ'};
+        }
+        return [{event,delay:step.start+(event.delayMs??(['damage','reaction','defeat'].includes(event.type)?step.duration*.5+i%3*40:0)),duration:event.durationMs??step.duration,phase:step.phase}];
+      });
+    });
   }
 }

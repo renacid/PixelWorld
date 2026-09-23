@@ -73,6 +73,8 @@ function validSave(value: unknown): value is SaveData {
     if (s.allyStates.some(a=>a.remainingLife!==undefined&&(!Number.isInteger(a.remainingLife)||a.remainingLife<1))) return false;
     if (s.reinforcementKinds!==undefined&&(!Array.isArray(s.reinforcementKinds)||!s.reinforcementKinds.every(k=>isActorKind(k)&&!['player','sprite','greaterSprite'].includes(k)))) return false;
     if (s.nightWave !== undefined && (!Number.isInteger(s.nightWave) || s.nightWave < 0)) return false;
+    if (s.fatigue !== undefined && (!Number.isInteger(s.fatigue) || s.fatigue < 0 || s.fatigue > 5)) return false;
+    if (s.lastReaperWave !== undefined && (!Number.isInteger(s.lastReaperWave) || s.lastReaperWave < 0)) return false;
     if (s.nightTarget !== undefined && (!Number.isInteger(s.nightTarget) || s.nightTarget < 0)) return false;
     if ([s.playerState, ...s.allyStates, ...s.enemyStates].some(a => a.experienceMultiplier !== undefined && (!Number.isFinite(a.experienceMultiplier) || a.experienceMultiplier < 0))) return false;
     if (s.playerLevel !== undefined && (!Number.isInteger(s.playerLevel) || s.playerLevel < 1 || s.playerLevel > 20)) return false;

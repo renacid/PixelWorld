@@ -31,6 +31,13 @@ export class GameCanvas {
   selected: SkillId | null = null;
   aim?: Point;
   camera: Point | null = null;
+  private bossIntro: { born:number; position:Point; name:string } | null = null;
+  playBossIntro(event:GameEvent):number {
+    const boss=this.session?.state.enemyStates.find(a=>a.id===event.actorId);
+    if(!boss)return 0;
+    this.bossIntro={born:performance.now(),position:{...event.position},name:boss.name};
+    this.onSound?.(event);return 2800;
+  }
   settings: Settings = { grid: false, motion: true, sound: true };
   onSound?: (event: GameEvent) => void;
   onPhase?: (phase: string) => void;
@@ -76,6 +83,12 @@ export class GameCanvas {
       const foot = py >= pixelHeight * .75 && (definition.idleStep || this.animation) ? (px < pixelWidth / 2 ? step : 1 - step) * (this.settings.motion ? 1 : 0) : 0;
       ctx.fillStyle = flash ? '#fffcef' : color; ctx.fillRect(Math.round(cx - scaleX * pixelWidth / 2 + px * scaleX), Math.round(spriteTop + py * scaleY + bob - foot), scaleX, scaleY);
     }
+    // 王冠と深紅の肩飾りで、同じ1マスの兵士から区別する。
+    if(a.kind==='goblinKing'){
+      ctx.fillStyle='#6b273e';ctx.fillRect(cx-12,spriteTop+17,5,10);ctx.fillRect(cx+7,spriteTop+17,5,10);
+      ctx.fillStyle='#79502d';ctx.fillRect(cx-9,spriteTop+2,18,7);ctx.fillStyle='#ffd36d';ctx.fillRect(cx-8,spriteTop+3,16,5);
+      for(const dx of [-8,-1,6])ctx.fillRect(cx+dx,spriteTop-2,3,7);ctx.fillStyle='#eb5c63';ctx.fillRect(cx-1,spriteTop+4,3,3);
+    }
     if (a.kind !== 'player' && a.hp < a.maxHp) { ctx.fillStyle = '#fffefa'; ctx.fillRect(cx - 12, y, 24, 4); ctx.fillStyle = '#f27276'; ctx.fillRect(cx - 11, y + 1, 22 * a.hp / a.maxHp, 2); }
   }
 
@@ -112,10 +125,15 @@ export class GameCanvas {
     const player = actors.find(a => a.id === 'player') ?? state.playerState;
     const viewPlayer = walking ? player.position : nextPlayer?.position ?? state.playerState.position;
     const center = {...(this.camera ?? viewPlayer)};
+    const intro=this.bossIntro,elapsed=intro?clock-intro.born:0;
+    if(intro){
+      if(elapsed>=2800)this.bossIntro=null;
+      else {const t=elapsed<700?elapsed/700:elapsed<2000?1:1-(elapsed-2000)/800,smooth=t*t*(3-2*t);center.x=viewPlayer.x+(intro.position.x-viewPlayer.x)*smooth;center.y=viewPlayer.y+(intro.position.y-viewPlayer.y)*smooth;}
+    }
     const quake=this.effects.find(e=>e.visual==='quake'&&clock>=e.born&&clock<e.born+e.duration);
     if(quake&&this.settings.motion){const fade=1-(clock-quake.born)/quake.duration;center.x+=Math.sin(clock*.08)*.12*fade;center.y+=Math.cos(clock*.1)*.09*fade;}
     const screen = (p: Point) => ({ x: (p.x - center.x) * TILE + 144, y: (p.y - center.y) * TILE + 144 });
-    const visible = (p: Point) => { const from = { x: Math.round(viewPlayer.x), y: Math.round(viewPlayer.y) }, to = { x: Math.round(p.x), y: Math.round(p.y) }; return Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y)) <= s.vision; };
+    const visible = (p: Point) => { if(this.bossIntro)return true; const from = { x: Math.round(viewPlayer.x), y: Math.round(viewPlayer.y) }, to = { x: Math.round(p.x), y: Math.round(p.y) }; return Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y)) <= s.vision; };
     const phase = sample ? { player: 'あなたの行動', ally: '味方の行動', enemy: '敵の行動' }[sample.step.phase] : '';
     if (this.phase !== phase) { this.phase = phase; this.onPhase?.(phase); }
     ctx.fillStyle = '#cfdfdb'; ctx.fillRect(0, 0, VIEW_SIZE, VIEW_SIZE);
@@ -123,7 +141,7 @@ export class GameCanvas {
     for (let y = Math.floor(center.y) - 5; y <= Math.ceil(center.y) + 5; y++) for (let x = Math.floor(center.x) - 5; x <= Math.ceil(center.x) + 5; x++) {
       const p = { x, y }, t = screen(p), inMap = x >= 0 && y >= 0 && x < state.mapState.width && y < state.mapState.height;
       // Terrain is always opaque; fog still hides actors and controls minimap discovery.
-      this.tile(ctx, Math.round(t.x), Math.round(t.y), x, y, wall(state.mapState, p), inMap && state.exploredMap[y * state.mapState.width + x]);
+      this.tile(ctx, Math.round(t.x), Math.round(t.y), x, y, wall(state.mapState, p), inMap && (!!this.bossIntro || state.exploredMap[y * state.mapState.width + x]));
     }
     // 夜は中央9×9より外側を薄暗くし、半マスの外周表示自体は残す。
     if (timeOfDay(state) !== 'day') {
@@ -226,6 +244,12 @@ export class GameCanvas {
       } else { ctx.globalAlpha = Math.min(1, (1 - age) * 3); this.popup(ctx, e.text ?? `${e.amount}${e.critical ? '!' : ''}`, Math.max(20, Math.min(300, p.x + 16 + (e.index % 3 - 1) * 7)), Math.max(18, Math.min(305, p.y + 5 - age * 22 - e.index % 3 * 7)), e.type === 'heal' ? '#24a991' : color, !!e.critical); }
       ctx.restore();
     }
+    const boss=actors.find(a=>a.kind==='goblinKing'&&a.hp>0);
+    if(boss&&state.mapState.bossArena?.started){
+      ctx.fillStyle='#241a2bea';ctx.fillRect(22,34,276,29);ctx.font='bold 10px sans-serif';ctx.textAlign='left';ctx.fillStyle='#ffe6ad';ctx.fillText(boss.name,29,45);
+      ctx.fillStyle='#583741';ctx.fillRect(29,50,262,7);ctx.fillStyle='#eb5970';ctx.fillRect(29,50,262*boss.hp/boss.maxHp,7);ctx.textAlign='right';ctx.fillStyle='#fff';ctx.fillText(`${boss.hp} / ${boss.maxHp}`,290,45);
+    }
+    if(this.bossIntro&&elapsed>650&&elapsed<2150){ctx.fillStyle='#160e25b8';ctx.fillRect(0,120,320,74);ctx.textAlign='center';ctx.font='bold 23px sans-serif';ctx.fillStyle='#ffd485';ctx.fillText(this.bossIntro.name,160,163);}
     this.drawMini();
   }
   private popup(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, bold: boolean): void { ctx.font = `${bold ? 'bold ' : ''}${bold ? 14 : 12}px monospace`; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = '#fffaf0'; ctx.fillStyle = color; ctx.strokeText(text, x, y); ctx.fillText(text, x, y); }

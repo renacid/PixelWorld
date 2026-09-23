@@ -29,7 +29,7 @@ export function castFieldSkill(s:SaveData,id:SkillId,direction:Direction,c:Conte
     dealAttributeHit(enemy,power*multiplier*(critical?s.playerState.criticalMultiplier:1),d.attribute,s.playerActionCount,s.enemyStates,c.damage,c.events,()=>c.rng.next(),critical);
    }
    for(const installation of [...s.mapState.installations??[],...targetableCrystals(s.mapState,s.playerActionCount)])if(same(installation.position,next))hitInstallation(s,installation.id,c);
-   for(const event of c.events.slice(eventStart))event.delayMs=delay+120;
+   for(const event of c.events.slice(eventStart))event.delayMs=(event.delayMs??0)+delay+120;
   }
   return true;
  }

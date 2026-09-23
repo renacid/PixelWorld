@@ -34,6 +34,7 @@ export function hitInstallation(state:SaveData,id:string,context:Context):boolea
  map.installations=map.installations!.filter(o=>o.id!==id);
  const counts=state.destroyedInstallations??={};counts[i.kind]=(counts[i.kind]??0)+1;
  const def=installationDefinition(i);
+ if(i.kind==='goblinBanner')for(const itemId of ['healingPotion','etherMedium'] as const)map.objects.push({id:'drop-'+i.id+'-'+itemId,type:'item',position:{...i.position},itemId});
  context.events.push({type:'trap',position:{...i.position},visual:'shatter',sound:i.kind==='icePillar'?'ice':i.kind==='pot'?'shatter':'rocks',delayMs:160,durationMs:500});
  context.log(def.name+'が砕け散った！');
  if(i.kind==='icePillar'){

@@ -5,6 +5,7 @@ import { movementLocked } from '../game/ActorStats';
 // 8×8のコード内ドット絵。各状態の図案・色はここで差し替えられます。
 export const STATUS_ICONS = {
   buff: ['......oo','.....ooo','....ooo.','o..ooo..','.oooo...','..oo....','.o.oo...','o.......'],
+  bond: ['.rr..rr.','r..rr..r','r..rr..r','.rr..rr.','...rr...','...rr...','...rr...','...rr...'],
   root: ['rr....rr','rrr..rrr','.rrrrrr.','..rrrr..','..rrrr..','.rrrrrr.','rrr..rrr','rr....rr'],
   alert: ['...oo...','...oo...','...oo...','...oo...','........','...oo...','........','........'],
   // 土・氷の二つの勾玉が向かい合う形。白い点は付けず、二色だけで表現。
@@ -25,6 +26,7 @@ export function drawStatusIcons(ctx: CanvasRenderingContext2D, actor: Actor, x: 
   });
   ctx.restore();
   const icons: Icon[] = [];
+  if((actor.bossLinkUntil??0)>action)icons.push({kind:'bond',color:'#d95d84'});
   for (const buff of actor.buffs ?? []) if (buff.remainingTurns > 0) icons.push({ kind: 'buff', color: '#ff982e' });
   if (movementLocked(actor, action)) icons.push({ kind: 'root', color: '#e8f3fa' });
   if (actor.frostErosion) icons.push({ kind: 'frost', color: '#a77948' });

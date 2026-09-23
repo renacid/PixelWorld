@@ -7,7 +7,7 @@ export type EnemySkillDefinition = {
   effect: {type:'extraActions';count:number} | {type:'sweep';damageMin:number;damageMax:number;attribute:Attribute} | {type:'dash';steps:number} | (({ type: 'approachStrike'; steps: number } | { type: 'projectile' } | { type: 'melee' }) & { damageMin: number; damageMax: number; attribute: Attribute }) | { type: 'teleport'; radius: number } | { type: 'restoreMp'; amount: number; allowFull?: boolean } | { type: 'allyBuff'; radius: number; duration: number; attackMultiplier: number; detectionBonus: number };
 };
 export const ENEMY_SKILLS: Record<string, EnemySkillDefinition> = {
-  flowAcceleration:{name:'流水加速',mpCost:3,chance:.3,minRange:0,maxRange:0,target:'any',cardinalOnly:false,requiresSight:false,visual:'healingGlow',sound:'magicCast',effect:{type:'extraActions',count:2}},
+  flowAcceleration:{name:'行動加速',mpCost:3,chance:.3,minRange:0,maxRange:0,target:'any',cardinalOnly:false,requiresSight:false,visual:'healingGlow',sound:'magicCast',effect:{type:'extraActions',count:2}},
   sweepingStrike:{name:'薙ぎ払い',mpCost:3,chance:.3,minRange:1,maxRange:1,target:'any',cardinalOnly:false,requiresSight:false,visual:'strike',sound:'strike',effect:{type:'sweep',damageMin:.4,damageMax:.6,attribute:'physical'}},
   dash:{name:'加速',mpCost:3,chance:.1,minRange:2,maxRange:99,target:'any',cardinalOnly:false,requiresSight:false,visual:'strike',sound:'strike',effect:{type:'dash',steps:2}},
   // モンスター名を含めない共通ID。別の敵でもskillsに指定すれば再利用可能。

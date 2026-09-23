@@ -52,7 +52,10 @@ function generateBaseMap(stage: Stage, rng: Random, floor = 1): { map: MapState;
   if (layout) {
     if (layout.rows.length !== height || layout.rows.some(row => row.length !== width)) throw new Error(`${stage.name}: 地形の行数・列数がステージサイズと一致しません`);
     const tiles = layout.rows.flatMap(row => [...row].map(char => { const id = layout.legend[char]; if (!(id in TERRAIN)) throw new Error(`未定義の地形文字: ${char}`); return id; }));
-    const map: MapState = { loot: stage.loot, width, height, tiles, objects: structuredClone(layout.objects), fields: structuredClone(layout.fields ?? []), traps: structuredClone(layout.traps ?? []) };
+    const map: MapState = { bossArena: structuredClone(layout.bossArena), loot: stage.loot, width, height, tiles, objects: structuredClone(layout.objects), fields: structuredClone(layout.fields ?? []), traps: structuredClone(layout.traps ?? []), installations: structuredClone(layout.installations ?? []) };
+    // ステージ側で skillId / skillIds / itemId / contents を書いた箱は固定報酬として扱う。
+    // とくに開始地点の隣の箱をカスタマイズした場合、後段の共通初期報酬で上書きしない。
+    for (const object of map.objects) if (object.type === 'chest' && (object.contents !== undefined || object.skillId !== undefined || object.skillIds !== undefined || object.itemId !== undefined)) object.fixedContents = true;
     varyShape(map, layout.legend['.'] ?? 0);
     const enemies = layout.enemies.map((entry, i) => actor(`enemy-${i}`, entry.kind, { ...entry.position }, stage.id, floor));
     if (wall(map, layout.spawn) || enemies.some(e => !canStand(map, e, e.position, enemies)) || map.objects.some(o => wall(map, o.position))) throw new Error(`${stage.name}: 配置が壁または他のキャラクターと重なっています`);
@@ -159,8 +162,9 @@ export function generateMap(base: Stage, rng: Random, floor = 1): { map: MapStat
    }
  }
  if(floor===1){
-  const chest=map.objects.find(o=>o.type==='chest'&&(o.skillId==='attack'||o.skillIds?.includes('attack')));
-  if(chest){const forest=(Number(stage.code?.split('-')[0])||1)>=2||stage.regionId==='forest';
+  // 開始地点の隣の箱を初期宝箱として扱う。固定中身を指定した箱はそのまま保持する。
+  const chest=map.objects.find(o=>o.type==='chest'&&!o.opened&&!o.fixedContents&&(o.skillId==='attack'||o.skillIds?.includes('attack') || distance(o.position,spawn)<=2));
+  if(chest&&!chest.fixedContents){const forest=(Number(stage.code?.split('-')[0])||1)>=2||stage.regionId==='forest';
     chest.skillId=undefined;chest.skillIds=forest?['attack','warp','sweep']:['attack','warp','icePillar'];chest.itemId=forest?'potion':undefined;
     const supplies=(chest.contents??[]).filter(e=>e.type==='item');if(forest&&!supplies.some(e=>e.id==='potion'))supplies.push({type:'item',id:'potion'});
     chest.contents=[...chest.skillIds.map(id=>({type:'skill' as const,id})),...supplies];chest.randomSkillsResolved=true;

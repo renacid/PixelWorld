@@ -312,10 +312,14 @@ function act(command: Command): void {
     if (command.type === 'sleep') arrivalEffect('朝になった', true);
     const announcement=session.events.find(e=>e.announcement)?.announcement;if(announcement)arrivalEffect(announcement,false,true);
     if (command.type === 'move' && before[0] && (before[0].position.x !== session.state.playerState.position.x || before[0].position.y !== session.state.playerState.position.y)) sound.step();
-    const duration = Math.max(renderer?.animateTurn(before, session.frames) ?? 0, command.type === 'sleep' ? 2400 : 0);
+    const bossIntro=session.events.find(e=>e.bossIntro);
+    const introDuration=bossIntro?(renderer?.playBossIntro(bossIntro)??0):0;
+    const frames=session.frames,activeRenderer=renderer;
+
+    const duration = Math.max(introDuration?0:renderer?.animateTurn(before, session.frames) ?? 0, command.type === 'sleep' ? 2400 : 0);
     persist(); actionLocked = true;
     document.querySelector('.game-shell')?.setAttribute('aria-busy', 'true');
-    window.setTimeout(() => {
+    const finishAction = () => {
       actionLocked = false; document.querySelector('.game-shell')?.setAttribute('aria-busy', 'false');
       if (!session || screen !== 'game') return;
       update();
@@ -323,7 +327,9 @@ function act(command: Command): void {
       else if(session.state.pendingSkillBooks)openBook();
       else if (session.state.pendingGemChoices?.length) openGem();
       else if (session.state.pendingBag) openBag(true);
-    }, duration);
+    };
+    if(introDuration)window.setTimeout(()=>{if(renderer!==activeRenderer)return;const turnDuration=activeRenderer?.animateTurn(before,frames)??0;window.setTimeout(finishAction,turnDuration);},introDuration);
+    else window.setTimeout(finishAction,duration);
   }
   update();
 }
@@ -333,6 +339,7 @@ function showPlayerStatus(onClose: () => void = closeModal): void {
   const s = session, p = s.state.playerState;
   dialog('<div class="dialog-heading"><h2>旅人 Lv.' + s.state.playerLevel + '</h2><button id="close-player" class="icon-button">×</button></div><p>HP ' + p.hp + ' / ' + p.maxHp + '<br>MP ' + p.mp + ' / ' + p.maxMp + '<br>基礎攻撃力 ' + p.attack + '（現在 ' + attackPower(p) + '）<br>会心率 ' + Math.round(p.criticalRate * 100) + '%<br>会心ダメージ ' + Math.round(p.criticalMultiplier * 100) + '%</p><h3>バフ・状態</h3><p>' + ((p.buffs ?? []).filter(b => b.remainingTurns > 0).map(b => b.thunderFollowup ? '雷装（発動率'+Math.round(b.thunderFollowup.chance*100)+'%・追加雷'+Math.round(b.thunderFollowup.ratio*1000)/10+'%）：残り'+b.remainingTurns+'ターン' : '攻撃+' + (b.attackBonus ?? 0) + '・攻撃×' + b.attackMultiplier + '・索敵+' + b.detectionBonus + '：残り' + b.remainingTurns + 'ターン').concat(p.afflictions.map(a => ATTRIBUTE_NAMES[a.attribute] + '：残り' + a.remainingTurns + 'ターン'), movementLocked(p,s.state.playerActionCount) ? ['移動不可'] : [], p.frostErosion?['霜蝕'+(p.frostErosion.spent?'（追加ダメージ消費済）':'（次の反応ダメージを追加）')]:[], p.visionBonus ? ['視野+' + p.visionBonus] : []).join('<br>') || 'なし') + '</p>');
   on('close-player', onClose);
+  document.getElementById('close-player')?.closest('.dialog-heading')?.insertAdjacentHTML('afterend', '<p>疲労度 '+(s.state.fatigue??0)+' / 5<br>睡眠時HP回復：最大HPの'+(100-(s.state.fatigue??0)*20)+'％・MP全回復</p>');
 }
 function openBook():void{
   if(!session?.state.pendingSkillBooks)return;

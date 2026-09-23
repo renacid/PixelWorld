@@ -1,7 +1,8 @@
+import { contactBossFire, startBoss, actKing, tickBanners, kingPhases, isGoblin, KING_RULES } from './BossEncounter';
 import { targetableCrystals } from './CrystalTargets';
 import { startThunderPrison, tickThunderPrisons } from '../skills/ThunderPrison';
-import { createCrystal, crystalSource, hitCrystalsAt, tickCrystals } from './CrystalSystem';
-import { bindCrystalReaction } from '../skills/AttributeSystem';
+import { afterSwirlCrystals, createCrystal, crystalSource, hitCrystalsAt, tickCrystals } from './CrystalSystem';
+import { bindAttributeBatch, bindCrystalReaction, bindSwirlReaction, reactionLabel } from '../skills/AttributeSystem';
 import { icePillarCells, placeIcePillars } from '../skills/IcePillar';
 import { initializeBooks, rollBookAttributes } from './SkillBooks';
 import {castFieldSkill,contactSkillFields,tickSkillFields} from '../skills/FieldSkills';
@@ -20,8 +21,8 @@ import { blockCells, initialBagCells } from '../skills/SkillBag';
 /** 1プレイの進行役。コマンドを処理し、描画用イベントと保存可能な状態を生成します。 */
 import { actor, createPlayer } from '../actors/Actor';
 import { actSummon } from '../ai/SummonAI';
-import { attackPower, criticalChance, movementLocked } from './ActorStats';
-import { DAY_CYCLE, timeOfDay } from './DayCycle';
+import { attackPower, criticalChance, movementLocked, detection } from './ActorStats';
+import { DAY_CYCLE, timeOfDay, reaperRules, sleepHpRatio } from './DayCycle';
 import { actEnemy } from '../ai/EnemyAI';
 import { actorDefinition } from '../data/enemies';
 import { ENEMY_SKILLS, canonicalEnemySkillId } from '../data/enemySkills';
@@ -77,12 +78,12 @@ export class GameSession {
     state.mapState.playerTraps = (state.mapState.playerTraps ?? []).filter(t => !!state.skillLevels[t.sourceSkillId!]);
     state.floorKills ??= Object.fromEntries(Object.entries((state.defeatedEnemies ?? []).reduce<Record<string, number>>((counts, e) => { counts[e.kind] = (counts[e.kind] ?? 0) + 1; return counts; }, {})));
     state.mapState.objects = state.mapState.objects.filter(o => !(o.objective && o.opened)).map(o => o.objective ? { id: o.id, type: 'record' as const, position: o.position } : o);
-    state.dayCount ??= 1; state.killCombo ??= 0;
+    state.dayCount ??= 1; state.killCombo ??= 0; state.fatigue ??= 0;
     state.mpRecoveryActions ??= 0; state.daylightCount ??= 0; state.defeatedEnemies ??= []; state.skillWear ??= {}; state.pendingGemChoices ??= []; state.mapState.playerTraps ??= []; state.playerState.visionBonus ??= state.playerState.freeCamera ? 2 : 0;
     // 旧セーブで朝まで残っていた死神も補正し、通常の復活候補には入れない。
     if(timeOfDay(state)!=='night')state.enemyStates=state.enemyStates.filter(e=>e.kind!=='reaper');
-    state.defeatedEnemies=state.defeatedEnemies.filter(e=>e.kind!=='reaper');
-    state.reinforcementKinds=state.reinforcementKinds?.filter(k=>k!=='reaper');
+    state.defeatedEnemies=state.defeatedEnemies.filter(e=>e.kind!=='reaper'&&e.kind!=='goblinKing');
+    state.reinforcementKinds=state.reinforcementKinds?.filter(k=>k!=='reaper'&&k!=='goblinKing');
     // Older saves remain playable; existing hostile enemies do not alert again.
     for (const a of this.actors) {
       a.facing ??= 'down'; a.alertedAt ??= -1; a.hp = Math.floor(a.hp);
@@ -112,7 +113,23 @@ export class GameSession {
     state.mapState.crystals??=[];this.prepareCrystalReactions();
   }
   private prepareCrystalReactions():void{
+    bindAttributeBatch(this.events,resolve=>{
+      if(this.groupingDamage)return resolve();
+      const start=this.events.length;this.groupingDamage=true;
+      try{return resolve();}finally{this.groupingDamage=false;if(this.events.slice(start).some(e=>e.type==='damage'))this.logHits('攻撃',start);}
+    });
     bindCrystalReaction(this.events,(target,attribute,source)=>createCrystal(this.state,target,attribute,source??crystalSource(this.state,this.state.playerState),{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)}));
+    bindSwirlReaction(this.events,(target,resolve)=>{
+      const context={rng:this.rng,events:this.events,damage:this.damage,log:(m:string)=>this.log(m)};
+      const near=(p:Point)=>occupied(target).some(t=>Math.max(Math.abs(p.x-t.x),Math.abs(p.y-t.y))<=1);
+      const objects=(this.state.mapState.installations??[]).filter(i=>near(i.position));
+      const crystals=targetableCrystals(this.state.mapState,this.state.playerActionCount).filter(i=>near(i.position));
+      afterSwirlCrystals(this.state,context,()=>{
+        resolve();
+        for(const object of objects)hitInstallation(this.state,object.id,context);
+        hitCrystalsAt(this.state,crystals.map(c=>c.position),context);
+      });
+    });
   }
   private capture(phase: TurnFrame['phase']): void {
     this.frames.push({ phase, actors: structuredClone(this.actors), events: structuredClone(this.events.slice(this.frameEventStart)) });
@@ -160,8 +177,9 @@ export class GameSession {
       target.pursuitLeft = target.pursuitTurns; target.chaseMoves = 0; target.chaseSkipLeft = 0;
     }
     const cells = occupied(target), position = { x: cells.reduce((n, c) => n + c.x, 0) / cells.length, y: cells.reduce((n, c) => n + c.y, 0) / cells.length };
-    this.events.push({ type: 'damage', position, actorId: target.id, amount: value, attribute, critical });
-    if (!this.groupingDamage) this.log(`${target.name}に${critical ? '会心' : ''}${value}ダメージ！`);
+    const reaction = reactionLabel(this.events);
+    this.events.push({ type: 'damage', position, actorId: target.id, amount: value, attribute, critical, reaction });
+    if (!this.groupingDamage) this.log(`${target.name}に${critical ? '会心' : ''}${value}${reaction==='融撃'?'の融撃ダメージ':'ダメージ'}！`);
     // 追加雷撃は物理ではないため再帰発動しない。反応は通常の属性処理へ渡す。
     const followup=attacker?.buffs?.find(b=>b.remainingTurns>0&&b.thunderFollowup)?.thunderFollowup;
     if(attribute==='physical'&&value>0&&target.hp>0&&followup&&this.rng.next()<followup.chance){
@@ -172,12 +190,12 @@ export class GameSession {
   /** 一つの行動による各ヒット・反応を対象別に集計して、読みやすい一件のログにする。 */
   private logHits(label: string, start: number, multi = false): void {
     const hits = this.events.slice(start).filter(e => e.type === 'damage');
-    const groups = new Map<string, { name: string; sum: number; count: number; critical: boolean }>();
+    const groups = new Map<string, { name: string; sum: number; count: number; critical: boolean; melt: boolean }>();
     for (const hit of hits) {
-      const id = hit.actorId!; const g = groups.get(id) ?? { name: this.actors.find(a => a.id === id)?.name ?? '対象', sum: 0, count: 0, critical: false };
-      g.sum += hit.amount ?? 0; g.count++; g.critical ||= !!hit.critical; groups.set(id, g);
+      const id = hit.actorId!; const g = groups.get(id) ?? { name: this.actors.find(a => a.id === id)?.name ?? '対象', sum: 0, count: 0, critical: false, melt: false };
+      g.sum += hit.amount ?? 0; g.count++; g.critical ||= !!hit.critical; g.melt ||= hit.reaction==='融撃'; groups.set(id, g);
     }
-    this.log(label + '！ ' + (groups.size ? [...groups.values()].map(g => g.name + 'に' + (multi || g.count > 1 ? '合計' : '') + (g.critical ? '会心' : '') + g.sum + 'ダメージ！').join(' ') : '対象なし'));
+    this.log(label + '！ ' + (groups.size ? [...groups.values()].map(g => g.name + 'に' + (multi || g.count > 1 ? '合計' : '') + (g.critical ? '会心' : '') + g.sum + (g.count===1&&g.melt?'の融撃ダメージ！':'のダメージ！')).join(' ') : '対象なし'));
   }
   private strike(a: Actor, b: Actor, raw = attackPower(a), attribute = a.attribute, label = '攻撃'): void {
     const shield=b.id===this.state.playerState.id && this.state.enemyStates.some(e=>e.id===a.id) && occupied(a).some(c=>occupied(b).some(p=>Math.max(Math.abs(c.x-p.x),Math.abs(c.y-p.y))<=1)) && !this.canCast('iceShield',true) && this.rng.next()<passiveChance(this.state,'iceShield');
@@ -395,7 +413,7 @@ export class GameSession {
         const critical=this.rng.next()<criticalChance(p,enemy,'thunder');
         const before=this.events.length;
         dealAttributeHit(enemy,attackPower(p)*(1-n*.1)*levelScale*(critical?p.criticalMultiplier:1),'thunder',s.playerActionCount,s.enemyStates,this.damage,this.events,()=>this.rng.next(),critical);
-        for(const event of this.events.slice(before))event.delayMs=n*160+100;
+        for(const event of this.events.slice(before))event.delayMs=(event.delayMs??0)+n*160+100;
         origins=cells;source=impact;
       }
       this.groupingDamage=false;this.logHits(def.name,start);
@@ -455,7 +473,7 @@ export class GameSession {
   }
   reap(): void {
     for (const e of this.state.enemyStates.filter(e => e.hp <= 0)) {
-      if(e.kind!=='reaper')this.state.defeatedEnemies!.push(structuredClone(e));
+      if(e.kind!=='reaper'&&e.kind!=='goblinKing')this.state.defeatedEnemies!.push(structuredClone(e));
       const s = this.state;
       const kills = s.floorKills ??= {}; kills[e.kind as keyof typeof kills] = (kills[e.kind as keyof typeof kills] ?? 0) + 1;
       // 同時撃破も1体ずつ加算。撃破なしの行動を挟むと次の撃破から数え直す。
@@ -472,7 +490,17 @@ export class GameSession {
       this.gainExperience(earned); this.events.push({ type: 'defeat', position: { ...e.position } });
       rollDrops(this.stage.enemyDrops?.[e.kind as import("../data/enemies").EnemyKind] ?? actorDefinition(e.kind).drops, this.rng, this.state.floorNumber).forEach((loot, index) => this.state.mapState.objects.push(floorLoot(`drop-${e.id}-${index}`, e.position, loot)));
     }
-    this.state.enemyStates = this.state.enemyStates.filter(e => e.hp > 0);
+    // 連帯責任は今回倒れたゴブリンだけを数え、王の撃破も通常処理へ渡す。
+    const fallen=this.state.enemyStates.filter(e=>e.hp<=0&&isGoblin(e));
+    const kings=this.state.enemyStates.filter(e=>e.kind==='goblinKing'&&e.hp>0);
+    for(const king of kings)if((king.bossLinkUntil??0)>this.state.playerActionCount){
+      const count=fallen.filter(e=>Math.max(Math.abs(e.position.x-king.position.x),Math.abs(e.position.y-king.position.y))<=5).length;
+      if(count)this.damage(king,count*KING_RULES.linkDamage,'neutral',false,null);
+    }
+    const newlyFallen=kings.filter(k=>k.hp<=0);
+    this.state.enemyStates = this.state.enemyStates.filter(e => e.hp > 0 || newlyFallen.includes(e));
+    if(newlyFallen.length)this.reap();
+    for(const king of kings)kingPhases(this.state,king,{rng:this.rng,events:this.events,log:m=>this.log(m),hit:(a,b,n,attribute,label)=>this.strike(a,b,n,attribute,label)});
     this.state.allyStates = this.state.allyStates.filter(a => a.hp > 0);
   }
   goalReady(): boolean {
@@ -512,17 +540,19 @@ export class GameSession {
   }
   /** 夜・深夜・以降30行動ごとの復活。抽選数を保存し、未達分は空き床と撃破済みの敵が揃うまで再試行。 */
   private spawnReaper():void{
-    const s=this.state,day=s.dayCount??1;if(s.status!=='playing'||timeOfDay(s)!=='night'||day%4!==0||s.lastReaperDay===day)return;
-    const count=day/4,probe=actor('reaper-probe','reaper',{x:0,y:0}),cells:Point[]=[];
+    const s=this.state,day=s.dayCount??1;if(s.status!=='playing'||timeOfDay(s)!=='night')return;
+    const wave=(s.daylightCount??0)<DAY_CYCLE.midnight?0:1+Math.floor(((s.daylightCount??0)-DAY_CYCLE.midnight)/DAY_CYCLE.revivalInterval);
+    if(s.lastReaperDay===day&&(s.lastReaperWave??0)>=wave)return;
+    const rule=reaperRules(day),count=rule.count,probe=actor('reaper-probe','reaper',{x:0,y:0}),cells:Point[]=[];
     for(let y=1;y<s.mapState.height-1;y++)for(let x=1;x<s.mapState.width-1;x++){const p={x,y};if(canStand(s.mapState,probe,p,this.actors)&&!s.mapState.objects.some(o=>same(o.position,p)))cells.push(p);}
     if(!cells.length)return;
     const spawned:Actor[]=[];
     for(let n=0;n<count&&cells.length;n++){
       const distant=cells.filter(p=>!this.visible(p)),pool=distant.length?distant:cells,position=pool[this.rng.int(0,pool.length-1)];
       cells.splice(cells.findIndex(p=>same(p,position)),1);
-      const enemy=actor('reaper-day-'+day+'-'+n,'reaper',position);enemy.hp=enemy.maxHp=4*count;enemy.attack=4*count;s.enemyStates.push(enemy);spawned.push(enemy);
+      const enemy=actor('reaper-day-'+day+'-wave-'+wave+'-'+n,'reaper',position);enemy.hp=enemy.maxHp=rule.hp;enemy.attack=rule.attack;s.enemyStates.push(enemy);spawned.push(enemy);
     }
-    s.lastReaperDay=day;
+    s.lastReaperDay=day;s.lastReaperWave=wave;
     const message='死神が'+spawned.length+'体現れた';this.log(day+'日目の夜。'+message+'！');this.events.push({type:'trap',position:{...spawned[0].position},visual:'summonRing',announcement:message});this.capture('enemy');
   }
 
@@ -541,8 +571,8 @@ export class GameSession {
     }
     const desired = s.nightTarget ?? rule.min;
     if (s.nightRevived! >= desired || wave===0&&!s.defeatedEnemies?.length) return;
-    const pool=(s.reinforcementKinds ?? []).filter(k=>k!=='reaper');
-    const dead = wave===0 ? (s.defeatedEnemies??[]).filter(e=>e.kind!=='reaper') : Array.from({length:desired-s.nightRevived!},(_,i)=>actor('reinforcement-'+i,pool.length?pool[this.rng.int(0,pool.length-1)]:'slime',{x:0,y:0},s.stageId,s.floorNumber));
+    const pool=(s.reinforcementKinds ?? []).filter(k=>k!=='reaper'&&k!=='goblinKing');
+    const dead = wave===0 ? (s.defeatedEnemies??[]).filter(e=>e.kind!=='reaper'&&e.kind!=='goblinKing') : Array.from({length:desired-s.nightRevived!},(_,i)=>actor('reinforcement-'+i,pool.length?pool[this.rng.int(0,pool.length-1)]:'slime',{x:0,y:0},s.stageId,s.floorNumber));
     while (dead.length && s.nightRevived! < desired) {
       const old = dead.splice(this.rng.int(0, dead.length - 1), 1)[0];
       const enemy = actor(`night-${s.floorNumber}-${s.playerActionCount}-${s.nightRevived}`, old.kind, old.position, s.stageId, s.floorNumber), cells: Point[] = [];
@@ -563,15 +593,17 @@ export class GameSession {
     if (!this.canSleep()) { this.log('夜、敵に気付かれていないときだけ眠れます。'); return false; }
     const s = this.state, p = s.playerState;
     s.dayCount = (s.dayCount ?? 1) + 1; s.killCombo = 0; s.lastKillAction = undefined;
+    if(s.dayCount%4===0&&(s.fatigue??0)<5){s.fatigue=(s.fatigue??0)+1;this.log('疲労度が'+s.fatigue+'になった。睡眠時のHP回復量は最大HPの'+Math.round(sleepHpRatio(s.fatigue)*100)+'％。');}
     s.playerActionCount++; s.turnCount++; s.daylightCount = 0; s.nightRevived = 0; s.nightWave = undefined; s.nightTarget = undefined;
-    p.hp = p.maxHp; p.mp = p.maxMp; p.afflictions = []; delete p.frostErosion; p.movementLockedUntil = 0;
+    const recovered=Math.min(p.maxHp-p.hp,Math.floor(p.maxHp*sleepHpRatio(s.fatigue??0)));
+    p.hp += recovered; p.mp = p.maxMp; p.afflictions = []; delete p.frostErosion; p.movementLockedUntil = 0;
     // 一晩で期限付き状態と再使用待ちを解消。回復カウントも新しい朝から開始。
     s.cooldowns = {}; s.mpRecoveryActions = 0;
-    for (const a of this.actors) { a.buffs = []; a.afflictions = []; a.hp=a.maxHp; if(a.maxMp!==undefined)a.mp=a.maxMp; }
+    for (const a of this.actors) { a.buffs = []; a.afflictions = []; if(a.id!==p.id)a.hp=a.maxHp; if(a.maxMp!==undefined)a.mp=a.maxMp; }
     s.allyStates=[];s.mapState.thunderPrisons=[];
     s.enemyStates=s.enemyStates.filter(e=>e.kind!=='reaper');
-    s.defeatedEnemies=s.defeatedEnemies?.filter(e=>e.kind!=='reaper');
-    s.reinforcementKinds=s.reinforcementKinds?.filter(k=>k!=='reaper');
+    s.defeatedEnemies=s.defeatedEnemies?.filter(e=>e.kind!=='reaper'&&e.kind!=='goblinKing');
+    s.reinforcementKinds=s.reinforcementKinds?.filter(k=>k!=='reaper'&&k!=='goblinKing');
     const limit = this.stage.sleepRespawnCount ?? DAY_CYCLE.respawnCount;
     const dead = [...(s.defeatedEnemies ?? [])]; let count = 0;
     while (dead.length && count < limit) {
@@ -588,8 +620,8 @@ export class GameSession {
       enemy.position = cells.find(c => same(c, old.position)) ?? cells[this.rng.int(0, cells.length - 1)];
       s.enemyStates.push(enemy); s.defeatedEnemies = s.defeatedEnemies!.filter(a => a.id !== old.id); count++;
     }
-    this.log(`朝になった！ HP・MP全回復。`);
-    this.events.push({ type: 'heal', actorId: p.id, position: { ...p.position }, text: '朝・全回復', sound: 'healing' });
+    this.log(`朝になった！ HP${recovered}回復・MP全回復。`);
+    this.events.push({ type: 'heal', actorId: p.id, position: { ...p.position }, text: '朝・HP+'+recovered, sound: 'healing' });
     this.capture('player'); this.explore(); s.randomSeed = this.rng.seed; return true;
   }
   execute(command: Command): boolean {
@@ -615,7 +647,9 @@ export class GameSession {
     if (command.type === 'item') { if (!this.useItem(command.slot, command.skillId)) return false; this.capture('player'); this.explore(); s.randomSeed = this.rng.seed; return true; }
     if (command.type === 'sleep') return this.sleep();
     s.playerActionCount++; s.daylightCount = (s.daylightCount ?? 0) + 1;
+    startBoss(s,this.events);
     if (command.type === 'cast') this.cast(command.skillId, command.direction, command.target);
+    if(walked)contactBossFire(s,p,(t,n,a,c)=>this.damage(t,n,a,c,null),this.events,this.rng);
     if (walked) triggerPlayerTraps(s, { rng: this.rng, events: this.events, damage: (target, amount, attribute, critical) => this.damage(target, amount, attribute, critical, null), log: message => this.log(message) });
     if(walked) moveNearInstallations(s,{rng:this.rng,events:this.events,log:m=>this.log(m)});
     if (p.hp > 0) this.collect(); this.reap();
@@ -623,13 +657,15 @@ export class GameSession {
     tickThunderPrisons(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     this.groupingDamage=false;this.reap();
     this.capture('player');
-    for (const ally of s.allyStates) { if (p.hp <= 0) break; actSummon(s, ally, this.rng, this.events, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, message => this.log(message)); }
+    for (const ally of s.allyStates) { if (p.hp <= 0) break; const from={...ally.position}; actSummon(s, ally, this.rng, this.events, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, message => this.log(message)); if(!same(from,ally.position))contactBossFire(s,ally,(t,n,a,c)=>this.damage(t,n,a,c,null),this.events,this.rng); }
     for(const ally of s.allyStates){if(ally.remainingLife!==undefined&&--ally.remainingLife<=0){ally.hp=0;this.log(ally.name+'は役目を終え、消えていった。');this.events.push({type:'defeat',actorId:ally.id,position:{...ally.position},text:'消滅'});}}
     this.reap(); this.capture('ally');
-    for (const enemy of s.enemyStates) {
+    tickBanners(s);
+    for (const enemy of [...s.enemyStates]) {
       if (p.hp <= 0) break;
       if(enemy.hp<=0)continue;
-      const actionCount=enemyActionCount(enemy,{rng:this.rng,events:this.events,log:m=>{if(this.inPlayerScreen(enemy.position))this.log(m);}});
+      const canRollSkills=enemy.mode==='hostile'||occupied(enemy).some(c=>occupied(p).some(t=>Math.max(Math.abs(c.x-t.x),Math.abs(c.y-t.y))<=detection(enemy)*2));
+      const actionCount=canRollSkills?enemyActionCount(enemy,{rng:this.rng,events:this.events,log:m=>{if(this.inPlayerScreen(enemy.position))this.log(m);}}):1;
       for(let extra=0;extra<actionCount;extra++){
       if(p.hp<=0||enemy.hp<=0)break;
       contactSkillFields(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
@@ -639,10 +675,11 @@ export class GameSession {
       if (innate && innate !== 'wind') { enemy.afflictions = enemy.afflictions.filter(f => f.attribute !== innate); if (enemy.afflictions.length >= 2) enemy.afflictions.shift(); enemy.afflictions.push({ attribute: innate, remainingTurns: 10, appliedAt: s.playerActionCount }); }
       const skillContext = { hitInstallation:(id:string)=>hitInstallation(s,id,{rng:this.rng,events:this.events,log:m=>this.log(m)}), action: s.playerActionCount, allies: s.enemyStates, map: s.mapState, actors: this.actors, rng: this.rng, events: this.events, damage: (target: Actor, amount: number, attribute: Attribute, _critical?: boolean, label?: string) => this.strike(enemy, target, amount, attribute, label), log: (message: string) => { if (this.inPlayerScreen(enemy.position) || this.events.at(-1)?.path?.some(p => this.inPlayerScreen(p))) this.log(message); } };
       // 支援は敵を見つけていなくても使用可能。攻撃スキルは通常AIの索敵後に試す。
+      Object.assign(skillContext,{allowSkills:canRollSkills});
       enemy.enemyCooldownUntil ??= {};
       const support = { ...enemy, enemySkillIds: (enemy.enemySkillIds ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type === 'allyBuff') };
-      if (tryEnemySkill(support, [], skillContext)) { enemy.mp = support.mp; continue; }
-      actEnemy(s.mapState, enemy, [p, ...s.allyStates], this.actors, this.rng, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, s.playerActionCount, (caster, targets) => { const ids = caster.enemySkillIds; caster.enemySkillIds = (ids ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type !== 'allyBuff'); try { return tryEnemySkill(caster, targets, skillContext); } finally { caster.enemySkillIds = ids; } });
+      if (canRollSkills && tryEnemySkill(support, [], skillContext)) { enemy.mp = support.mp; continue; }
+      if (!actKing(s,enemy,{rng:this.rng,events:this.events,log:m=>this.log(m),hit:(a,b,n,attribute,label)=>this.strike(a,b,n,attribute,label)})) actEnemy(s.mapState, enemy, [p, ...s.allyStates], this.actors, this.rng, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, s.playerActionCount, (caster, targets) => { const ids = caster.enemySkillIds; caster.enemySkillIds = (ids ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type !== 'allyBuff'); try { return tryEnemySkill(caster, targets, skillContext); } finally { caster.enemySkillIds = ids; } });
       // 移動先のダメージで倒れる場合も、到着した姿を先に描画できるよう保存。
       const arrivalActors = !same(beforePosition, enemy.position) ? structuredClone(this.actors) : null;
       const arrivalEventStart = this.events.length;
@@ -671,9 +708,9 @@ export class GameSession {
     tickInstallations(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     tickSkillFields(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     for (const field of s.mapState.fields) {
-      if(field.skillKind)continue;
+      if(field.skillKind||field.effectId.startsWith('king-fire-'))continue;
       const active = p.hp > 0 && (field.triggerType === 'turn' || walked);
-      if (active && same(field.position, p.position)) { const amount = Math.floor(p.attack * field.damageMultiplier); dealAttributeHit(p, amount, field.attribute, s.playerActionCount, [p, ...s.allyStates], this.damage, this.events, () => this.rng.next()); if (field.onceOnly) field.remainingTurns = 0; }
+      if (active && same(field.position, p.position)) { const amount = Math.floor((field.power ?? p.attack) * field.damageMultiplier); dealAttributeHit(p, amount, field.attribute, s.playerActionCount, [p, ...s.allyStates], this.damage, this.events, () => this.rng.next()); if (field.onceOnly) field.remainingTurns = 0; }
     }
     this.reap();
     if (p.hp > 0) this.reviveAtNight();

@@ -52,6 +52,8 @@ export function legacyLoot(object: GroundObject): Loot[] {
 /** 新しいマップ用。固定報酬を優先し、不足分を箱の定義で生成して保存します。 */
 export function initializeChests(map: MapState, rng: Random, floor = 1): void {
   for (const obj of map.objects.filter(o => o.type === 'chest')) {
+    // contents を直接指定した箱は完全固定。開封時のランダム置換も行いません。
+    if (obj.contents !== undefined) { obj.fixedContents = true; obj.randomSkillsResolved = true; }
     const fixed = legacyLoot(obj), skills = fixed.filter(e => e.type === 'skill').length;
     obj.chestTier ??= skills >= 2 ? 'gold' : skills ? 'silver' : 'wood';
     obj.contents ??= rollChest(obj.chestTier, rng, fixed, floor, map.loot);

@@ -88,7 +88,11 @@ export const myMap: StageLayout = {
   legend: { '#': 4, '.': 3 }, // terrain.tsのID。4=木、3=森の床
   spawn: { x: 1, y: 1 },
   objects: [
-    { id: 'start', type: 'chest', chestTier: 'gold', position: { x: 2, y: 1 }, skillIds: ['attack', 'warp'] },
+    // spawn から2マス以内の箱が開始地点の隣の初期宝箱になります。
+    // contents を指定すると、この箱はランダム抽選なしで完全固定です。
+    { id: 'start', type: 'chest', chestTier: 'gold', position: { x: 2, y: 1 }, contents: [
+      { type: 'skill', id: 'attack' }, { type: 'skill', id: 'warp' },
+    ] },
     { id: 'tablet', type: 'record', position: { x: 6, y: 4 } },
     { id: 'exit', type: 'exit', position: { x: 7, y: 5 } },
   ],
@@ -117,8 +121,12 @@ trapPlacements: [
   { count: 8 }, // 全体から配置、地域の候補を使用
   { region: { x: 5, y: 10, width: 8, height: 6 }, count: 5,
     pool: [{ value: 'bearTrap', weight: 1 }] }, // 狭い範囲に集中
+  { count: 4, pool: [{ value: 'fireMine', weight: 1 }] }, // 炎地雷を4個
+  { count: 7, pool: [{ value: 'healing', weight: 1 }] }, // 回復トラップを7個
 ],
 ```
+
+罠の種類ごとに個数を固定したい場合は、種類ごとに配置ルールを1つずつ追加します。`pool`に1種類だけ指定したルールは、その種類だけが指定個数配置されます。
 
 固定罠は `layout.traps` にid/trapId/position/triggered:falseを指定します。
 

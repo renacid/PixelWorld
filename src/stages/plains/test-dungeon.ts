@@ -13,9 +13,15 @@ const rows = Array.from({ length: 30 }, (_, y) => {
   return row;
 });
 
+// 左入口、右中央に王を置く15×11の専用室。周囲1マスを壁で囲う。
+for(let y=16;y<=28;y++)for(let x=12;x<=28;x++){
+  const border=x===12||x===28||y===16||y===28;
+  rows[y]=rows[y].slice(0,x)+(border&&!(x===12&&y===22)?'#':'.')+rows[y].slice(x+1);
+}
 const allSkillLevels = Object.fromEntries(Object.keys(SKILLS).map(id => [id, 5]));
 const layout: StageLayout = {
   rows,
+  bossArena: {x:13,y:17,width:15,height:11},
   legend: { '#': 1, '.': 0 },
   spawn: { x: 2, y: 2 },
   objects: [
@@ -28,19 +34,12 @@ const layout: StageLayout = {
     { kind: 'slime', position: { x: 5, y: 8 } },
     { kind: 'goblin', position: { x: 12, y: 8 } },
     { kind: 'wolf', position: { x: 20, y: 8 } },
-    { kind: 'goblinMage', position: { x: 23, y: 20 } },
-    { kind: 'goblinMage', position: { x: 23, y: 21 } },
-    { kind: 'goblinMage', position: { x: 23, y: 22 } },
-    { kind: 'goblinMage', position: { x: 23, y: 23 } },
-    { kind: 'goblinMage', position: { x: 23, y: 24 } },
-    { kind: 'goblinMage', position: { x: 23, y: 25 } },
-    { kind: 'goblinMage', position: { x: 23, y: 26 } },
-    { kind: 'golem', position: { x: 25, y: 25 } },
+    { kind: 'goblinKing', position: { x: 26, y: 22 } },
   ],
-  randomEnemies: [{ kind: 'slime', count: 3 }],
-  randomChests: 2,
-  gemCount: 1,
-  trapPlacements: [{ count: 5 }],
+  randomEnemies: [],
+  randomChests: 0,
+  gemCount: 0,
+  trapPlacements: [],
 };
 
 export const stage: Stage = {
@@ -49,14 +48,14 @@ export const stage: Stage = {
   name: '開発テストダンジョン',
   subtitle: '全スキル検証室',
   description: '全スキルを初期所持して動作を確認できます。',
-  objective: '古代の記録を回収して出口へ',
+  objective: 'ゴブリン・キングを倒して出口へ',
   vision: 6,
   width: 30,
   height: 30,
   enemyCount: 0,
   regionId: 'plains',
   dungeon: { floors: 1, gemCount: 1, extraPassages: 0, enemyVariance: 0, nightRevival: { min: 0, max: 0 } },
-  clearCondition: { type: 'records', count: 1 },
+  clearCondition: { type: 'defeat', kind: 'goblinKing', count: 1 },
   layout,
   initialBagSize: 9,
   // テスト中に全スキルを連続使用できるようMPを大きく設定。
