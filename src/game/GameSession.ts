@@ -397,7 +397,7 @@ export class GameSession {
       // Lv3以上かつ、実際に使った媒体がrareRank 2以上なら中級精霊。
       // rank1へフォールバックした場合は下級精霊。
       const spiritKind =level >= 3 && ITEMS[item].rareRank >= 2?'greaterSprite':'sprite';
-      const ally = createSpirit(s,spiritKind,cells[this.rng.int(0, cells.length - 1)]);
+      const ally = createSpirit(s,spiritKind,cells[this.rng.int(0, cells.length - 1)],level);
       this.events.push({type: 'trap',position: { ...ally.position },visual: 'summonRing',sound: 'magicCast'});
 
       this.log(ITEMS[item].name +'を媒体に'+ally.name+'を召喚！');
@@ -670,6 +670,8 @@ export class GameSession {
       if (p.hp <= 0) break;
       if(enemy.hp<=0)continue;
       if((enemy.stunnedUntil??0)>s.playerActionCount){this.log(enemy.name+'は行動不能！');continue;}
+      const arena=s.mapState.bossArena;
+      if(enemy.summonedBy||arena&&occupied(enemy).some(c=>c.x>=arena.x&&c.y>=arena.y&&c.x<arena.x+arena.width&&c.y<arena.y+arena.height)){enemy.mode='hostile';enemy.lastSeen={...p.position};}
       const canRollSkills=enemy.mode==='hostile'||occupied(enemy).some(c=>occupied(p).some(t=>Math.max(Math.abs(c.x-t.x),Math.abs(c.y-t.y))<=detection(enemy)*2));
       const actionCount=canRollSkills?enemyActionCount(enemy,{rng:this.rng,events:this.events,log:m=>{if(this.inPlayerScreen(enemy.position))this.log(m);}}):1;
       for(let extra=0;extra<actionCount;extra++){

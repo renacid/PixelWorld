@@ -39,6 +39,10 @@ export function moveToward(map: MapState, a: Actor, target: Point, blockers: Act
 }
 export function actEnemy(map: MapState, enemy: Actor, targets: Actor[], blockers: Actor[], rng: Random, attack: (a: Actor, b: Actor) => void, action = 0, skill?: (caster: Actor, targets: Actor[]) => boolean): void {
   if (enemy.hp <= 0) return;
+  // ボスエリア内とスキル召喚敵は敵視を維持する。
+  const arena=map.bossArena;
+  const locked=!!enemy.summonedBy||!!arena&&occupied(enemy).some(p=>p.x>=arena.x&&p.y>=arena.y&&p.x<arena.x+arena.width&&p.y<arena.y+arena.height);
+  if(locked){enemy.mode='hostile';enemy.chaseMoves=0;enemy.chaseSkipLeft=0;}
   enemy.chaseMoveLimit ??= 12; enemy.chaseMoves ??= 0; enemy.chaseSkipLeft ??= 0; enemy.chaseRecoveryChance ??= .3;
   if (enemy.kind !== 'sprite' && enemy.kind !== 'greaterSprite' && enemy.mode === 'hostile' && (enemy.chaseSkipLeft > 0 || enemy.chaseMoves >= enemy.chaseMoveLimit)) {
     // この行動はスキップ。全対象が索敵距離外なら敵視解除、範囲内なら敵視を維持します。
@@ -49,7 +53,7 @@ export function actEnemy(map: MapState, enemy: Actor, targets: Actor[], blockers
     } else enemy.chaseSkipLeft = 1;
     return;
   }
-  const visible = targets.filter(t => t.hp > 0 && sees(map, enemy, t)).sort((a, b) => actorDistance(enemy, a) - actorDistance(enemy, b));
+  const visible = targets.filter(t => t.hp > 0 && (locked || sees(map, enemy, t))).sort((a, b) => actorDistance(enemy, a) - actorDistance(enemy, b));
   const target = enemy.priorityTarget === 'player' ? visible.find(t => t.kind === 'player') ?? visible[0] : visible[0];
   if (target) {
     if (enemy.mode !== 'hostile') enemy.alertedAt = action;

@@ -83,6 +83,9 @@ function generateBaseMap(stage: Stage, rng: Random, floor = 1): { map: MapState;
     for (let i = 0; i < missingGems; i++) map.objects.push({ id: `gem-${i}`, type: 'gem', position: freeCell(token) });
     initializeChests(map, rng, floor);
     placeTraps(map, (stage.floorSettings?.[floor]?.trapPlacements ?? layout.trapPlacements ?? stage.trapPlacements ?? []).map(p => ({ ...p, pool: p.pool ?? stage.trapPool })), rng, layout.spawn, enemies);
+    // ボスエリアの配置敵は生成時から敵視状態。
+    const arena=map.bossArena;
+    if(arena)for(const enemy of enemies)if(occupied(enemy).some(p=>p.x>=arena.x&&p.y>=arena.y&&p.x<arena.x+arena.width&&p.y<arena.y+arena.height)){enemy.mode='hostile';enemy.lastSeen={...layout.spawn};}
     return { map, enemies, spawn: { ...layout.spawn } };
   }
   const map: MapState = { loot: stage.loot, width, height, tiles: new Array(width * height).fill(0), objects: [], fields: [] };

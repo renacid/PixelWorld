@@ -18,7 +18,7 @@ export type DamageHandler = (target: Actor, damage: number, attribute: Attribute
 const batchHandlers=new WeakMap<GameEvent[],(resolve:()=>number)=>number>();
 const activeBatches=new WeakSet<GameEvent[]>();
 export function bindAttributeBatch(events:GameEvent[],handler:(resolve:()=>number)=>number):void{batchHandlers.set(events,handler);}
-/** 先に融激倍率を適用してから整数化。反応で両属性を消費するため、後続ヒットは通常付着。 */
+/** 先に融撃倍率を適用してから整数化。反応で両属性を消費するため、後続ヒットは通常付着。 */
 export function dealAttributeHit(target: Actor, raw: number, attribute: Attribute, action: number, actors: Actor[], damage: DamageHandler, events: GameEvent[], random: () => number, critical = false, allowSwirl = true, source?:CrystalSource): number {
   const resolve=()=>resolveAttributeHit(target,raw,attribute,action,actors,damage,events,random,critical,allowSwirl,source);
   const handler=batchHandlers.get(events);
@@ -33,7 +33,7 @@ function resolveAttributeHit(target: Actor, raw: number, attribute: Attribute, a
   const amount = Math.max(0, Math.floor(raw * (melt ? 1.5 + random() * .5 : 1)));
   if (melt) {
     target.afflictions = target.afflictions.filter(a => a.attribute !== 'fire' && a.attribute !== 'ice');
-    events.push({ type: 'reaction', position: { ...target.position }, attribute, text: '融解' });
+    events.push({ type: 'reaction', position: { ...target.position }, attribute, text: '融撃' });
   }
   if(melt)labeledDamage(events,'融撃',()=>reactionDamage(target,amount,attribute,damage,events,critical,frostReady));else damage(target, amount, attribute, critical);
   if (!melt) applyAttribute(target, attribute, amount, action, actors, damage, events, allowSwirl, random, source);

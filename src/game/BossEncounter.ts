@@ -22,7 +22,7 @@ export function contactBossFire(s:SaveData,target:Actor,damage:DamageHandler,eve
 export function startBoss(s:SaveData,events:GameEvent[]):void {
  const arena=s.mapState.bossArena,king=s.enemyStates.find(e=>e.kind==='goblinKing'&&e.hp>0);
  if(!arena||arena.started||!king||!inArena(s.playerState.position,arena))return;
- arena.started=true;king.bossLinkUntil=s.playerActionCount+KING_RULES.linkTurns;
+ arena.started=true;for(const enemy of s.enemyStates)if(enemy.hp>0&&inArena(enemy.position,arena)){enemy.mode='hostile';enemy.lastSeen={...s.playerState.position};}king.bossLinkUntil=s.playerActionCount+KING_RULES.linkTurns;
  king.mode='hostile';king.lastSeen={...s.playerState.position};
  events.push({type:'trap',position:{...king.position},bossIntro:true,actorId:king.id,sound:'magicCast'});
 }
@@ -67,7 +67,7 @@ export function actKing(s:SaveData,king:Actor,c:Context):boolean {
  if(melee){king.facing=faceToward(king,melee.position);c.events.push({type:'attack',actorId:king.id,position:{...king.position},target:{...melee.position}});c.hit(king,melee,attackPower(king),'physical','攻撃');return true;}
  const roll=c.rng.next(),rock=KING_RULES.rock,bottle=KING_RULES.bottle,summon=KING_RULES.summon;
  if(roll<rock.chance&&(king.mp??0)>=rock.mp&&targets.some(t=>occupied(t).some(p=>near(p,king.position,rock.radius)))){
-  king.mp!-=rock.mp;const cells:Point[]=[];for(let y=-2;y<=2;y++)for(let x=-2;x<=2;x++){const p={x:king.position.x+x,y:king.position.y+y};if(!wall(s.mapState,p))cells.push(p);}
+  c.events.push({type:'cast',actorId:king.id,position:{...king.position},attribute:'earth',castingAura:true,durationMs:(rock.hits-1)*110+300});king.mp!-=rock.mp;const cells:Point[]=[];for(let y=-2;y<=2;y++)for(let x=-2;x<=2;x++){const p={x:king.position.x+x,y:king.position.y+y};if(!wall(s.mapState,p))cells.push(p);}
   for(let i=0;i<rock.hits&&cells.length&&king.hp>0;i++){const p=cells[c.rng.int(0,cells.length-1)],start=c.events.length;
    c.events.push({type:'trap',position:p,path:[p],visual:'fallingRocks',sound:'rocks',durationMs:300});
    for(const t of targets)if(t.hp>0&&occupied(t).some(q=>same(p,q)))c.hit(king,t,attackPower(king)*rock.ratio,'earth','落石');
@@ -76,7 +76,7 @@ export function actKing(s:SaveData,king:Actor,c:Context):boolean {
  }
  const bottleTarget=targets.find(t=>occupied(t).some(p=>{const x=Math.abs(p.x-king.position.x),y=Math.abs(p.y-king.position.y);return (x===0||y===0)&&Math.max(x,y)<=3||x===y&&x<=2;}));
  if(roll>=.2&&roll<.4&&bottleTarget&&(king.mp??0)>=bottle.mp){
-  king.mp!-=bottle.mp;const p={...bottleTarget.position};c.events.push({type:'cast',actorId:king.id,position:{...king.position},target:p,skillId:'fireball',sound:'magicCast'});
+  king.mp!-=bottle.mp;const p={...bottleTarget.position};c.events.push({type:'cast',actorId:king.id,position:{...king.position},target:p,skillId:'fireball',attribute:'fire',castingAura:true,sound:'magicCast'});
   c.hit(king,bottleTarget,attackPower(king)*bottle.ratio,'fire','火炎瓶');
   for(const [x,y] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]){const position={x:p.x+x,y:p.y+y};if(!wall(s.mapState,position))s.mapState.fields.push({effectId:`king-fire-${s.playerActionCount}-${x}-${y}`,position,attribute:'fire',remainingTurns:bottle.turns+1,triggerType:'enter',damageMultiplier:bottle.floorRatio,power:attackPower(king),onceOnly:false});}
   return true;
@@ -85,7 +85,7 @@ export function actKing(s:SaveData,king:Actor,c:Context):boolean {
   const alive=s.enemyStates.filter(a=>a.hp>0&&a.summonedBy===king.id).length;
   const cells=freeCells(s,king,{x:king.position.x-4,y:king.position.y-4,width:9,height:9}).filter(p=>inArena(p,arena));
   const count=Math.min(summon.count,summon.limit-alive,cells.length);
-  if(count>0){king.mp!-=summon.mp;for(let i=0;i<count;i++){const position=cells.splice(c.rng.int(0,cells.length-1),1)[0],a=actor(`king-summon-${s.playerActionCount}-${i}`,c.rng.next()<.5?'goblin':'goblinArcher',position,s.stageId,s.floorNumber);a.summonedBy=king.id;s.enemyStates.push(a);c.events.push({type:'trap',position,visual:'summonRing',sound:'rocks'});}c.log(king.name+'の突撃号令！ '+count+'体を召喚！');return true;}
+  if(count>0){king.mp!-=summon.mp;for(let i=0;i<count;i++){const position=cells.splice(c.rng.int(0,cells.length-1),1)[0],a=actor(`king-summon-${s.playerActionCount}-${i}`,c.rng.next()<.5?'goblin':'goblinArcher',position,s.stageId,s.floorNumber);a.summonedBy=king.id;a.mode='hostile';a.lastSeen={...s.playerState.position};s.enemyStates.push(a);c.events.push({type:'trap',position,visual:'summonRing',sound:'rocks'});}c.log(king.name+'の突撃号令！ '+count+'体を召喚！');return true;}
  }
  if(!movementLocked(king,s.playerActionCount)&&targets.length){const blockers=[s.playerState,...s.allyStates,...s.enemyStates],before={...king.position};moveToward(s.mapState,king,targets[0].position,blockers,c.rng,s.playerActionCount);if(!inArena(king.position,arena))king.position=before;}
  return true;

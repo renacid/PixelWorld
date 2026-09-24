@@ -67,7 +67,7 @@ export type SaveData = {
   status: 'playing' | 'cleared' | 'defeated'; objectiveChests: number; pendingBag: boolean;
   log: string[];
 };
-export type GameEvent = { bossIntro?: boolean; bossJump?: boolean; reaction?: import('../skills/AttributeSystem').ReactionLabel; crystalAttribute?: 'ice'|'thunder'; announcement?: string; type: 'damage' | 'heal' | 'cast' | 'defeat' | 'reaction' | 'attack' | 'pickup' | 'trap' | 'levelup'; position: Point; amount?: number; attribute?: Attribute; critical?: boolean; text?: string; actorId?: string; target?: Point; skillId?: SkillId; enemySkillId?: string; visual?: TrapVisual | 'stone' | 'strike'; sound?: SoundCue; delayMs?: number; durationMs?: number; path?: Point[] };
+export type GameEvent = { castingAura?: boolean; bossIntro?: boolean; bossJump?: boolean; reaction?: import('../skills/AttributeSystem').ReactionLabel; crystalAttribute?: 'ice'|'thunder'; announcement?: string; type: 'damage' | 'heal' | 'cast' | 'defeat' | 'reaction' | 'attack' | 'pickup' | 'trap' | 'levelup'; position: Point; amount?: number; attribute?: Attribute; critical?: boolean; text?: string; actorId?: string; target?: Point; skillId?: SkillId; enemySkillId?: string; visual?: TrapVisual | 'stone' | 'strike'; sound?: SoundCue; delayMs?: number; durationMs?: number; path?: Point[] };
 export type TurnFrame = { phase: 'player' | 'ally' | 'enemy'; actors: Actor[]; events: GameEvent[] };
 /** 出現順と個数を定義。固定配置の敵はpositionを指定します。 */
 export type EnemySpawn = { kind: EnemyKind; count: number; position?: Point };

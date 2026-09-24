@@ -105,7 +105,7 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
       const cells=[[0,-1],[0,1],[1,-1],[1,0],[1,1]].map(([a,b])=>({x:p.x+f.x*a+side.x*b,y:p.y+f.y*a+side.y*b})).filter(c=>!wall(context.map,c));
       const victims=targets.filter(t=>t.hp>0&&occupied(t).some(c=>cells.some(p=>same(c,p))));
       if(!victims.length||(!exclusive&&context.rng.next()>=(caster.skillChances?.[id]??skill.chance)))continue;
-      consume();context.events.push({type:'cast',actorId:caster.id,position:{...p},path:cells,target:{x:p.x+f.x,y:p.y+f.y},skillId:'sweep',sound:skill.sound});
+      consume();context.events.push({type:'cast',actorId:caster.id,position:{...p},path:cells,target:{x:p.x+f.x,y:p.y+f.y},skillId:'sweep',attribute:skill.effect.attribute,castingAura:true,sound:skill.sound});
       for(const target of victims)if(caster.hp>0)context.damage(target,attackPower(caster)*(skill.effect.damageMin+context.rng.next()*(skill.effect.damageMax-skill.effect.damageMin)),skill.effect.attribute,false,skill.name);
       for(const i of [...context.map.installations??[],...targetableCrystals(context.map,context.action)])if(cells.some(c=>same(c,i.position)))context.hitInstallation?.(i.id);
       return true;

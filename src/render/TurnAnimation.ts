@@ -11,7 +11,7 @@ export class TurnAnimation {
       const frame = { ...source, events: source.events.filter(event => eventVisible(event, [...before, ...source.actors])) };
       const changed = frame.events.length > 0 || frame.actors.some(a => { const b = before.find(o => o.id === a.id); return (!b || a.position.x !== b.position.x || a.position.y !== b.position.y) && (visible(a) || !!b && visible(b)); });
       if (frame.phase === 'player' || changed) {
-        const duration = Math.max(frame.events.some(e => e.type === 'cast') ? 580 : frame.events.some(e => e.type === 'attack') ? 340 : 230, ...frame.events.filter(e => e.type === 'trap' || e.skillId === 'chainLightning' || (e.delayMs??0)>0).map(e => (e.delayMs ?? 0) + (e.durationMs ?? 550)));
+        const duration = Math.max(frame.events.some(e => e.type === 'cast') ? 580 : frame.events.some(e => e.type === 'attack') ? 340 : 230, ...frame.events.filter(e => e.castingAura || e.type === 'trap' || e.skillId === 'chainLightning' || (e.delayMs??0)>0).map(e => (e.delayMs ?? 0) + (e.durationMs ?? 550)));
         this.steps.push({ ...frame, before, start: this.duration, duration }); this.duration += duration;
       }
       before = frame.actors;
@@ -62,7 +62,7 @@ export class TurnAnimation {
           if(group.some(e=>e.reaction==='爆破'||e.reaction==='霜蝕撃')){
             if(event!==group[group.length-1])return [];
             const sum=group.reduce((n,e)=>n+(e.amount??0),0);event={...event,amount:sum,text:sum+' '+[...new Set(group.map(e=>e.reaction).filter(Boolean))].join('・')};
-          }else if(event.reaction==='融撃')event={...event,text:(event.amount??0)+' 融解'};
+          }else if(event.reaction==='融撃')event={...event,text:(event.amount??0)+' 融撃'};
         }
         return [{event,delay:step.start+(event.delayMs??(['damage','reaction','defeat'].includes(event.type)?Math.min(300,step.duration*.5)+i%3*40:0)),duration:event.durationMs??(['attack','cast'].includes(event.type)?Math.min(580,step.duration):step.duration),phase:step.phase}];
       });

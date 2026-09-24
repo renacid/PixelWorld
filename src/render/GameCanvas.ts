@@ -235,6 +235,16 @@ export class GameCanvas {
       if (clock < e.born || !e.shown) continue;
       if (!e.played) { e.played = true; this.onSound?.(e); }
       const age = Math.min(1, (clock - e.born) / e.duration), p = screen(e.position), color = e.attribute ? ATTRIBUTE_COLORS[e.attribute] : '#ffc654'; ctx.save();
+      // 発動者から上昇する属性色の線。ゲームの乱数には影響しない。
+      if(e.castingAura){
+        ctx.strokeStyle=color;ctx.lineWidth=1.5;
+        for(let i=0;i<7;i++){
+          const cycle=(clock-e.born)/430+i*.173,phase=cycle%1;
+          const seed=Math.sin(i*91+Math.floor(cycle)*37+e.index)*43758.5453;
+          const x=p.x+5+(seed-Math.floor(seed))*22,y=p.y+29-phase*29;
+          ctx.globalAlpha=Math.sin(phase*Math.PI)*.85;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y-5-phase*4);ctx.stroke();
+        }ctx.globalAlpha=1;
+      }
       if (e.visual === 'elementalSwirl') {
         drawTrapEffect(ctx, e, age, screen);
         if(e.text)this.popup(ctx,e.text,p.x+16,p.y-age*20,color,true);
