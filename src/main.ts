@@ -1,3 +1,6 @@
+import { actorEffectDescriptions } from './game/ActorEffects';
+import { exportSave, importSave } from './game/PortableSave';
+import { skillUpgradeHtml } from './skills/SkillUpgrades';
 import { WORLD_SETTINGS } from './game/WorldSettings';
 import { itemCapacity } from './game/Inventory';
 import { pixelIcon, SKILL_ICONS, ITEM_ICONS } from './data/PixelIcons';
@@ -15,11 +18,11 @@ import { ATTRIBUTE_COLORS, ATTRIBUTE_NAMES, SKILLS } from './data/skills';
 import { GEM_REWARDS } from './data/gems';
 import { skillMpLabel, wearStage } from './skills/SkillWear';
 import { ITEMS } from './data/items';
-import { blockCells, connectionDamageMultiplier, connectionBonus, effectiveLevel, shape, validPlacement } from './skills/SkillBag';
+import { placementOrigins, blockCells, connectionDamageMultiplier, connectionBonus, effectiveLevel, shape, validPlacement } from './skills/SkillBag';
 import { STAGES, REGIONS } from './stages';
 import { GameCanvas } from './render/GameCanvas';
 import { SoundManager } from './audio/SoundManager';
-import { previewSkill, validSkillTarget } from './skills/SkillResolver';
+import { previewSkill, validSkillTarget, validSkillTargets, skillTargetCount } from './skills/SkillResolver';
 import { timeOfDay } from './game/DayCycle';
 import { attackPower, detection, movementLocked } from './game/ActorStats';
 import { occupied, same } from './game/MapState';
@@ -33,21 +36,22 @@ let session: GameSession | null = null;
 let renderer: GameCanvas | null = null;
 let selected: SkillId | null = null;
 let aim: Point | undefined;
+let secondAim: Point | undefined;
 let screen: 'home' | 'stages' | 'game' = 'home';
 let modal: HTMLElement | null = null;
 let actionLocked = false;
 let lastOutcome = '';
 const icons = Object.fromEntries(Object.entries(SKILL_ICONS).map(([id, d]) => [id,pixelIcon(d)])) as Record<SkillId,string>;
 function selectSkill(id: SkillId): void {
-  if(SKILLS[id].kind==='passive'&&session){selected=null;aim=undefined;update();dialog('<div class="dialog-heading"><h2>'+SKILLS[id].name+'</h2><button id="close-passive" class="icon-button">×</button></div><p>パッシブ · '+skillMpLabel(session.state,id)+' / CT '+SKILLS[id].cooldown+'</p><p>'+skillDescription(session.state,id,session.state.skillBag)+'</p>');on('close-passive',closeModal);return;}
+  if(SKILLS[id].kind==='passive'&&session){selected=null;aim=undefined;secondAim=undefined;update();dialog('<div class="dialog-heading"><h2>'+SKILLS[id].name+'</h2><button id="close-passive" class="icon-button">×</button></div><p>パッシブ · '+skillMpLabel(session.state,id)+' / CT '+SKILLS[id].cooldown+'</p><p>'+skillDescription(session.state,id,session.state.skillBag)+'</p>');on('close-passive',closeModal);return;}
 
-  selected = selected === id ? null : id; aim = undefined;
+  selected = selected === id ? null : id; aim = undefined; secondAim = undefined;
   if (renderer && selected && ['pointArea','installation','enemyWarp','chain'].includes(SKILLS[selected].target)) renderer.camera = null;
   update();
   if (selected) { const strip = document.getElementById('skill-buttons'), button = strip?.querySelector<HTMLElement>('[data-skill="' + selected + '"]'); if (strip && button) { const r = button.getBoundingClientRect(), box = strip.getBoundingClientRect(); if (r.left < box.left || r.right > box.right) strip.scrollBy({ left: r.left < box.left ? r.left - box.left - 4 : r.right - box.right + 4, behavior: 'smooth' }); } }
 }
 function castSelected(): void {
-  if (selected && session && !actionLocked && !modal && !session.canCast(selected) && validSkillTarget(session.state, selected, aim)) act({ type: 'cast', skillId: selected, direction: session.state.playerState.facing, target: aim });
+  if (selected && session && !actionLocked && !modal && !session.canCast(selected) && validSkillTargets(session.state, selected, aim, secondAim)) act({ type: 'cast', skillId: selected, direction: session.state.playerState.facing, target: aim, secondTarget: secondAim });
 }
 const escape = (text: string) => text.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 function on(id: string, fn: () => void): void { document.getElementById(id)?.addEventListener('click', fn); }
@@ -58,7 +62,7 @@ function dialog(content: string, className = ''): HTMLElement {
   document.body.append(modal); modal.querySelector<HTMLElement>('.dialog')?.focus();
   modal.addEventListener('keydown', event => {
     if (event.key !== 'Tab') return;
-    const focusable = [...modal!.querySelectorAll<HTMLElement>('button:not(:disabled),input,[tabindex="0"]')];
+    const focusable = [...modal!.querySelectorAll<HTMLElement>('button:not(:disabled),input,textarea,[tabindex="0"]')];
     const first = focusable[0], last = focusable.at(-1);
     if (!first) { event.preventDefault(); return; }
     if (event.shiftKey && (document.activeElement === first || document.activeElement === modal!.querySelector('.dialog'))) { event.preventDefault(); last?.focus(); }
@@ -79,14 +83,15 @@ function home(): void {
       <div class="hero-art"><canvas id="hero-canvas" aria-label="ドット絵の草原と冒険者"></canvas><div class="hero-vignette"></div></div>
     </section>
     <nav class="home-actions"><button id="solo" class="primary large"><span>ソロプレイ<span class="button-sub">新しい冒険をはじめる</span></span><span>↗</span></button>
-      <button id="continue" class="secondary large" ${saved?.status === 'playing' ? '' : 'disabled'}><span>続きから<span class="button-sub">${saved?.status === 'playing' ? `${STAGES[saved.stageId - 1].name} · ${saved.playerActionCount}行動` : '中断中の冒険はありません'}</span></span><span>→</span></button>
-      <div class="home-bottom"><button disabled><span>⚑ 対戦</span><small>準備中</small></button><button id="settings">⚙ 設定・あそび方</button></div>
+      <button id="continue" class="secondary large" ${saved?.status === 'playing' ? '' : 'disabled'}><span>続きから<span class="button-sub">${saved?.status === 'playing' ? `${STAGES.find(s=>s.id===saved.stageId)?.name} · ${saved.playerActionCount}行動` : '中断中の冒険はありません'}</span></span><span>→</span></button>
+      <button id="import-save" class="secondary">セーブデータを使用</button><div class="home-bottom"><button disabled><span>⚑ 対戦</span><small>準備中</small></button><button id="settings">⚙ 設定・あそび方</button></div>
     </nav><footer class="home-footer"><span class="status-dot"></span> SOLO PROTOTYPE <span>${progress}/${STAGES.length} EXPLORED</span></footer>
     ${saves.error ? `<p class="save-warning">${escape(saves.error)}</p>` : ''}</main>`;
   const demo = GameSession.create(4, 8421);
   demo.state.playerState.position = { x: 7, y: 6 }; demo.explore();
   demo.state.mapState.objects.push({ id: 'hero-chest', type: 'record', position: { x: 9, y: 5 } });
   renderer = new GameCanvas(document.querySelector('#hero-canvas')!); renderer.session = demo; renderer.settings = settings; renderer.start();
+  on('import-save',()=>portableSave(false));
   on('solo', () => stages()); on('continue', () => { if (saved?.status === 'playing') { session = new GameSession(saved); selected = null; lastOutcome = ''; showGame(); } }); on('settings', showSettings);
 }
 function stages(regionId?: string): void {
@@ -105,7 +110,7 @@ function stages(regionId?: string): void {
   app.querySelectorAll<HTMLButtonElement>('[data-stage]').forEach(button => button.addEventListener('click', () => {
     const id = Number(button.dataset.stage), saved = saves.load();
     if (saved?.status === 'playing') {
-      dialog(`<div class="eyebrow">NEW ADVENTURE</div><h2>新しく出発しますか？</h2><p>中断中の${STAGES[saved.stageId - 1].name}（${saved.playerActionCount}行動）は、新しい冒険で上書きされます。</p><button id="start-new" class="primary">新しく出発</button><button id="cancel-new" class="secondary">戻る</button>`);
+      dialog(`<div class="eyebrow">NEW ADVENTURE</div><h2>新しく出発しますか？</h2><p>中断中の${STAGES.find(s=>s.id===saved.stageId)?.name}（${saved.playerActionCount}行動）は、新しい冒険で上書きされます。</p><button id="start-new" class="primary">新しく出発</button><button id="cancel-new" class="secondary">戻る</button>`);
       on('start-new', () => startStage(id)); on('cancel-new', closeModal);
     } else startStage(id);
   }));
@@ -223,7 +228,14 @@ function showGame(): void {
     if (modal || actionLocked) return;
     if (selected && ['pointArea', 'installation', 'enemyWarp', 'chain'].includes(SKILLS[selected].target)) {
       const target = renderer!.mapPoint(e.clientX, e.clientY);
-      if (validSkillTarget(s.state, selected, target)) { aim = target; update(); }
+      if (validSkillTarget(s.state, selected, target)) {
+        if(skillTargetCount(s.state,selected)===2){
+          if(aim&&same(aim,target)){aim=secondAim;secondAim=undefined;}
+          else if(secondAim&&same(secondAim,target))secondAim=undefined;
+          else if(!aim)aim=target;else secondAim=target;
+        }else aim=target;
+        update();
+      }
       return;
     }
     const cell = renderer!.mapPoint(e.clientX, e.clientY);
@@ -237,6 +249,12 @@ function showGame(): void {
       if (!dismiss.isConnected) modal!.firstElementChild!.append(dismiss);
       dismiss.addEventListener('click', () => { if (!window.confirm(ally.name + 'を消滅させますか？')) return; s.state.allyStates = s.state.allyStates.filter(a => a.id !== ally.id); s.log(ally.name + 'を消滅させた。'); persist(); closeModal(); update(); });
       on('close-ally', closeModal); return;
+    }
+    const enemy = s.state.enemyStates.find(a => a.hp > 0 && occupied(a).some(p => same(p, cell) && s.visible(p)));
+    if (enemy) {
+      const effects = actorEffectDescriptions(enemy, s.state.playerActionCount);
+      dialog('<div class="dialog-heading"><h2>' + escape(enemy.name) + '</h2><button id="close-enemy-effects" class="icon-button" aria-label="閉じる">×</button></div><h3>バフ・デバフ</h3><p>' + (effects.map(escape).join('<br>') || '現在かかっている効果はありません') + '</p>');
+      on('close-enemy-effects', closeModal); return;
     }
     if (!s.state.playerState.freeCamera) return;
     drag = { x: e.clientX, y: e.clientY, camera: { ...(renderer!.camera ?? s.state.playerState.position) } }; canvas.setPointerCapture(e.pointerId);
@@ -287,13 +305,13 @@ function update(): void {
   const cast = document.querySelector<HTMLButtonElement>('#cast')!;
   if (selected && !validSkillTarget(s, selected, aim)) aim = undefined;
   // 選択中はボタン自体を残し、MP・CT・着弾点など発動できない理由を表示する。
-  const castError = selected ? session.canCast(selected) ?? (!validSkillTarget(s, selected, aim) ? 'マップで対象を選択' : actionLocked ? '行動の終了を待っています' : null) : null;
+  const castError = selected ? session.canCast(selected) ?? (!validSkillTargets(s, selected, aim, secondAim) ? (skillTargetCount(s,selected)===2?'異なる着弾点を2つ選択（'+(Number(!!aim)+Number(!!secondAim))+'/2）':'マップで対象を選択') : actionLocked ? '行動の終了を待っています' : null) : null;
   cast.disabled = false; cast.setAttribute('aria-disabled', String(!selected || !!castError)); cast.classList.toggle('ready', !!selected && !castError);
   cast.hidden = !selected;
   cast.textContent = selected ? castError ?? `${SKILLS[selected].short}を発動 ↗` : '';
   cast.setAttribute('aria-label', selected ? `${SKILLS[selected].name}：${castError ?? '発動確定'}` : 'スキルを選択');
   if (selected && !aim && ['pointArea', 'installation', 'enemyWarp', 'chain'].includes(SKILLS[selected].target)) text('objective-text', SKILLS[selected].target === 'chain' ? '隣接8マスの敵をタップして起点を選択' : SKILLS[selected].target === 'enemyWarp' ? 'マップで表示範囲内の敵をタップして選択' : SKILLS[selected].target === 'installation' ? '周囲十字4マスから設置場所を選択' : 'マップをタップして着弾点を選択');
-  if (renderer) { renderer.selected = selected; renderer.aim = aim; }
+  if (renderer) { renderer.selected = selected; renderer.aim = aim; renderer.secondAim = secondAim; }
   document.getElementById('camera-reset')!.hidden = !renderer?.camera;
 }
 function direction(dir: Direction): void {
@@ -308,17 +326,19 @@ function act(command: Command): void {
   const before = structuredClone(session.actors);
   const previousFloor = session.state.floorNumber;
   const success = session.execute(command);
-  if (success && command.type === 'cast' && selected && (session.canCast(selected) || !['warp','groundTrap','summon'].includes(SKILLS[selected].target) && !previewSkill(session.state,selected,session.state.playerState.facing,aim).targetIds.length)) { selected = null; aim = undefined; }
+  if (success && command.type === 'cast' && selected && (session.canCast(selected) || !['warp','groundTrap','summon'].includes(SKILLS[selected].target) && !previewSkill(session.state,selected,session.state.playerState.facing,aim).targetIds.length)) { selected = null; aim = undefined; secondAim = undefined; }
   if (success && previousFloor !== session.state.floorNumber) { selected = null; persist(); showGame(); session.onLog?.(session.state.log.at(-1)!); arrivalEffect(session.events.find(e=>e.announcement)?.announcement ?? '第' + session.state.floorNumber + '層へ', false,session.events.some(e=>e.announcement)); return; }
   if (success) {
     if (command.type === 'sleep') arrivalEffect('朝になった', true);
     const announcement=session.events.find(e=>e.announcement)?.announcement;if(announcement)arrivalEffect(announcement,false,true);
     if (command.type === 'move' && before[0] && (before[0].position.x !== session.state.playerState.position.x || before[0].position.y !== session.state.playerState.position.y)) sound.step();
     const bossIntro=session.events.find(e=>e.bossIntro);
-    const introDuration=bossIntro?(renderer?.playBossIntro(bossIntro)??0):0;
+    const introDuration=bossIntro?2800:0;
     const frames=session.frames,activeRenderer=renderer;
 
-    const duration = Math.max(introDuration?0:renderer?.animateTurn(before, session.frames) ?? 0, command.type === 'sleep' ? 2400 : 0);
+    // 進入のプレイヤー行動を先に再生。カットイン後は味方・敵フェーズだけ続ける。
+    const playerFrames=introDuration?frames.filter(f=>f.phase==='player').map(f=>({...f,events:f.events.filter(e=>!e.bossIntro)})):[];
+    const duration = Math.max(renderer?.animateTurn(before, introDuration?playerFrames:frames) ?? 0, command.type === 'sleep' ? 2400 : 0);
     persist(); actionLocked = true;
     document.querySelector('.game-shell')?.setAttribute('aria-busy', 'true');
     const finishAction = () => {
@@ -330,7 +350,12 @@ function act(command: Command): void {
       else if (session.state.pendingGemChoices?.length) openGem();
       else if (session.state.pendingBag) openBag(true);
     };
-    if(introDuration)window.setTimeout(()=>{if(renderer!==activeRenderer)return;const turnDuration=activeRenderer?.animateTurn(before,frames)??0;window.setTimeout(finishAction,turnDuration);},introDuration);
+    if(introDuration)window.setTimeout(()=>{
+      if(renderer!==activeRenderer)return;
+      const arrived=playerFrames.at(-1)?.actors??before;
+      const introTime=activeRenderer?.playBossIntro(bossIntro!,arrived)??0;
+      window.setTimeout(()=>{if(renderer!==activeRenderer)return;const turnDuration=activeRenderer?.animateTurn(arrived,frames.filter(f=>f.phase!=='player'))??0;window.setTimeout(finishAction,turnDuration);},introTime);
+    },duration);
     else window.setTimeout(finishAction,duration);
   }
   update();
@@ -385,10 +410,21 @@ function itemDialog(slot: number): void {
   dialog(`<div class="eyebrow">ITEM / ${slot + 1}</div><h2>${pixelIcon(ITEM_ICONS[id])} ${ITEMS[id].name}</h2><p>レアランク ${ITEMS[id].rareRank} · ${ITEMS[id].description}。使用してもターンは経過しません。</p><button class="primary" id="use-item">使用する</button><button class="secondary" id="drop-item">捨てる（消滅）</button><button class="secondary" id="close-item">戻る</button>`);
   on('drop-item', drop); on('use-item', () => { closeModal(); act({ type: 'item', slot }); }); on('close-item', closeModal);
 }
+function portableSave(exporting:boolean):void{
+  dialog('<div class="dialog-heading"><h2>'+ (exporting?'進行状況をセーブ':'セーブデータを使用')+'</h2><button id="close-transfer">×</button></div><p>'+ (exporting?'文字列をコピーしてメモなどへ保存してください。同じアプリ版の端末で何度でも再開できます。':'保存した文字列を全文貼り付けてください。再開すると現在の中断データを置き換えます。')+'</p><textarea id="transfer-data" aria-label="セーブ文字列" rows="8" style="width:100%;font-size:16px" '+(exporting?'readonly':'')+'></textarea><p id="transfer-message" role="status"></p><button id="transfer-action" class="primary">'+(exporting?'文字列をコピー':'このデータで再開')+'</button>');
+  const input=document.getElementById('transfer-data') as HTMLTextAreaElement;
+  if(exporting)input.value=exportSave(session!.state);
+  on('close-transfer',()=>{if(exporting)pause();else closeModal();});
+  on('transfer-action',async()=>{try{
+    if(exporting){input.select();try{await navigator.clipboard.writeText(input.value);}catch{if(!document.execCommand('copy'))throw new Error('文字列を長押しして、すべて選択してコピーしてください。');}document.getElementById('transfer-message')!.textContent='コピーしました。メモなどへ貼り付けて保存してください。';}
+    else{const state=importSave(input.value);session=new GameSession(state);selected=null;aim=undefined;lastOutcome='';closeModal();showGame();persist();}
+  }catch(error){document.getElementById('transfer-message')!.textContent=error instanceof Error?error.message:String(error);}});
+}
 function pause(): void {
   if (actionLocked) return;
   persist();
-  dialog(`<div class="eyebrow">TAKE A BREATH</div><h2>ひとやすみ。</h2><p>${session!.stage.name} · ${session!.state.playerActionCount}行動<br>${saves.error || '冒険の途中経過を保存しました。'}</p><button id="resume" class="primary">冒険に戻る</button><button id="pause-settings" class="secondary">設定・あそび方</button><button id="to-home" class="text-button">中断してトップへ</button>`);
+  dialog(`<div class="eyebrow">TAKE A BREATH</div><h2>ひとやすみ。</h2><p>${session!.stage.name} · ${session!.state.playerActionCount}行動<br>${saves.error || '冒険の途中経過を保存しました。'}</p><button id="resume" class="primary">冒険に戻る</button><button id="export-save" class="secondary">進行状況をセーブ（文字列）</button><button id="pause-settings" class="secondary">設定・あそび方</button><button id="to-home" class="text-button">中断してトップへ</button>`);
+  on('export-save',()=>portableSave(true));
   on('resume', closeModal); on('pause-settings', showSettings); on('to-home', home);
 }
 function outcome(): void {
@@ -429,7 +465,10 @@ function openBag(acquisition: boolean, readOnly = false, onReturn?: () => void):
   if (readOnly) message = '閲覧中：×で選択画面に戻ります。';
   dialog(`<div class="bag-book-fragments"><span>魔導書の切れ端 <strong>${session.state.bookFragments??0}</strong>枚</span>${editable?`<button id="use-book-fragments" ${(session.state.bookFragments??0)>=3?'':'disabled'}>3枚で魔導書を使う</button>`:''}</div><div class="bag-layout"><div class="bag-stage"><div class="bag-grid" id="bag-grid" role="grid" aria-label="レベルで拡張するスキルバッグ"></div></div><div class="bag-tools"><button id="close-bag" class="icon-button" aria-label="バッグの配置を保存して閉じる">×</button><button id="rotate" aria-label="選択ブロックを90度回転" ${editable ? '' : 'disabled'}>↻<small>回転</small></button><button id="unplace" ${editable ? '' : 'disabled'}>↥<small>外す</small></button><div id="shape-preview" aria-label="選択スキルの形"></div></div></div><div id="bag-message" class="bag-message" aria-live="polite"></div><div class="bag-scroll"><div id="bag-list" class="bag-list"></div></div>`, 'bag-modal');
   const grid = document.getElementById('bag-grid')!;
-  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`; grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`; grid.style.aspectRatio = `${cols}/${rows}`; grid.style.maxWidth = `${Math.min(260, 260 * cols / rows)}px`;
+  // pointerup直後の合成clickがドロップ位置を再配置しないようにする。
+  let suppressBagClickUntil=0;
+  grid.addEventListener('click',e=>{if(performance.now()<suppressBagClickUntil){e.preventDefault();e.stopImmediatePropagation();}},true);
+  grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`; grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`; grid.style.aspectRatio = `${cols}/${rows}`; grid.style.maxWidth = `${Math.min(260, 260 * cols / rows)}px`;
   document.getElementById('shape-preview')!.addEventListener('pointerdown', e => { if(editable && active) beginDrag(e,active); });
   function drawBag(): void {
     grid.innerHTML = Array.from({ length: cols * rows }, (_, i) => `<button class="bag-cell ${available.some(p => p.x === i % cols && p.y === Math.floor(i / cols)) ? '' : 'locked-cell'}" data-cell="${i}" role="gridcell" aria-label="${i % cols + 1}列${Math.floor(i / cols) + 1}行" ${available.some(p => p.x === i % cols && p.y === Math.floor(i / cols)) ? '' : 'disabled'}></button>`).join('');
@@ -458,8 +497,13 @@ function openBag(acquisition: boolean, readOnly = false, onReturn?: () => void):
     document.getElementById('bag-message')!.textContent = message;
     document.getElementById('bag-list')!.innerHTML = draft.map(b => {
       const d = SKILLS[b.skillId];
-      return `<section class="bag-entry" data-entry="${b.skillId}"><button data-bag-skill="${b.skillId}" class="bag-list-item ${active === b.skillId ? 'active' : ''}" style="--skill-color:${ATTRIBUTE_COLORS[d.attribute]}" aria-expanded="${expanded.has(b.skillId)}"><span data-reorder="${b.skillId}" title="ドラッグして順番を変更">${icons[b.skillId]}</span><span><strong>${d.name}</strong><small>${ATTRIBUTE_NAMES[d.attribute]} · 現在Lv.${session!.state.skillLevels[b.skillId]} 連結${connectionBonus(draft, b.skillId)} · ダメージ×${connectionDamageMultiplier(draft, b.skillId).toFixed(2)}${wearStage(session!.state,b.skillId)>0?` <span class="skill-wear-stage">劣化${wearStage(session!.state,b.skillId)}段階</span>`:''}</small></span><small>${b.position ? '配置済' : '未配置'} ${expanded.has(b.skillId) ? '▴' : '▾'}</small>${b.isNew ? '<i class="new-badge">new</i>' : ''}</button><button class="placement-handle" data-drag-handle="${b.skillId}" aria-label="${d.name}のブロックをドラッグして配置">${blockThumbnail(b.skillId, b.rotation)}</button><div class="bag-description ${expanded.has(b.skillId) ? 'expanded' : ''}"><div><p>${skillMpLabel(session!.state, b.skillId)} / CT ${d.cooldown} / Lv.${effectiveLevel(draft, session!.state.skillLevels, b.skillId)}</p><p>${skillDescription(session!.state,b.skillId,draft)}</p></div></div></section>`;
+      return `<section class="bag-entry" data-entry="${b.skillId}"><button data-bag-skill="${b.skillId}" class="bag-list-item ${active === b.skillId ? 'active' : ''}" style="--skill-color:${ATTRIBUTE_COLORS[d.attribute]}" aria-expanded="${expanded.has(b.skillId)}"><span data-reorder="${b.skillId}" title="ドラッグして順番を変更">${icons[b.skillId]}</span><span><strong>${d.name}</strong><small>${ATTRIBUTE_NAMES[d.attribute]} · 現在Lv.${session!.state.skillLevels[b.skillId]} 連結${connectionBonus(draft, b.skillId)} · ダメージ×${connectionDamageMultiplier(draft, b.skillId).toFixed(2)}${wearStage(session!.state,b.skillId)>0?` <span class="skill-wear-stage">劣化${wearStage(session!.state,b.skillId)}段階</span>`:''}</small></span><small>${b.position ? '配置済' : '未配置'} ${expanded.has(b.skillId) ? '▴' : '▾'}</small>${b.isNew ? '<i class="new-badge">new</i>' : ''}</button><button class="placement-handle" data-drag-handle="${b.skillId}" aria-label="${d.name}のブロックをドラッグして配置">${blockThumbnail(b.skillId, b.rotation)}</button><div class="bag-description ${expanded.has(b.skillId) ? 'expanded' : ''}"><div><div class="bag-skill-meta"><span>${skillMpLabel(session!.state, b.skillId)} / CT ${d.cooldown} / Lv.${effectiveLevel(draft, session!.state.skillLevels, b.skillId)}</span><button class="skill-upgrades-button" data-upgrades="${b.skillId}">レベルアップ強化一覧</button></div><p>${skillDescription(session!.state,b.skillId,draft)}</p></div></div></section>`;
     }).join('') || '<p class="footnote">まだスキルを持っていません。</p>';
+    document.querySelectorAll<HTMLButtonElement>('[data-upgrades]').forEach(button=>button.onclick=()=>{
+      const id=button.dataset.upgrades as SkillId,overlay=document.createElement('div');overlay.className='modal-backdrop upgrades-overlay';
+      overlay.innerHTML='<section class="dialog"><div class="dialog-heading"><h2>'+SKILLS[id].name+'</h2><button aria-label="閉じる">×</button></div><h3>レベルアップ強化一覧</h3>'+skillUpgradeHtml(id,session!.state.skillLevels[id]??1)+'</section>';
+      overlay.querySelector('button')!.onclick=()=>overlay.remove();overlay.onclick=e=>{if(e.target===overlay)overlay.remove();};document.body.append(overlay);
+    });
     document.querySelectorAll<HTMLButtonElement>('[data-bag-skill]').forEach(b => {
       b.addEventListener('click', () => { active = b.dataset.bagSkill as SkillId; if (expanded.has(active)) expanded.delete(active); else expanded.add(active); rotation = draft.find(p => p.skillId === active)!.rotation; message = readOnly ? '閲覧中：×で選択画面に戻ります。' : `${SKILLS[active].name}を選択中。置きたいマスをタップ。`; syncSelection(); });
 
@@ -528,14 +572,15 @@ function openBag(acquisition: boolean, readOnly = false, onReturn?: () => void):
       if(e.pointerId!==pointer||!moving&&Math.hypot(e.clientX-start.x,e.clientY-start.y)<5)return;
       e.preventDefault();moving=true;if(!ghost.isConnected)document.body.append(ghost);if(source)source.style.opacity='.2';
       const {r,ux,uy,p}=candidate(e),valid=validPlacement(draft,id,p,rotation,available);
-      ghost.style.width=w*ux+'px';ghost.style.height=h*uy+'px';
       const over=e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;
-      ghost.style.left=(over?r.left+p.x*ux:e.clientX-w*ux/2)+'px';ghost.style.top=(over?r.top+p.y*uy:e.clientY-h*uy/2)+'px';
+      // バッグ内は確定済みブロックと同じ親・百分率座標で描画する。
+      if(over){grid.append(ghost);ghost.classList.add('in-bag');ghost.style.width=w*100/cols+'%';ghost.style.height=h*100/rows+'%';ghost.style.left=p.x*100/cols+'%';ghost.style.top=p.y*100/rows+'%';}
+      else{document.body.append(ghost);ghost.classList.remove('in-bag');ghost.style.width=w*ux+'px';ghost.style.height=h*uy+'px';ghost.style.left=e.clientX-w*ux/2+'px';ghost.style.top=e.clientY-h*uy/2+'px';}
       ghost.style.opacity=over&&!valid?'.45':'.9';
-      ghost.innerHTML=cells.map((c,i)=>'<span class="piece-cell" style="left:'+c.x*ux+'px;top:'+c.y*uy+'px;width:'+ux+'px;height:'+uy+'px">'+(i?'·':icons[id])+'</span>').join('');
+      ghost.innerHTML=cells.map((c,i)=>'<span class="piece-cell" style="left:'+c.x*100/w+'%;top:'+c.y*100/h+'%;width:'+100/w+'%;height:'+100/h+'%">'+(i?'·':icons[id])+'</span>').join('');
     };
     const cleanup=()=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',finish);document.removeEventListener('pointercancel',cancel);ghost.remove();if(source)source.style.opacity='';};
-    const finish=(e:PointerEvent)=>{if(e.pointerId!==pointer)return;cleanup();if(moving){e.preventDefault();const {r,p}=candidate(e);if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom)place(id,p);else{message='配置を変更せず戻しました。';drawBag();}}else{message=SKILLS[id].name+'を選択中。置きたいマスをタップ。';drawBag();}};
+    const finish=(e:PointerEvent)=>{if(e.pointerId!==pointer)return;cleanup();if(moving){e.preventDefault();suppressBagClickUntil=performance.now()+200;const {r,p}=candidate(e);if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom)place(id,p);else{message='配置を変更せず戻しました。';drawBag();}}else{message=SKILLS[id].name+'を選択中。置きたいマスをタップ。';drawBag();}};
     const cancel=(e:PointerEvent)=>{if(e.pointerId!==pointer)return;cleanup();};
     document.addEventListener('pointermove',move,{passive:false});document.addEventListener('pointerup',finish);document.addEventListener('pointercancel',cancel);
   }
@@ -547,7 +592,7 @@ function openBag(acquisition: boolean, readOnly = false, onReturn?: () => void):
     // 90→180→270度の順で全配置候補を調べ、最初に置ける向きを採用する。
     for(let turns=1;turns<=3;turns++){
       const next=(rotation+turns)%4,rotated=shape(active,next),target={x:center.x-(Math.max(...rotated.map(c=>c.x))+1)/2,y:center.y-(Math.max(...rotated.map(c=>c.y))+1)/2};
-      const found=available.filter(p=>validPlacement(draft,active!,p,next,available)).sort((a,b)=>Math.hypot(a.x-target.x,a.y-target.y)-Math.hypot(b.x-target.x,b.y-target.y))[0];
+      const found=placementOrigins(draft,active!,next,available).sort((a,b)=>Math.hypot(a.x-target.x,a.y-target.y)-Math.hypot(b.x-target.x,b.y-target.y))[0];
       if(found){b.position={...found};rotation=next;b.rotation=next;message=turns*90+'度回転して配置しました。';drawBag();return;}
     }
     message='どの向きにも配置できないため、元の配置を保ちました。';syncSelection();

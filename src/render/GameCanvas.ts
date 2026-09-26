@@ -30,11 +30,14 @@ export class GameCanvas {
   session: GameSession | null = null;
   selected: SkillId | null = null;
   aim?: Point;
+  secondAim?: Point;
   camera: Point | null = null;
   private bossIntro: { born:number; position:Point; name:string } | null = null;
-  playBossIntro(event:GameEvent):number {
+  private heldActors: Actor[] | null = null;
+  playBossIntro(event:GameEvent, actors?:Actor[]):number {
     const boss=this.session?.state.enemyStates.find(a=>a.id===event.actorId);
     if(!boss)return 0;
+    this.animation=null;this.heldActors=actors??null;
     this.bossIntro={born:performance.now(),position:{...event.position},name:boss.name};
     this.onSound?.(event);return 2800;
   }
@@ -55,6 +58,7 @@ export class GameCanvas {
   }
   destroy(): void { cancelAnimationFrame(this.frame); this.effects = []; }
   animateTurn(before: Actor[], frames: TurnFrame[]): number {
+    this.heldActors=null;this.bossIntro=null;
     const pointVisible = (p: Point) => this.onScreen(p) && this.session!.visible({ x: Math.round(p.x), y: Math.round(p.y) });
     const actorVisible = (a: Actor) => occupied(a).some(pointVisible);
     const eventVisible = (event: GameEvent, actors: Actor[]) => event.actorId === 'player'
@@ -62,7 +66,7 @@ export class GameCanvas {
       || !!event.path?.some(pointVisible) || actors.some(a => a.id === event.actorId && actorVisible(a));
     this.animation = new TurnAnimation(before, frames, actorVisible, eventVisible);
     this.animationStart = performance.now();
-    this.effects.push(...this.animation.events().map(({ event, delay, duration }, i) => ({ ...event, born: this.animationStart + (this.settings.motion ? delay : 0), duration: event.durationMs ?? (['cast', 'attack'].includes(event.type) ? duration : 1000), index: i, played: false, shown: event.actorId === 'player' || this.session!.visible({ x: Math.round(event.position.x), y: Math.round(event.position.y) }) || [...before, ...frames.flatMap(f => f.actors)].some(a => a.id === event.actorId && occupied(a).some(p => this.session!.visible(p))) })));
+    this.effects.push(...this.animation.events().map(({ event, delay, duration }, i) => ({ ...event, born: this.animationStart + (this.settings.motion ? delay : 0), duration: event.durationMs ?? (['cast', 'attack'].includes(event.type) ? duration : 1000), index: i, played: false, shown: eventVisible(event,[...before,...frames.flatMap(f=>f.actors)]) || event.actorId === 'player' || this.session!.visible({ x: Math.round(event.position.x), y: Math.round(event.position.y) }) || [...before, ...frames.flatMap(f => f.actors)].some(a => a.id === event.actorId && occupied(a).some(p => this.session!.visible(p))) })));
     if (!this.settings.motion) { this.animation = null; return 100; }
     return this.animation.duration;
   }
@@ -81,7 +85,7 @@ export class GameCanvas {
     for (let py = 0; py < pixelHeight; py++) for (let px = 0; px < pixelWidth; px++) {
       const color = PIXEL_COLORS[pixels[py][px]]; if (!color) continue;
       const foot = py >= pixelHeight * .75 && (definition.idleStep || this.animation) ? (px < pixelWidth / 2 ? step : 1 - step) * (this.settings.motion ? 1 : 0) : 0;
-      ctx.fillStyle = flash ? '#fffcef' : color; ctx.fillRect(Math.round(cx - scaleX * pixelWidth / 2 + px * scaleX), Math.round(spriteTop + py * scaleY + bob - foot), scaleX, scaleY);
+      ctx.fillStyle = flash ? '#fffcef' : color; ctx.fillRect(Math.round(cx - scaleX * pixelWidth / 2 + px * scaleX), Math.round(spriteTop + py * scaleY + bob - foot), scaleX, Math.round(spriteTop + (py + 1) * scaleY + bob - foot) - Math.round(spriteTop + py * scaleY + bob - foot));
     }
     // 王冠と深紅の肩飾りで、同じ1マスの兵士から区別する。
     if(a.kind==='goblinKing'){
@@ -119,11 +123,11 @@ export class GameCanvas {
     this.canvas.dataset.vision = String(s.vision);
     const ctx = this.ctx, state = s.state, clock = performance.now(); ctx.imageSmoothingEnabled = false;
     const sample = this.animation?.sample(clock - this.animationStart); if (!sample) this.animation = null;
-    const actors = sample?.actors ?? s.actors;
+    const actors = sample?.actors ?? this.heldActors ?? s.actors;
     const oldPlayer = sample?.step.before.find(a => a.id === 'player'), nextPlayer = sample?.step.actors.find(a => a.id === 'player');
     const walking = oldPlayer && nextPlayer && (oldPlayer.position.x !== nextPlayer.position.x || oldPlayer.position.y !== nextPlayer.position.y);
     const player = actors.find(a => a.id === 'player') ?? state.playerState;
-    const viewPlayer = walking ? player.position : nextPlayer?.position ?? state.playerState.position;
+    const viewPlayer = walking || this.heldActors ? player.position : nextPlayer?.position ?? state.playerState.position;
     const center = {...(this.camera ?? viewPlayer)};
     const intro=this.bossIntro,elapsed=intro?clock-intro.born:0;
     if(intro){
@@ -201,6 +205,7 @@ export class GameCanvas {
     }
     if (this.selected && !sample) {
       const target = previewSkill(state, this.selected, state.playerState.facing, this.aim), color = ATTRIBUTE_COLORS[SKILLS[this.selected].attribute];
+      if(this.selected==='icestone'&&this.secondAim){const extra=previewSkill(state,this.selected,state.playerState.facing,this.secondAim);target.cells.push(...extra.cells.filter(c=>!target.cells.some(p=>p.x===c.x&&p.y===c.y)));}
       if (['pointArea','installation','enemyWarp','chain'].includes(SKILLS[this.selected].target)) {
         const r = selectionRange(state, this.selected), center = state.playerState.position;
         ctx.strokeStyle = color; ctx.lineWidth = 1;
@@ -211,7 +216,7 @@ export class GameCanvas {
           if (cell.x < 0 || cell.y < 0 || cell.x >= state.mapState.width || cell.y >= state.mapState.height) continue;
           const p = screen(cell); ctx.strokeRect(p.x + 2, p.y + 2, 28, 28);
         }
-        if (this.aim) { const p = screen(this.aim); ctx.fillStyle = '#f4fdff'; ctx.fillRect(p.x + 13, p.y + 7, 6, 18); ctx.fillRect(p.x + 7, p.y + 13, 18, 6); }
+        for (const aim of [this.aim,this.secondAim].filter((p):p is Point=>!!p)) { const p = screen(aim); ctx.fillStyle = '#f4fdff'; ctx.fillRect(p.x + 13, p.y + 7, 6, 18); ctx.fillRect(p.x + 7, p.y + 13, 18, 6); }
       }
       target.cells.forEach((cell, i) => { const p = screen(cell); ctx.fillStyle = `${color}55`; ctx.fillRect(p.x + 1, p.y + 1, 30, 30); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(p.x + 2, p.y + 2, 28, 28);
         if (SKILLS[this.selected!].target === 'line') { ctx.fillStyle = '#fffdf2'; ctx.font = 'bold 17px monospace'; ctx.textAlign = 'center'; ctx.fillText(({ up: '↑', right: '→', down: '↓', left: '←' })[state.playerState.facing], p.x + 16, p.y + 21); }
@@ -230,6 +235,7 @@ export class GameCanvas {
       const p = screen(a.position);
       drawStatusIcons(ctx, a, p.x, p.y, (Math.max(...a.cells.map(c => c.x)) + 1) * TILE, (Math.max(...a.cells.map(c => c.y)) + 1) * TILE, clock, state.playerActionCount);
     }
+    for(const rock of state.mapState.delayedRocks??[]){if(!visible(rock.position))continue;const p=screen(rock.position);ctx.save();ctx.fillStyle='#18212b80';ctx.beginPath();ctx.ellipse(p.x+32,p.y+32,29,22,0,0,Math.PI*2);ctx.fill();ctx.restore();}
     this.effects = this.effects.filter(e => clock - e.born < e.duration);
     for (const e of this.effects) {
       if (clock < e.born || !e.shown) continue;
@@ -264,7 +270,9 @@ export class GameCanvas {
   private popup(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, bold: boolean): void { ctx.font = `${bold ? 'bold ' : ''}${bold ? 14 : 12}px monospace`; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = '#fffaf0'; ctx.fillStyle = color; ctx.strokeText(text, x, y); ctx.fillText(text, x, y); }
   private skillEffect(ctx: CanvasRenderingContext2D, e: GameEvent, age: number, screen: (p: Point) => Point): void {
     const from = screen(e.position), to = screen(e.target ?? e.position), x = from.x + 16 + (to.x - from.x) * Math.min(1, age * 1.5), y = from.y + 16 + (to.y - from.y) * Math.min(1, age * 1.5); ctx.globalAlpha = Math.min(1, (1 - age) * 3);
-    if (e.skillId === 'chainLightning') { ctx.strokeStyle='#a776ed';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(from.x+16,from.y+16);ctx.lineTo((from.x+to.x)/2+22,(from.y+to.y)/2+7);ctx.lineTo((from.x+to.x)/2+9,(from.y+to.y)/2+22);ctx.lineTo(to.x+16,to.y+16);ctx.stroke();ctx.strokeStyle='#fffbd1';ctx.lineWidth=2;ctx.stroke(); }
+    if (e.skillId === 'randomThunder') {ctx.strokeStyle='#bb8cf0';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(to.x+20,to.y-24);ctx.lineTo(to.x+11,to.y+3);ctx.lineTo(to.x+20,to.y+3);ctx.lineTo(to.x+16,to.y+22);ctx.stroke();}
+    else if (e.skillId === 'flurry') {for(const p of e.path??[]){const c=screen(p);ctx.strokeStyle='#fff4cb';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(c.x+5,c.y+25);ctx.lineTo(c.x+26,c.y+6);ctx.stroke();}}
+    else if (e.skillId === 'chainLightning') { ctx.strokeStyle='#a776ed';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(from.x+16,from.y+16);ctx.lineTo((from.x+to.x)/2+22,(from.y+to.y)/2+7);ctx.lineTo((from.x+to.x)/2+9,(from.y+to.y)/2+22);ctx.lineTo(to.x+16,to.y+16);ctx.stroke();ctx.strokeStyle='#fffbd1';ctx.lineWidth=2;ctx.stroke(); }
     else if (e.enemySkillId === 'arrowShot') { const angle = Math.atan2(to.y - from.y, to.x - from.x); ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.strokeStyle = '#715237'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(9,0); ctx.moveTo(4,-4); ctx.lineTo(9,0); ctx.lineTo(4,4); ctx.stroke(); ctx.restore(); }
     else if (e.enemySkillId === 'fireball') { for (let i=1;i<=5;i++) { const t=Math.max(0, Math.min(1,age*1.5)-i*.055); ctx.fillStyle=i%2?'#f6854288':'#ffc866bb'; ctx.fillRect(from.x+16+(to.x-from.x)*t-3,from.y+16+(to.y-from.y)*t-3,6,6); } ctx.fillStyle = '#fa773e'; ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fill(); ctx.fillStyle = '#ffe59b'; ctx.fillRect(x-3,y-3,6,6); }
     else if (e.visual === 'stone') { ctx.fillStyle = '#5e7359'; ctx.fillRect(x - 4, y - 4, 8, 8); ctx.fillStyle = '#d1d8b7'; ctx.fillRect(x - 3, y - 3, 5, 3); }

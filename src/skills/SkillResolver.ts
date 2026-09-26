@@ -5,14 +5,21 @@ import { SKILLS } from '../data/skills';
 import { effectiveLevel } from './SkillBag';
 import { canStand, occupied, same, wall } from '../game/MapState';
 import { VECTORS, type Direction, type Point, type SaveData, type SkillId } from '../game/types';
-export function attackTargets(state:SaveData) {
- return [...state.enemyStates, ...[...(state.mapState.installations??[]),...targetableCrystals(state.mapState,state.playerActionCount)].map(i=>({...state.playerState,id:i.id,position:i.position,cells:[{x:0,y:0}],hp:1}))];
+export function attackTargets(state:SaveData, includeCrystals = true) {
+ return [...state.enemyStates, ...[...(state.mapState.installations??[]),...(includeCrystals ? targetableCrystals(state.mapState,state.playerActionCount) : [])].map(i=>({...state.playerState,id:i.id,position:i.position,cells:[{x:0,y:0}],hp:1}))];
 }
 export type TargetPreview = { cells: Point[]; blocked: Point | null; targetIds: string[] };
 /** 指定地点型の選択範囲。実効レベルの拡張をUIと実発動で共有。 */
 export function selectionRange(state: SaveData, id: SkillId): number {
   const d = SKILLS[id], upgrade = d.rangeUpgrade;
   return upgrade && effectiveLevel(state.skillBag, state.skillLevels, id) >= upgrade.level ? upgrade.range : d.range;
+}
+/** 発動全体の選択数も検証。単地点プレビューの判定とは分離する。 */
+export function skillTargetCount(state: SaveData, id: SkillId): number {
+  return id === 'icestone' && effectiveLevel(state.skillBag, state.skillLevels, id) >= 5 ? 2 : 1;
+}
+export function validSkillTargets(state: SaveData, id: SkillId, target?: Point, secondTarget?: Point): boolean {
+  return validSkillTarget(state,id,target) && (skillTargetCount(state,id)===1 ? secondTarget===undefined : !!target && !!secondTarget && !same(target,secondTarget) && validSkillTarget(state,id,secondTarget));
 }
 export function validSkillTarget(state: SaveData, id: SkillId, target?: Point): boolean {
   if(SKILLS[id].target==='chain')return !!chainOrigin(state,target);
@@ -34,6 +41,12 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
   const definition = SKILLS[id], p = state.playerState.position;
   const result: TargetPreview = { cells: [], blocked: null, targetIds: [] };
   if(definition.kind==='passive')return result;
+  if(definition.target==='flurry'||definition.target==='randomThunder'){
+   const v=VECTORS[direction];
+   if(definition.target==='flurry')for(let side=-1;side<=1;side++)for(let n=1;n<=2;n++){const c={x:p.x+v.x*n-v.y*side,y:p.y+v.y*n+v.x*side};if(wall(state.mapState,c))break;result.cells.push(c);}
+   else for(let y=-2;y<=2;y++)for(let x=-2;x<=2;x++){const c={x:p.x+x,y:p.y+y};if(!wall(state.mapState,c))result.cells.push(c);}
+   result.targetIds=attackTargets(state,definition.target!=='randomThunder').filter(a=>a.hp>0&&occupied(a).some(p=>result.cells.some(c=>same(c,p)))).map(a=>a.id);return result;
+  }
   if(definition.target==='installation'){
     // 選択候補は常にプレイヤー周囲の上下左右4マス。追加柱は確定時だけ計算。
     const p=state.playerState.position;

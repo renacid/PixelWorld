@@ -48,7 +48,12 @@ export function triggerPlayerTraps(state: SaveData, context: Context): void {
       for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) { const cell = { x: p.position.x + dx, y: p.position.y + dy }; if (!wall(map, cell)) cells.push(cell); }
       return cells;
     };
-    if (effect.type === 'chest') {
+    if(effect.type==='delayedRock'){
+      const candidates:Point[]=[];
+      // 影全体(2×2)が踏んだ位置を中心とする3×3に収まる4候補。
+      for(let y=-1;y<=0;y++)for(let x=-1;x<=0;x++){const q={x:p.position.x+x,y:p.position.y+y};if(q.x>=0&&q.y>=0&&q.x+1<map.width&&q.y+1<map.height)candidates.push(q);}
+      if(candidates.length){const position=candidates[context.rng.int(0,candidates.length-1)];(map.delayedRocks??=[]).push({position,dueAt:state.playerActionCount+1,damage:effect.damage});}
+    } else if (effect.type === 'chest') {
       const cells = area(1).filter(c => !same(c, p.position) && !actors.some(a => a.hp > 0 && occupied(a).some(t => same(c, t))) && !map.objects.some(o => same(o.position, c)) && !map.installations?.some(i=>same(i.position,c)) && !(map.traps ?? []).some(t => !t.triggered && same(t.position, c)) && !map.fields.some(f => same(f.position, c)));
       if (cells.length) { const cell = cells[context.rng.int(0, cells.length - 1)], tier = weighted(effect.tiers, context.rng); map.objects.push(makeChest(`chest-${trap.id}`, cell, tier, context.rng, [], state.floorNumber, map.loot)); emit([cell]); context.log(`${CHESTS[tier].name}が出現した！`); }
       else { emit([p.position]); context.log('宝箱が現れる空きマスがなかった。'); }
@@ -88,4 +93,15 @@ export function triggerPlayerTraps(state: SaveData, context: Context): void {
       }
     }
   }
+}
+
+/** 踏んだ行動の次のプレイヤー行動後に落下。敵味方を区別せず1体に1回命中。 */
+export function tickDelayedRocks(s:SaveData,c:Context):void{
+ const due=(s.mapState.delayedRocks??[]).filter(r=>r.dueAt<=s.playerActionCount);
+ s.mapState.delayedRocks=s.mapState.delayedRocks?.filter(r=>r.dueAt>s.playerActionCount);
+ for(const rock of due){const cells=[{x:0,y:0},{x:1,y:0},{x:0,y:1},{x:1,y:1}].map(p=>({x:p.x+rock.position.x,y:p.y+rock.position.y}));
+  c.events.push({type:'trap',position:rock.position,visual:'largeRock',sound:'rocks',durationMs:650});const start=c.events.length;
+  const actors=[s.playerState,...s.allyStates,...s.enemyStates];for(const a of actors)if(a.hp>0&&occupied(a).some(p=>cells.some(q=>same(p,q))))dealAttributeHit(a,rock.damage,'earth',s.playerActionCount,actors,c.damage,c.events,()=>c.rng.next());
+  for(const event of c.events.slice(start))event.delayMs=(event.delayMs??0)+320;
+ }
 }

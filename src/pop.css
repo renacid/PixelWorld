@@ -257,3 +257,9 @@ body.critical-health.still-effects::after{animation:none;opacity:.09}
 .map-tools>button{height:auto;flex:none;padding:5px 7px}
 .map-tools.has-boss{left:7px;right:7px;display:grid;grid-template-columns:auto auto;justify-content:end;align-items:start}
 .map-tools.has-boss #boss-hud,.map-tools.has-boss #day-clock,.map-tools.has-boss #log-button,.map-tools.has-boss #bag-button{grid-column:auto;grid-row:auto}
+
+.skill-upgrades-button{font-size:10px;padding:4px 8px;border:1px solid #b4c9b0;border-radius:6px;background:#f2f6e9;color:#436449}.upgrades-overlay{z-index:1000}.upgrades-overlay .dialog{max-height:80dvh;overflow:auto}.upgrade-list{padding-left:22px;font-size:12px}.upgrade-list li{padding:6px 0;border-bottom:1px solid #d5dfce}.upgrade-list p{margin:4px 0}
+
+/* プレビューを実ブロックと同じバッグ内座標に揃える。 */
+.block-ghost.in-bag{position:absolute;z-index:4}.block-ghost .piece-cell{pointer-events:none;box-shadow:none;border-width:1px;clip-path:inset(1px)}
+.bag-skill-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:8px 10px;font-size:11px}.bag-skill-meta>span{min-width:0}.bag-skill-meta .skill-upgrades-button{flex-shrink:0;white-space:nowrap;font-size:9px;padding:4px 5px}.upgrade-list{list-style:none;padding-left:0}

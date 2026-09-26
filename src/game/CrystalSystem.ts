@@ -45,7 +45,9 @@ export function hitCrystal(s:SaveData,id:string,c:CrystalContext):boolean{
   c.events.push({type:'reaction',position:{...crystal.position},attribute:crystal.attribute,text:crystal.attribute==='ice'?'氷結晶破裂':'雷結晶破裂',sound:crystal.attribute==='ice'?'ice':'magicCast'});
   for(const target of targets){
    c.events.push({type:'cast',position:{...crystal.position},target:{...target.position},crystalAttribute:crystal.attribute,attribute:crystal.attribute,durationMs:320});
+   const hitStart=c.events.length;
    dealReactionHit(target,crystal.damage,crystal.attribute,s.playerActionCount,crystal.source.team==='enemy'?[s.playerState,...s.allyStates]:s.enemyStates,c.damage,c.events,()=>c.rng.next(),crystal.source);
+   for(const event of c.events.slice(hitStart))event.delayMs=(event.delayMs??0)+250;
   }
   for(const object of objects){c.events.push({type:'cast',position:{...crystal.position},target:{...object.position},crystalAttribute:crystal.attribute,durationMs:320});hitInstallation(s,object.id,c);}
   for(const other of otherCrystals)hitCrystal(s,other.id,c);

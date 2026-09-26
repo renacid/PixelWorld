@@ -6,7 +6,7 @@
 <h1>アイコンプレビュー</h1><a href="./sprite-preview.html">キャラクタープレビューへ</a>
 <p>ゲームと同じ定義・描画処理を使用します。左が通常サイズ、右がドット確認用の拡大表示です。</p>
 <div class="controls"><label>背景色 <input id="background" type="color" value="#a2db83"></label></div>
-<h2>状態アイコン</h2><p>編集先：<code>src/render/StatusIcons.ts</code>。強化は剣、移動不可は赤い×。</p><div id="statuses" class="grid status"></div>
+<h2>状態アイコン</h2><p>編集先：<code>src/render/StatusIcons.ts</code>。強化は剣、移動不可は通行禁止、行動不可は赤い×。耐性低下は青い盾、耐性アップは赤い盾。</p><div id="statuses" class="grid status"></div>
 <h2>キャラへの配置・切り替え</h2><p>属性はHPバー上に左詰めで配置（3枠でバーと同じ幅）。足元の4状態は3個ずつ1秒で切り替わります。敵視開始の「！」は右上に別表示します。</p><canvas id="demo" class="demo" width="96" height="64"></canvas>
 <h2>属性付着</h2><div id="attributes" class="grid status"></div>
 <h2>属性反応の結晶</h2><p>編集先：<code>src/render/CrystalSprites.ts</code>。氷結晶／雷結晶／同一マスの蓄積。</p><canvas id="crystals" class="demo" width="96" height="64"></canvas><h2>スキル</h2><p>編集先：<code>src/data/PixelIcons.ts</code>（SKILL_ICONS）</p><div id="skills" class="grid"></div>
@@ -21,7 +21,7 @@ import { actor } from '/src/actors/Actor.ts';
 import { spritePixels, PIXEL_COLORS } from '/src/render/SpriteAtlas.ts';
 const card=(parent,name,id)=>{const el=document.createElement('article');el.className='card';const title=document.createElement('strong');title.textContent=name;el.append(title);const pictures=document.createElement('div');pictures.className='pictures';el.append(pictures);const label=document.createElement('small');label.textContent=id;el.append(label);document.querySelector(parent).append(el);return pictures;};
 for(const [container,icons,defs] of [['#skills',SKILL_ICONS,SKILLS],['#items',ITEM_ICONS,ITEMS]])for(const [id,icon] of Object.entries(icons)){const pictures=card(container,defs[id]?.name??id,id);pictures.innerHTML=pixelIcon(icon)+'<span class="large">'+pixelIcon(icon)+'</span>';}
-const names={buff:'強化',root:'移動不可',frost:'霜蝕',alert:'敵視開始'},colors={buff:'#ff982e',root:'#e8f3fa',frost:'#a77948',alert:'#ff675a'};
+const names={fireWeakness:'耐性低下（炎）',resistanceUp:'耐性アップ',bond:'ゴブリンの絆',stun:'行動不可',buff:'強化',root:'移動不可',frost:'霜蝕',alert:'敵視開始'},colors={buff:'#ff982e',root:'#e8f3fa',frost:'#a77948',alert:'#ff675a'};
 function samples(parent,draw,w=8,h=8){for(const scale of [1,6]){const c=document.createElement('canvas');c.width=w;c.height=h;c.style.width=w*scale+'px';c.style.height=h*scale+'px';draw(c.getContext('2d'));parent.append(c);}}
 for(const id of Object.keys(STATUS_ICONS))samples(card('#statuses',names[id],id),ctx=>drawStatusIcon(ctx,id,colors[id],0,0));
 for(const id of ['fire','ice','thunder','earth','wind','neutral'])samples(card('#attributes',ATTRIBUTE_NAMES[id],id+(id==='wind'?'（付着なし・色見本）':'')),ctx=>{ctx.fillStyle='#fff';ctx.fillRect(0,0,8,6);ctx.fillStyle=ATTRIBUTE_COLORS[id];ctx.fillRect(1,1,6,4);},8,6);

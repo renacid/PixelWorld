@@ -16,7 +16,9 @@ export const distance = (a: Point, b: Point) => Math.abs(a.x - b.x) + Math.abs(a
 export function occupied(a: Actor, position = a.position): Point[] { return a.cells.map(c => ({ x: position.x + c.x, y: position.y + c.y })); }
 export function wall(map: MapState, p: Point): boolean { return p.x < 0 || p.y < 0 || p.x >= map.width || p.y >= map.height || terrain(map.tiles[p.y * map.width + p.x]).solid; }
 export function canStand(map: MapState, a: Actor, p: Point, actors: Actor[] = []): boolean {
-  const cells = occupied(a, p);
+  const cells = occupied(a, p),arena=map.bossArena;
+  // ワープを含む旅人の全移動で戦闘エリア外を拒否する。
+  if(a.kind==='player'&&arena?.started&&cells.some(c=>c.x<arena.x||c.y<arena.y||c.x>=arena.x+arena.width||c.y>=arena.y+arena.height))return false;
   return cells.every(c => !wall(map, c) && !map.installations?.some(i => same(i.position, c))) && !actors.some(other => other.id !== a.id && other.hp > 0 && occupied(other).some(c => cells.some(t => same(c, t))));
 }
 export function lineOfSight(map: MapState, from: Point, to: Point): boolean {
@@ -83,9 +85,9 @@ function generateBaseMap(stage: Stage, rng: Random, floor = 1): { map: MapState;
     for (let i = 0; i < missingGems; i++) map.objects.push({ id: `gem-${i}`, type: 'gem', position: freeCell(token) });
     initializeChests(map, rng, floor);
     placeTraps(map, (stage.floorSettings?.[floor]?.trapPlacements ?? layout.trapPlacements ?? stage.trapPlacements ?? []).map(p => ({ ...p, pool: p.pool ?? stage.trapPool })), rng, layout.spawn, enemies);
-    // ボスエリアの配置敵は生成時から敵視状態。
+    // 開始済みの戦闘だけ敵視を維持。新規生成時は通常AI。
     const arena=map.bossArena;
-    if(arena)for(const enemy of enemies)if(occupied(enemy).some(p=>p.x>=arena.x&&p.y>=arena.y&&p.x<arena.x+arena.width&&p.y<arena.y+arena.height)){enemy.mode='hostile';enemy.lastSeen={...layout.spawn};}
+    if(arena?.started)for(const enemy of enemies)if(occupied(enemy).some(p=>p.x>=arena.x&&p.y>=arena.y&&p.x<arena.x+arena.width&&p.y<arena.y+arena.height)){enemy.mode='hostile';enemy.lastSeen={...layout.spawn};}
     return { map, enemies, spawn: { ...layout.spawn } };
   }
   const map: MapState = { loot: stage.loot, width, height, tiles: new Array(width * height).fill(0), objects: [], fields: [] };

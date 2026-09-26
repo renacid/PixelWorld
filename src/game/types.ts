@@ -7,7 +7,7 @@ import type { TrapInstance, TrapPlacement, TrapVisual, SoundCue } from '../data/
 export type Direction = 'up' | 'right' | 'down' | 'left';
 export const VECTORS: Record<Direction, Point> = { up: { x: 0, y: -1 }, right: { x: 1, y: 0 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 } };
 export type Attribute = 'fire' | 'ice' | 'thunder' | 'earth' | 'wind' | 'neutral' | 'physical' | 'nature';
-export type SkillId = 'thunderPrison' | 'meteor' | 'icePillar' | 'thunderArmor' | 'iceLance' | 'fireWall' | 'tornadoSummon' | 'earthquake' | 'summonSpirit' | 'iceShield' | 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
+export type SkillId = 'earthBlessing' | 'flurry' | 'randomThunder' | 'thunderPrison' | 'meteor' | 'icePillar' | 'thunderArmor' | 'iceLance' | 'fireWall' | 'tornadoSummon' | 'earthquake' | 'summonSpirit' | 'iceShield' | 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
 export type ItemId = 'bookmarkLesser' | 'bookmarkMiddle' | 'bookmarkGreater' | 'powerPotion' | 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
 export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
 export type Actor = { stunnedUntil?: number; bossPhases?: number[]; bossLinkUntil?: number; summonedBy?: string; lastActedAt?:number; movementLockedUntil?: number; frostErosion?: { spent:boolean; rootUntil?:number };
@@ -34,7 +34,7 @@ export type FieldEffect = { skillKind?: 'fireWall'|'tornadoSummon'; placedAt?:nu
 export type CrystalSource = { actorId:string; team:'player'|'enemy'; attack:number };
 export type Crystal = { id:string; position:Point; attribute:'ice'|'thunder'; source:CrystalSource; damage:number; placedAt:number; remainingTurns:number };
 export type ThunderPrison = { id:string; startedAt:number; lastProcessedAt:number; cells:Point[]; power:number; source:CrystalSource; criticalRate:number; criticalMultiplier:number };
-export type MapState = { bossArena?: import("./BossEncounter").BossArena; thunderPrisons?:ThunderPrison[]; crystals?:Crystal[]; installations?: Installation[]; loot?: LootPools; width: number; height: number; tiles: number[]; objects: GroundObject[]; playerTraps?: { id: string; position: Point; damage: number; sourceSkillId?: SkillId; placedAt?: number }[]; traps?: TrapInstance[]; fields: FieldEffect[] };
+export type MapState = { delayedRocks?:{position:Point;dueAt:number;damage:number}[]; bossArena?: import("./BossEncounter").BossArena; thunderPrisons?:ThunderPrison[]; crystals?:Crystal[]; installations?: Installation[]; loot?: LootPools; width: number; height: number; tiles: number[]; objects: GroundObject[]; playerTraps?: { id: string; position: Point; damage: number; sourceSkillId?: SkillId; placedAt?: number }[]; traps?: TrapInstance[]; fields: FieldEffect[] };
 export type SaveData = {
   version: 1; stageId: number; randomSeed: number; initialSeed: number;
   mapState: MapState; playerState: Player; allyStates: Actor[]; enemyStates: Actor[];

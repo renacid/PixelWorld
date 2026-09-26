@@ -3,10 +3,17 @@ import type { Direction } from '../game/types';
 import type { SpriteId } from '../data/enemies';
 export const PIXEL_COLORS: Record<string, string> = { '.': '', r: '#fa775e', R: '#c34b54', s: '#ffe6b0', w: '#fff9e6', b: '#4a9ed9', B: '#306da2', k: '#29445f', y: '#ffd05f', g: '#75d982', G: '#42ab70', p: '#b7f4a0', o: '#d8b987', O: '#ac9067', t: '#67e7d1', a: '#485557', c: '#7f8b87', C: '#b9bcb0', d: '#303e40', m: '#536d39', M: '#8ca659' };
 function make(kind: SpriteId, facing: 'down' | 'up' | 'left'): string[] {
+  if(kind==='stoneSlime')return make('slime',facing).map(row=>row.replaceAll('g','o').replaceAll('G','O').replaceAll('p','C'));
   if (kind === 'golem') return makeGolem(facing);
   const pixels = Array.from({ length: 16 }, () => Array<string>(16).fill('.'));
   const rect = (x: number, y: number, w: number, h: number, color: string) => { for (let dy = y; dy < y + h; dy++) for (let dx = x; dx < x + w; dx++) if (dy >= 0 && dy < 16 && dx >= 0 && dx < 16) pixels[dy][dx] = color; };
-  if(kind==='frostBoar'){
+  if(kind==='earthFlower'){
+    rect(7,9,2,5,'G');rect(3,13,5,2,'g');rect(9,12,5,2,'G');rect(1,14,4,1,'m');rect(11,14,4,1,'g');
+    // 正面は花冠・ハイライト・両目を中心線で左右対称にする。
+    rect(5,1,6,4,'b');rect(2,4,5,5,'b');rect(9,4,5,5,'b');rect(4,9,8,3,'B');rect(5,4,6,6,'k');
+    if(facing==='down'){rect(6,2,4,1,'w');rect(3,5,2,1,'w');rect(11,5,2,1,'w');rect(5,6,2,2,'r');rect(9,6,2,2,'r');}
+    else if(facing==='left'){rect(5,6,2,2,'r');rect(8,6,1,2,'R');rect(6,3,3,1,'w');}
+  }else if(kind==='frostBoar'){
     // 斜め上から見た丸い胴体、太い脚と白い牙。横向きは右向きで反転する。
     rect(4,4,9,8,'a');rect(3,6,11,6,'c');rect(5,4,6,2,'C');rect(4,12,3,3,'d');rect(10,12,3,3,'d');
     if(facing==='left'){rect(1,7,6,5,'a');rect(0,9,3,3,'c');rect(3,5,2,3,'d');rect(2,8,1,1,'r');rect(0,11,2,3,'w');rect(4,11,2,3,'w');rect(0,10,1,2,'w');}

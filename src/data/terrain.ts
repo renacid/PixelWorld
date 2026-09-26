@@ -5,8 +5,8 @@ export type TerrainDefinition = {
 };
 // pixelsは任意サイズのドット配列、imageはpublic/以下のPNGの相対パスです。
 export const TERRAIN: Record<number, TerrainDefinition> = {
-  7: {name:'土の床',solid:false,blocksSight:false,color:'#ad8960',pixels:['........','..a.....','.....b..','........','.b......','......a.','...a....','........'],palette:{a:'#96734f',b:'#c5a477'}},
-  8: {name:'雑草の土床',solid:false,blocksSight:false,color:'#ad8960',pixels:['........','..g.....','.ggg....','........','......g.','.....gg.','..a.....','........'],palette:{g:'#69804c',a:'#94724e'}},
+  7: {name:'土の床',solid:false,blocksSight:false,color:'#c6a67d',pixels:['........','..a.....','.....b..','........','.b......','......a.','...a....','........'],palette:{a:'#b39168',b:'#dcc09b'}},
+  8: {name:'雑草の土床',solid:false,blocksSight:false,color:'#c6a67d',pixels:['........','..g.....','.ggg....','........','......g.','.....gg.','..a.....','........'],palette:{g:'#69804c',a:'#b39168'}},
   9: {name:'土の壁',solid:true,blocksSight:true,color:'#72523c',pixels:['.hhhhhh.','hhhhhhhh','hmmmmmmh','mmammmmm','mmmmammm','mmmmmamm','dddddddd','.dddddd.'],palette:{h:'#bc9768',m:'#987049',a:'#785237',d:'#523c30'}},
   10: {name:'石タイルの壁',solid:true,blocksSight:true,color:'#414952',pixels:['hhhhhhhh','mmmammmm','mmmammmm','aaaaaaaa','mammmmam','mammmmam','dddddddd','dddddddd'],palette:{h:'#b7bec0',m:'#838e93',a:'#525e66',d:'#38444c'}},
   6: { name: '森の外側', solid: true, blocksSight: true, color: '#294e49', pixels: ['....'], palette: {} },

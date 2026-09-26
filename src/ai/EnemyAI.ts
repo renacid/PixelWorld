@@ -41,7 +41,7 @@ export function actEnemy(map: MapState, enemy: Actor, targets: Actor[], blockers
   if (enemy.hp <= 0) return;
   // ボスエリア内とスキル召喚敵は敵視を維持する。
   const arena=map.bossArena;
-  const locked=!!enemy.summonedBy||!!arena&&occupied(enemy).some(p=>p.x>=arena.x&&p.y>=arena.y&&p.x<arena.x+arena.width&&p.y<arena.y+arena.height);
+  const locked=!!enemy.summonedBy||!!arena?.started&&occupied(enemy).some(p=>p.x>=arena.x&&p.y>=arena.y&&p.x<arena.x+arena.width&&p.y<arena.y+arena.height);
   if(locked){enemy.mode='hostile';enemy.chaseMoves=0;enemy.chaseSkipLeft=0;}
   enemy.chaseMoveLimit ??= 12; enemy.chaseMoves ??= 0; enemy.chaseSkipLeft ??= 0; enemy.chaseRecoveryChance ??= .3;
   if (enemy.kind !== 'sprite' && enemy.kind !== 'greaterSprite' && enemy.mode === 'hostile' && (enemy.chaseSkipLeft > 0 || enemy.chaseMoves >= enemy.chaseMoveLimit)) {
@@ -75,7 +75,7 @@ export function actEnemy(map: MapState, enemy: Actor, targets: Actor[], blockers
     return;
   }
   if (enemy.mode === 'hostile' && enemy.lastSeen && enemy.pursuitLeft > 0) {
-    enemy.pursuitLeft--; moveToward(map, enemy, enemy.lastSeen, blockers, rng); enemy.chaseMoves++;
+    enemy.pursuitLeft--; moveToward(map, enemy, enemy.lastSeen, blockers, rng, action); enemy.chaseMoves++;
     if (same(enemy.position, enemy.lastSeen)) enemy.pursuitLeft = 0;
   } else {
     enemy.mode = 'idle'; enemy.lastSeen = null; enemy.chaseMoves = 0;

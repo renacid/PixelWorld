@@ -7,7 +7,16 @@ export function drawTrapEffect(ctx: CanvasRenderingContext2D, event: GameEvent, 
   for (const cell of event.path ?? [event.position]) {
     const visualCell=event.visual==='windVortex'&&event.target?{x:cell.x+(event.target.x-cell.x)*Math.min(1,age*2),y:cell.y+(event.target.y-cell.y)*Math.min(1,age*2)}:cell;
     const p = screen(visualCell), x = p.x + 16, y = p.y + 16;
-    if(event.visual==='elementalSwirl'){
+    if(event.visual==='largeRock'){
+      ctx.fillStyle='#20202c66';ctx.beginPath();ctx.ellipse(x+16,y+16,28,20,0,0,Math.PI*2);ctx.fill();
+      const fall=Math.max(0,1-age*2)*65;ctx.fillStyle='#646c78';ctx.beginPath();ctx.ellipse(x+16,y+8-fall,27,25,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#a1a7ad';ctx.fillRect(x+2,y-8-fall,18,8);
+    }else if(event.visual==='blueBloom'){
+      ctx.fillStyle='#67c7ef';for(let i=0;i<6;i++){const a=i*Math.PI/3;ctx.beginPath();ctx.ellipse(x+Math.cos(a)*8,y+Math.sin(a)*8,5,8,a,0,Math.PI*2);ctx.fill();}ctx.fillStyle='#df536c';ctx.fillRect(x-2,y-2,4,4);
+    }else if(event.visual==='pollen'){
+      ctx.fillStyle='#bee1ee';for(let i=0;i<7;i++)ctx.fillRect(p.x+(i*13%30),p.y+((age*28+i*9)%30),2,2);
+    }else if(event.visual==='fallingStrike'){
+      ctx.strokeStyle='#ad916f';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y+10,5+age*12,3+age*7,0,0,Math.PI*2);ctx.stroke();
+    }else if(event.visual==='elementalSwirl'){
       // 細い風の弧と粒を、発生地点から隣接マスへゆっくり広げる。
       const radius=3+36*(1-Math.pow(1-age,1.6));
       ctx.globalAlpha=Math.sin(Math.PI*Math.min(1,age*2))*.2+(1-age)*.65;

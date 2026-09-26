@@ -63,6 +63,7 @@ export function stageCode(project:EditorProject):string {
 }
 /** 大型敵の占有・固定配置・出口への到達を出力前に検査。 */
 export function validateProject(project:EditorProject):string[] {
+  const samePoint=(a:Point,b:Point)=>a.x===b.x&&a.y===b.y;
   const errors:string[]=[];
   if(project.version!==1||!Array.isArray(project.floors)||!project.floors.length)throw new Error('対応していないプロジェクト形式です');
   if(!Number.isInteger(project.stage.id)||project.stage.id<1)errors.push('ステージIDは1以上の整数にしてください');
@@ -78,6 +79,12 @@ export function validateProject(project:EditorProject):string[] {
     }
     for(const enemy of f.enemies){const definition=ENEMIES[enemy.kind];if(!definition){fail('未定義の敵');continue;}
       for(let y=0;y<definition.size;y++)for(let x=0;x<definition.size;x++){const p={x:enemy.position.x+x,y:enemy.position.y+y};if(!pass(p)||used.has(key(p)))fail('敵の占有マスが壁・配置物と重なります ('+key(p)+')');used.add(key(p));}
+    }
+    if(f.bossArena){const a=f.bossArena;
+      if(![a.x,a.y,a.width,a.height].every(Number.isInteger)||a.x<0||a.y<0||a.width<1||a.height<1||a.x+a.width>f.width||a.y+a.height>f.height)fail('ボス戦エリアが範囲外です');
+      if(a.wallTile!==undefined&&!TERRAIN[a.wallTile]?.solid)fail('封鎖用の地形には壁を指定してください');
+      for(const p of a.sealTiles??[])if(!Number.isInteger(p.x)||!Number.isInteger(p.y)||p.x<0||p.y<0||p.x>=f.width||p.y>=f.height)fail('封鎖マスが範囲外です');
+      if(f.enemies.some(e=>e.kind==='goblinKing'&&(a.sealTiles??[]).some(p=>samePoint(p,e.position))))fail('ボスの配置マスは封鎖できません');
     }
     const exits=f.objects.filter(o=>o.type==='exit');if(!exits.length)fail('出口を置いてください');
     if(f.objects.filter(o=>o.type==='gem').length>f.gemCount)fail('宝石配置数が宝石上限を超えています');

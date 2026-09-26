@@ -6,7 +6,7 @@ import { canStand, occupied, same, wall } from './MapState';
 import type { Actor, Attribute, GameEvent, Point, SaveData } from './types';
 import type { Random } from './Random';
 import { dealAttributeHit, type DamageHandler } from '../skills/AttributeSystem';
-export type BossArena = { x:number; y:number; width:number; height:number; started?:boolean };
+export type BossArena = { x:number; y:number; width:number; height:number; /** 戦闘開始時に内容を消して壁にする座標。wallTile省略時は遺跡壁。 */ sealTiles?:Point[]; wallTile?:number; started?:boolean };
 export const KING_RULES = { linkTurns:100, linkDamage:5, thresholds:[200,100], bannerCount:2, nestCount:2, phaseMp:40,
   rock:{chance:.2,mp:3,radius:2,hits:15,ratio:.3}, bottle:{chance:.2,mp:3,ratio:.5,floorRatio:.3,turns:3},
   summon:{chance:.1,mp:30,count:5,limit:7,radius:4} };
@@ -22,6 +22,17 @@ export function contactBossFire(s:SaveData,target:Actor,damage:DamageHandler,eve
 export function startBoss(s:SaveData,events:GameEvent[]):void {
  const arena=s.mapState.bossArena,king=s.enemyStates.find(e=>e.kind==='goblinKing'&&e.hp>0);
  if(!arena||arena.started||!king||!inArena(s.playerState.position,arena))return;
+ // 死神の除去は撃破報酬・連続撃破を発生させない。
+ s.enemyStates=s.enemyStates.filter(e=>e.kind!=='reaper');s.defeatedEnemies=s.defeatedEnemies?.filter(e=>e.kind!=='reaper');
+ const sealed=(p:Point)=>(arena.sealTiles??[]).some(c=>same(c,p));
+ for(const p of arena.sealTiles??[])if(p.x>=0&&p.y>=0&&p.x<s.mapState.width&&p.y<s.mapState.height)s.mapState.tiles[p.y*s.mapState.width+p.x]=arena.wallTile??1;
+ s.mapState.objects=s.mapState.objects.filter(o=>!sealed(o.position));
+ s.mapState.installations=s.mapState.installations?.filter(o=>!sealed(o.position));
+ s.mapState.traps=s.mapState.traps?.filter(o=>!sealed(o.position));s.mapState.playerTraps=s.mapState.playerTraps?.filter(o=>!sealed(o.position));
+ s.mapState.fields=s.mapState.fields.filter(o=>!sealed(o.position));s.mapState.crystals=s.mapState.crystals?.filter(o=>!sealed(o.position));
+ s.enemyStates=s.enemyStates.filter(e=>!occupied(e).some(sealed));s.allyStates=s.allyStates.filter(e=>!occupied(e).some(sealed));
+ // 誤って進入マスを封鎖した場合も旅人を壁内に残さない。
+ if(sealed(s.playerState.position)){const cells:Point[]=[];for(let y=arena.y;y<arena.y+arena.height;y++)for(let x=arena.x;x<arena.x+arena.width;x++)if(canStand(s.mapState,s.playerState,{x,y},[...s.enemyStates,...s.allyStates]))cells.push({x,y});if(cells.length)s.playerState.position=cells[0];}
  arena.started=true;for(const enemy of s.enemyStates)if(enemy.hp>0&&inArena(enemy.position,arena)){enemy.mode='hostile';enemy.lastSeen={...s.playerState.position};}king.bossLinkUntil=s.playerActionCount+KING_RULES.linkTurns;
  king.mode='hostile';king.lastSeen={...s.playerState.position};
  events.push({type:'trap',position:{...king.position},bossIntro:true,actorId:king.id,sound:'magicCast'});

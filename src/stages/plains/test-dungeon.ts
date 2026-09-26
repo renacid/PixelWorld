@@ -21,7 +21,7 @@ for(let y=16;y<=28;y++)for(let x=12;x<=28;x++){
 const allSkillLevels = Object.fromEntries(Object.keys(SKILLS).map(id => [id, 5]));
 const layout: StageLayout = {
   rows,
-  bossArena: {x:13,y:17,width:15,height:11},
+  bossArena: {x:13,y:17,width:15,height:11,sealTiles:[{x:12,y:22}],wallTile:1},
   legend: { '#': 1, '.': 0 },
   spawn: { x: 2, y: 2 },
   objects: [

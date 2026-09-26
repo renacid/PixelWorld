@@ -3,6 +3,9 @@ import type { SkillId, ItemId } from '../game/types';
 export type PixelIcon = { rows: string[]; color: string; image?: string };
 const make=(color:string,rows:string[]):PixelIcon=>({color,rows:rows.flatMap(row=>[...Array(2)].map(()=>[...row].map(c=>c+c).join('')))});
 export const SKILL_ICONS:Record<SkillId,PixelIcon>={
+ earthBlessing:make('#ab8655',['...ww...','..wwww..','...ww...','.ggwwgg.','gggggggg','.gggggg.','..gggg..','...gg...']),
+ flurry:make('#d4bf83',['..w...w.','.wg..wg.','wg..wg..','g..wg...','..wg..w.','.wg..wg.','wg..wg..','g...g...']),
+ randomThunder:make('#b58beb',['..gggg..','.gggggg.','..w..w..','..w.w...','.w..w...','..w..w..','...w..w.','........']),
  thunderPrison:make('#9271c9',['..gggg..','.ggwggg.','gggggggg','.gggggg.','..w..w..','.ww.ww..','..w..w..','.w..w...']),
  meteor:make('#e96b40',['.....w.g','....wgg.','...wggg.','..gggg..','.ggwgg..','ggwwgg..','ggggg...','.ggg....']),
  icePillar:make('#78cbe9',['...w....','..wwg...','..wwgg..','..wwgg..','..wwgg..','.gwwggg.','.gggggg.','..gggg..']),

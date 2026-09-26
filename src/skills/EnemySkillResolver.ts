@@ -63,6 +63,32 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
   for (const id of ids) {
     const skill = ENEMY_SKILLS[id];
     if (!skill || (caster.mp ?? 0) < skill.mpCost || (caster.enemyCooldownUntil?.[id] ?? 0) > context.action) continue;
+    if(skill.effect.type==='fallingStrike'||skill.effect.type==='earthPollen'){
+      const effect=skill.effect.type,p=caster.position,v=VECTORS[caster.facing];let destination={...p};let cells:Point[]=[];
+      if(effect==='fallingStrike'){
+        if(movementLocked(caster,context.action)||!targets.some(t=>t.hp>0&&distance(t.position,p)<=3))continue;
+        const choices:Point[]=[];for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++){const q={x:p.x+x,y:p.y+y};if(canStand(context.map,caster,q,context.actors)&&!context.map.objects.some(o=>same(o.position,q))&&targets.some(t=>t.hp>0&&occupied(t).some(c=>Object.values(VECTORS).some(v=>same(c,{x:q.x+v.x,y:q.y+v.y})&&!wall(context.map,c)))))choices.push(q);}
+        if(!choices.length)continue;
+        if(context.rng.next()>=(caster.skillChances?.[id]??skill.chance))continue;
+        destination=choices[context.rng.int(0,choices.length-1)];cells=Object.values(VECTORS).map(v=>({x:destination.x+v.x,y:destination.y+v.y})).filter(q=>!wall(context.map,q));
+      }else{
+        for(let n=1;n<=3;n++)for(let lateral=-1;lateral<=1;lateral++){const q={x:p.x+v.x*n-v.y*lateral,y:p.y+v.y*n+v.x*lateral};if(!wall(context.map,q))cells.push(q);}
+        if(!targets.some(t=>t.hp>0&&occupied(t).some(q=>cells.some(c=>same(c,q))))||context.rng.next()>=(caster.skillChances?.[id]??skill.chance))continue;
+      }
+      caster.mp!-=skill.mpCost;caster.position=destination;
+      context.events.push({type:'trap',actorId:caster.id,position:{...p},target:destination,path:cells,visual:effect==='earthPollen'?'pollen':'fallingStrike',castingAura:true,attribute:effect==='earthPollen'?'neutral':'earth',sound:skill.sound,durationMs:600});
+      const start=context.events.length;
+      for(const target of targets)if(target.hp>0&&occupied(target).some(q=>cells.some(c=>same(c,q)))){
+        const bloom=effect==='earthPollen'&&target.afflictions.some(a=>a.attribute==='earth'||a.attribute==='nature');
+        if(bloom)target.afflictions=target.afflictions.filter(a=>a.attribute!=='earth'&&a.attribute!=='nature');
+        if(bloom)delete target.frostErosion;
+        context.damage(target,attackPower(caster)*(effect==='earthPollen'?.3+context.rng.next()*.2:.5+context.rng.next()*.2),effect==='earthPollen'?'neutral':'earth',false,skill.name);
+        if(bloom){context.events.push({type:'trap',position:{...target.position},visual:'blueBloom',durationMs:600});context.damage(target,attackPower(caster),'neutral',false,'開花');}
+      }
+      for(const o of [...context.map.installations??[]])if(cells.some(q=>same(q,o.position)))context.hitInstallation?.(o.id);
+      for(const event of context.events.slice(start))event.delayMs=(event.delayMs??0)+300;
+      context.log(caster.name+'の'+skill.name+'！');return true;
+    }
     if(skill.effect.type==='elementArmor'){
       if(caster.mode!=='hostile'||caster.buffs?.some(b=>b.id===id&&b.remainingTurns>0)||context.rng.next()>=(caster.skillChances?.[id]??skill.chance))continue;
       caster.mp!-=skill.mpCost;

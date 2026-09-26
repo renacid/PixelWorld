@@ -1,3 +1,4 @@
+import { triggerEarthBlessing } from '../skills/EarthBlessing';
 import { contactBossFire, startBoss, actKing, tickBanners, kingPhases, isGoblin, KING_RULES } from './BossEncounter';
 import { targetableCrystals } from './CrystalTargets';
 import { startThunderPrison, tickThunderPrisons } from '../skills/ThunderPrison';
@@ -5,6 +6,7 @@ import { afterSwirlCrystals, createCrystal, crystalSource, hitCrystalsAt, tickCr
 import { bindAttributeBatch, bindCrystalReaction, bindSwirlReaction, reactionLabel } from '../skills/AttributeSystem';
 import { icePillarCells, placeIcePillars } from '../skills/IcePillar';
 import { initializeBooks, rollBookAttributes } from './SkillBooks';
+import {randomAttack} from '../skills/RandomAttacks';
 import {castFieldSkill,contactSkillFields,tickSkillFields} from '../skills/FieldSkills';
 import { INSTALLATIONS } from '../data/installations';
 import { summonCells,createSpirit,summonMedia } from './Summoning';
@@ -28,7 +30,7 @@ import { actorDefinition } from '../data/enemies';
 import { ENEMY_SKILLS, canonicalEnemySkillId } from '../data/enemySkills';
 import { CHESTS } from '../data/loot';
 import { makeChest, weighted, floorLoot, legacyLoot, rollDrops } from './LootSystem';
-import { triggerPlayerTraps } from './TrapSystem';
+import { tickDelayedRocks, triggerPlayerTraps } from './TrapSystem';
 import { tryEnemySkill, enemyActionCount } from '../skills/EnemySkillResolver';
 import { ITEMS } from '../data/items';
 import { GEM_REWARDS } from '../data/gems';
@@ -36,7 +38,7 @@ import { skillMp, wearSkill } from '../skills/SkillWear';
 import { SKILLS } from '../data/skills';
 import { dealAttributeHit } from '../skills/AttributeSystem';
 import { autoPlace, connectionDamageMultiplier, effectiveLevel } from '../skills/SkillBag';
-import { previewSkill, validSkillTarget } from '../skills/SkillResolver';
+import { validSkillTargets, previewSkill, validSkillTarget } from '../skills/SkillResolver';
 import { floorRules, stageForFloor } from '../stages/DungeonRules';
 import { STAGES } from '../stages';
 import type { Command } from './Command';
@@ -66,7 +68,8 @@ export class GameSession {
         Object.assign(a, replacement, { hp: a.hp <= 0 ? 0 : Math.min(a.hp, replacement.maxHp) });
       }
     }
-    state.reinforcementKinds ??= [...new Set(state.enemyStates.map(e=>e.kind))].filter(k=>k!=='player'&&k!=='sprite'&&k!=='greaterSprite'&&k!=='reaper');
+    const floor=stageForFloor(this.stage,state.floorNumber??1),layout=typeof floor.layout==='function'?floor.layout(floor,state.floorNumber??1):floor.layout;
+    state.reinforcementKinds=(layout?.enemies.length?layout.enemies.map(e=>e.kind):state.reinforcementKinds??state.enemyStates.map(e=>e.kind)).filter(k=>k!=='player'&&k!=='sprite'&&k!=='greaterSprite'&&k!=='reaper'&&k!=='goblinKing');
     state.allyStates.forEach(a=>{a.remainingLife ??= actorDefinition(a.kind).lifetime ?? 30;});
     state.floorNumber ??= 1; state.floorCount = Math.max(state.floorNumber, this.stage.dungeon?.floors ?? 1); state.nightRevived ??= (state.daylightCount ?? 0) >= 100 ? floorRules(this.stage).nightRevival.min : 0;
     // 旧セーブは過去のスキル使用回数を復元できないため回復カウントを0から開始。
@@ -167,7 +170,7 @@ export class GameSession {
   damage = (target: Actor, amount: number, attribute: Attribute, critical = false, attacker: Actor | null = this.state.playerState): void => {
     hitCrystalsAt(this.state,occupied(target),{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     // All damage paths (including reactions and fields) truncate only at this boundary.
-    const value = Math.max(0, Math.floor(amount));
+    const value = Math.max(0, Math.floor(amount)+(attribute==='fire'?(actorDefinition(target.kind).fireVulnerability??0):0));
     target.hp = Math.max(0, Math.floor(target.hp) - value);
     // 命中自体を敵視のきっかけにする（切り捨てで0ダメージでも反応）。
     // 索敵外からの攻撃や、追跡疲労によるスキップ中の攻撃にも対応します。
@@ -348,7 +351,7 @@ export class GameSession {
     s.itemSlots.splice(slot, 1); this.log(`${ITEMS[id].name}を使った。`); return true;
   }
   canCast(id: SkillId, automatic = false): string | null {
-    if(SKILLS[id].kind==='passive'&&!automatic)return '攻撃を受けたときに自動発動';
+    if(SKILLS[id].kind==='passive'&&!automatic)return id==='earthBlessing'?'罠・ボス戦突入時に自動発動':'攻撃を受けたときに自動発動';
     if(id==='summonSpirit'){
       if(!summonMedia(this.state).length)
         return '召喚の媒体にする道具がありません。';
@@ -370,12 +373,12 @@ export class GameSession {
     if (this.state.playerState.mp < skillMp(this.state, id)) return 'MPが足りません。';
     return null;
   }
-  cast(id: SkillId, direction: keyof typeof VECTORS, aim?: Point): void {
+  cast(id: SkillId, direction: keyof typeof VECTORS, aim?: Point, secondTarget?: Point): void {
     this.prepareCrystalReactions();
     const s = this.state, p = s.playerState, def = SKILLS[id]; p.facing = direction; p.mp -= skillMp(s, id); s.cooldowns[id] = def.cooldown;
     if (wearSkill(s, id, this.rng)) this.log(def.name + 'が劣化し、次回からの消費MPが増えた。');
     const fieldStart=this.events.length;this.groupingDamage=true;
-    const fieldCast=castFieldSkill(s,id,direction,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)},aim);this.groupingDamage=false;
+    const fieldCast=randomAttack(s,id,direction,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)})||castFieldSkill(s,id,direction,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)},aim);this.groupingDamage=false;
     if(fieldCast){if(this.events.slice(fieldStart).some(e=>e.type==='damage'))this.logHits(def.name,fieldStart);else this.log(def.name+'を発動！');return;}
     if(id==='thunderPrison'){startThunderPrison(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});return;}
     if(id==='icePillar'){
@@ -428,14 +431,17 @@ export class GameSession {
       this.events.push({ type: 'trap', actorId: p.id, position: { ...p.position }, visual: 'fallingRocks', sound: 'rocks' });
       this.log('地砕き！ 足元に土の罠を設置した。'); return;
     }
-    const targets = previewSkill(s, id, direction, aim);
+    // 二地点も1行動・MP/CT1回分。重なる範囲の敵には氷岩ごとに命中する。
+    for (const impact of id==='icestone'&&effectiveLevel(s.skillBag,s.skillLevels,id)>=5&&secondTarget?[aim,secondTarget]:[aim]) {
+    const impactStart=this.events.length;
+    const targets = previewSkill(s, id, direction, impact);
     if (id === 'warp') {
       const destination = targets.cells[this.rng.int(0, targets.cells.length - 1)];
       this.events.push({ type: 'cast', actorId: p.id, position: { ...p.position }, target: destination, skillId: id, attribute: def.attribute });
       p.position = { ...destination }; this.log('ランダムワープを発動！'); return;
     }
     const relocation = id === 'vacuumSlash' ? vacuumDestinations(s,s.enemyStates.find(e=>e.id===targets.targetIds[0])!) : [];
-    this.events.push({ type: 'cast', actorId: p.id, position: { ...p.position }, target: aim ?? targets.cells.at(-1) ?? { ...p.position }, path: targets.cells, skillId: id, attribute: def.attribute, sound: id === 'icestone' ? 'ice' : id === 'vacuumSlash' ? 'magicCast' : id === 'sweep' ? 'strike' : undefined });
+    this.events.push({ type: 'cast', actorId: p.id, position: { ...p.position }, target: impact ?? targets.cells.at(-1) ?? { ...p.position }, path: targets.cells, skillId: id, attribute: def.attribute, sound: id === 'icestone' ? 'ice' : id === 'vacuumSlash' ? 'magicCast' : id === 'sweep' ? 'strike' : undefined });
     const level = effectiveLevel(s.skillBag, s.skillLevels, id), multiplier = (1 + (level - 1) * .05) * connectionDamageMultiplier(s.skillBag, id);
     const hitStart = this.events.length; this.groupingDamage = true;
     for (const targetId of targets.targetIds) {
@@ -452,9 +458,14 @@ export class GameSession {
         if (canStand(s.mapState, target, pos, this.actors)) target.position = pos;
       }
     }
+    if(id==='fireball'&&level>=5&&targets.cells.length){
+      const center=targets.cells.at(-1)!;
+      for(const [x,y] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]){const position={x:center.x+x,y:center.y+y};if(!wall(s.mapState,position))s.mapState.fields.push({effectId:'fireball-'+s.playerActionCount+'-'+x+'-'+y,sourceSkillId:id,skillKind:'fireWall',position,placedAt:s.playerActionCount,power:attackPower(p)*multiplier,attribute:'fire',remainingTurns:3,triggerType:'turn',damageMultiplier:.3,onceOnly:false,hitAction:s.playerActionCount,hitIds:[...targets.targetIds]});}
+    }
     if (relocation.length) { const from={...p.position}; p.position={...relocation[this.rng.int(0,relocation.length-1)]};this.events.push({type:'cast',actorId:p.id,position:from,target:{...p.position},skillId:'warp',attribute:'wind',delayMs:250,durationMs:250}); }
     this.groupingDamage = false; this.logHits(def.name, hitStart, def.hits > 1);
-    for (const event of this.events.filter(e => e.type === 'reaction')) this.log(`${event.text}が発生！`);
+    for (const event of this.events.slice(impactStart).filter(e => e.type === 'reaction')) this.log(`${event.text}が発生！`);
+    }
   }
   /** 撃破経験値は味方・罠による撃破にも付与。超過分は次レベルへ持ち越す。 */
   private gainExperience(amount: number): void {
@@ -529,7 +540,7 @@ export class GameSession {
     const s = this.state, next = s.floorNumber! + 1;
     const { map, enemies, spawn } = generateMap(STAGES.find(stage => stage.id === s.stageId)!, this.rng, next);
     s.killCombo = 0; s.lastKillAction = undefined;
-    s.floorNumber = next; s.mapState = map; map.playerTraps = []; s.enemyStates = enemies; s.reinforcementKinds=[...new Set(enemies.map(e=>e.kind))].filter(k=>k!=='player'&&k!=='sprite'&&k!=='greaterSprite');
+    s.floorNumber = next; s.mapState = map; map.playerTraps = []; s.enemyStates = enemies; const definition=this.stage,layout=typeof definition.layout==='function'?definition.layout(definition,next):definition.layout;s.reinforcementKinds=(layout?.enemies.length?layout.enemies:enemies).map(e=>e.kind).filter(k=>k!=='player'&&k!=='sprite'&&k!=='greaterSprite'&&k!=='goblinKing'&&k!=='reaper');
     s.playerState.position = { ...spawn }; s.objectiveChests = 0; s.floorKills = {}; s.destroyedInstallations = {}; s.fullBagRewardClaimed = false; s.defeatedEnemies = []; s.nightRevived = 0; s.nightWave = undefined; s.nightTarget = undefined;
     s.exploredMap = new Array(map.width * map.height).fill(false);
     const placed: Actor[] = [s.playerState, ...enemies];
@@ -544,6 +555,7 @@ export class GameSession {
   }
   /** 夜・深夜・以降30行動ごとの復活。抽選数を保存し、未達分は空き床と撃破済みの敵が揃うまで再試行。 */
   private spawnReaper():void{
+    if(this.state.mapState.bossArena?.started)return;
     const s=this.state,day=s.dayCount??1;if(s.status!=='playing'||timeOfDay(s)!=='night')return;
     const wave=(s.daylightCount??0)<DAY_CYCLE.midnight?0:1+Math.floor(((s.daylightCount??0)-DAY_CYCLE.midnight)/DAY_CYCLE.revivalInterval);
     if(s.lastReaperDay===day&&(s.lastReaperWave??0)>=wave)return;
@@ -561,6 +573,7 @@ export class GameSession {
   }
 
   private reviveAtNight(): void {
+    if(this.state.mapState.bossArena?.started)return;
     const s = this.state, rule = floorRules(this.stage, s.floorNumber).nightRevival;
     if (timeOfDay(s) !== 'night') return;
     const count = s.daylightCount ?? 0;
@@ -578,7 +591,10 @@ export class GameSession {
     const pool=(s.reinforcementKinds ?? []).filter(k=>k!=='reaper'&&k!=='goblinKing');
     const dead = wave===0 ? (s.defeatedEnemies??[]).filter(e=>e.kind!=='reaper'&&e.kind!=='goblinKing') : Array.from({length:desired-s.nightRevived!},(_,i)=>actor('reinforcement-'+i,pool.length?pool[this.rng.int(0,pool.length-1)]:'slime',{x:0,y:0},s.stageId,s.floorNumber));
     while (dead.length && s.nightRevived! < desired) {
-      const old = dead.splice(this.rng.int(0, dead.length - 1), 1)[0];
+      const kinds=pool.filter(k=>dead.some(e=>e.kind===k));
+      const kind=kinds.length?kinds[this.rng.int(0,kinds.length-1)]:dead[0].kind;
+      const candidates=dead.map((e,i)=>e.kind===kind?i:-1).filter(i=>i>=0);
+      const old=dead.splice(candidates[this.rng.int(0,candidates.length-1)],1)[0];
       const enemy = actor(`night-${s.floorNumber}-${s.playerActionCount}-${s.nightRevived}`, old.kind, old.position, s.stageId, s.floorNumber), cells: Point[] = [];
       for (let y = 1; y < s.mapState.height - 1; y++) for (let x = 1; x < s.mapState.width - 1; x++) {
         const p = { x, y };
@@ -635,7 +651,7 @@ export class GameSession {
     this.frames = []; this.frameEventStart = 0;this.prepareCrystalReactions();
     if (s.status !== 'playing' || s.pendingBag || s.pendingGemChoices?.length || s.pendingSkillBooks) return false;
     if((p.stunnedUntil??0)>s.playerActionCount){command={type:'wait'};this.log('旅人は行動不能で動けない！');}
-    if (command.type === 'cast') { const error = this.canCast(command.skillId); if (error) { this.log(error); return false; } if (!validSkillTarget(s, command.skillId, command.target)) { this.log('選択範囲内の着弾点を選んでください。'); return false; } }
+    if (command.type === 'cast') { const error = this.canCast(command.skillId); if (error) { this.log(error); return false; } if (!validSkillTargets(s, command.skillId, command.target, command.secondTarget)) { this.log('選択範囲内の着弾点を選んでください。'); return false; } }
     if (command.type === 'move') {
       p.facing = command.direction;
       if (movementLocked(p,s.playerActionCount)) this.log('移動不可のため、動けなかった。');
@@ -652,8 +668,11 @@ export class GameSession {
     if (command.type === 'item') { if (!this.useItem(command.slot, command.skillId)) return false; this.capture('player'); this.explore(); s.randomSeed = this.rng.seed; return true; }
     if (command.type === 'sleep') return this.sleep();
     s.playerActionCount++; s.daylightCount = (s.daylightCount ?? 0) + 1;
+    const bossWasStarted=!!s.mapState.bossArena?.started;
     startBoss(s,this.events);
-    if (command.type === 'cast') this.cast(command.skillId, command.direction, command.target);
+    if (command.type === 'cast') { this.cast(command.skillId, command.direction, command.target, command.secondTarget); startBoss(s,this.events); }
+    if(!bossWasStarted&&s.mapState.bossArena?.started)triggerEarthBlessing(s,this.rng,this.events,m=>this.log(m));
+    if(walked&&s.mapState.traps?.some(t=>!t.triggered&&same(t.position,p.position)))triggerEarthBlessing(s,this.rng,this.events,m=>this.log(m));
     if(walked)contactBossFire(s,p,(t,n,a,c)=>this.damage(t,n,a,c,null),this.events,this.rng);
     if (walked) triggerPlayerTraps(s, { rng: this.rng, events: this.events, damage: (target, amount, attribute, critical) => this.damage(target, amount, attribute, critical, null), log: message => this.log(message) });
     if(walked) moveNearInstallations(s,{rng:this.rng,events:this.events,log:m=>this.log(m)});
@@ -671,7 +690,7 @@ export class GameSession {
       if(enemy.hp<=0)continue;
       if((enemy.stunnedUntil??0)>s.playerActionCount){this.log(enemy.name+'は行動不能！');continue;}
       const arena=s.mapState.bossArena;
-      if(enemy.summonedBy||arena&&occupied(enemy).some(c=>c.x>=arena.x&&c.y>=arena.y&&c.x<arena.x+arena.width&&c.y<arena.y+arena.height)){enemy.mode='hostile';enemy.lastSeen={...p.position};}
+      if(enemy.summonedBy||arena?.started&&occupied(enemy).some(c=>c.x>=arena.x&&c.y>=arena.y&&c.x<arena.x+arena.width&&c.y<arena.y+arena.height)){enemy.mode='hostile';enemy.lastSeen={...p.position};}
       const canRollSkills=enemy.mode==='hostile'||occupied(enemy).some(c=>occupied(p).some(t=>Math.max(Math.abs(c.x-t.x),Math.abs(c.y-t.y))<=detection(enemy)*2));
       const actionCount=canRollSkills?enemyActionCount(enemy,{rng:this.rng,events:this.events,log:m=>{if(this.inPlayerScreen(enemy.position))this.log(m);}}):1;
       for(let extra=0;extra<actionCount;extra++){
@@ -692,6 +711,7 @@ export class GameSession {
       const charged=chargeIds.length>0&&(()=>{const ids=enemy.enemySkillIds;enemy.enemySkillIds=chargeIds;try{return tryEnemySkill(enemy,[p,...s.allyStates],skillContext);}finally{enemy.enemySkillIds=ids;}})();
       if (!charged && !actKing(s,enemy,{rng:this.rng,events:this.events,log:m=>this.log(m),hit:(a,b,n,attribute,label)=>this.strike(a,b,n,attribute,label)})) actEnemy(s.mapState, enemy, [p, ...s.allyStates], this.actors, this.rng, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, s.playerActionCount, (caster, targets) => { const ids = caster.enemySkillIds; caster.enemySkillIds = (ids ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type !== 'allyBuff'); try { return tryEnemySkill(caster, targets, skillContext); } finally { caster.enemySkillIds = ids; } });
       // 移動先のダメージで倒れる場合も、到着した姿を先に描画できるよう保存。
+      if(actorDefinition(enemy.kind).rootAfterMove&&!same(beforePosition,enemy.position))enemy.movementLockedUntil=s.playerActionCount+2;
       const arrivalActors = !same(beforePosition, enemy.position) ? structuredClone(this.actors) : null;
       const arrivalEventStart = this.events.length;
       if (arrivalActors) for (const trap of [...s.mapState.playerTraps!]) {
@@ -715,6 +735,7 @@ export class GameSession {
       if(actionCount>1)this.capture('enemy');
       }
     }
+    tickDelayedRocks(s,{rng:this.rng,events:this.events,damage:(t,n,a,c)=>this.damage(t,n,a,c,null),log:m=>this.log(m)});
     tickCrystals(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     tickInstallations(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     tickSkillFields(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});

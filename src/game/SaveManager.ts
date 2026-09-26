@@ -42,17 +42,20 @@ export class SaveManager {
   settings(): Settings { const v = this.read(this.settingsKey) as Partial<Settings> | null; return { grid: v?.grid === true, motion: v?.motion !== false, sound: v?.sound !== false }; }
   saveSettings(settings: Settings): void { this.write(this.settingsKey, settings); }
 }
-function validSave(value: unknown): value is SaveData {
+export function validSave(value: unknown): value is SaveData {
   try {
     const s = value as SaveData;
     if (s.version !== 1 || !Number.isInteger(s.stageId) || s.stageId < 1 || !STAGES.some(stage => stage.id === s.stageId) || !['playing', 'cleared', 'defeated'].includes(s.status)) return false;
     const m = s.mapState;
+    const point = (p: { x: number; y: number }) => !!p && Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.y >= 0 && p.x < m.width && p.y < m.height;
+    if(m.bossArena){const a=m.bossArena;if(![a.x,a.y,a.width,a.height].every(Number.isInteger)||a.x<0||a.y<0||a.width<1||a.height<1||a.x+a.width>m.width||a.y+a.height>m.height||(a.started!==undefined&&typeof a.started!=='boolean')||(a.wallTile!==undefined&&!TERRAIN[a.wallTile]?.solid)||(a.sealTiles!==undefined&&(!Array.isArray(a.sealTiles)||!a.sealTiles.every(point))))return false;}
+    if(m.delayedRocks!==undefined&&(!Array.isArray(m.delayedRocks)||!m.delayedRocks.every(r=>point(r.position)&&Number.isInteger(r.dueAt)&&r.dueAt>=0&&Number.isFinite(r.damage)&&r.damage>=0)))return false;
     if(m.thunderPrisons!==undefined&&(!Array.isArray(m.thunderPrisons)||!m.thunderPrisons.every(t=>typeof t.id==='string'&&Number.isInteger(t.startedAt)&&t.startedAt>=0&&Number.isInteger(t.lastProcessedAt)&&t.lastProcessedAt>=t.startedAt&&Array.isArray(t.cells)&&t.cells.length<=9&&t.cells.every(point)&&new Set(t.cells.map(p=>p.x+','+p.y)).size===t.cells.length&&Number.isFinite(t.power)&&t.power>=0&&Number.isFinite(t.criticalRate)&&Number.isFinite(t.criticalMultiplier)&&t.source&&Number.isFinite(t.source.attack)&&typeof t.source.actorId==='string'&&['player','enemy'].includes(t.source.team))))return false;
     if(m.crystals!==undefined&&(!Array.isArray(m.crystals)||new Set(m.crystals.map(c=>c.id)).size!==m.crystals.length||!m.crystals.every(c=>typeof c.id==='string'&&point(c.position)&&['ice','thunder'].includes(c.attribute)&&Number.isInteger(c.remainingTurns)&&c.remainingTurns>0&&Number.isInteger(c.placedAt)&&c.placedAt>=0&&Number.isInteger(c.damage)&&c.damage>=0&&c.source&&typeof c.source.actorId==='string'&&['player','enemy'].includes(c.source.team)&&Number.isFinite(c.source.attack)&&c.source.attack>=0)))return false;
     if(s.bookFragments!==undefined&&(!Number.isSafeInteger(s.bookFragments)||s.bookFragments<0))return false;
     if(s.pendingBookAttributes!==undefined&&(!Array.isArray(s.pendingBookAttributes)||s.pendingBookAttributes.length!==(s.pendingSkillBooks??0)||!s.pendingBookAttributes.every(validBookAttributes)))return false;
     if(!m.objects.every(o=>o.bookAttributes===undefined||validBookAttributes(o.bookAttributes)))return false;
-    if(s.lastReaperDay!==undefined&&(!Number.isInteger(s.lastReaperDay)||s.lastReaperDay<4||s.lastReaperDay%4!==0||s.lastReaperDay>(s.dayCount??1)))return false;
+    if(s.lastReaperDay!==undefined&&(!Number.isInteger(s.lastReaperDay)||s.lastReaperDay<1||s.lastReaperDay>(s.dayCount??1)))return false;
     if(s.destroyedInstallations!==undefined&&!Object.entries(s.destroyedInstallations).every(([kind,n])=>kind in INSTALLATIONS&&Number.isInteger(n)&&n>=0))return false;
     if(s.pendingSkillBooks!==undefined&&(!Number.isInteger(s.pendingSkillBooks)||s.pendingSkillBooks<0))return false;
     if (s.floorKills !== undefined && !Object.entries(s.floorKills).every(([kind, count]) => isActorKind(kind) && Number.isInteger(count) && count >= 0)) return false;
@@ -79,7 +82,7 @@ function validSave(value: unknown): value is SaveData {
     if ([s.playerState, ...s.allyStates, ...s.enemyStates].some(a => a.experienceMultiplier !== undefined && (!Number.isFinite(a.experienceMultiplier) || a.experienceMultiplier < 0))) return false;
     if (s.playerLevel !== undefined && (!Number.isInteger(s.playerLevel) || s.playerLevel < 1 || s.playerLevel > 20)) return false;
     if (s.experience !== undefined && (!Number.isFinite(s.experience) || s.experience < 0)) return false;
-    if (s.bagCells !== undefined && (!Array.isArray(s.bagCells) || s.bagCells.length < 16 || s.bagCells.length > 48 || !s.bagCells.every(p => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.y >= 0 && p.x < 30 && p.y < 30) || new Set(s.bagCells.map(p => p.x + ',' + p.y)).size !== s.bagCells.length)) return false;
+    if (s.bagCells !== undefined && (!Array.isArray(s.bagCells) || s.bagCells.length < 16 || s.bagCells.length > 81 || !s.bagCells.every(p => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.y >= 0 && p.x < 30 && p.y < 30) || new Set(s.bagCells.map(p => p.x + ',' + p.y)).size !== s.bagCells.length)) return false;
     if (s.daylightCount !== undefined && (!Number.isInteger(s.daylightCount) || s.daylightCount < 0)) return false;
     if (s.defeatedEnemies !== undefined && (!Array.isArray(s.defeatedEnemies) || !s.defeatedEnemies.every(a => isActorKind(a.kind) && typeof a.id === 'string' && Number.isInteger(a.position.x) && Number.isInteger(a.position.y)))) return false;
     for (const a of [s.playerState, ...s.allyStates, ...s.enemyStates]) {
@@ -90,7 +93,7 @@ function validSave(value: unknown): value is SaveData {
     if (s.mpRecoveryActions !== undefined && (!Number.isInteger(s.mpRecoveryActions) || s.mpRecoveryActions < 0)) return false;
     if (!Number.isInteger(m.width) || !Number.isInteger(m.height) || m.width < 9 || m.height < 9 || m.width > WORLD_SETTINGS.maxMapWidth || m.height > WORLD_SETTINGS.maxMapHeight || m.tiles.length !== m.width * m.height || s.exploredMap.length !== m.tiles.length) return false;
     if (!m.tiles.every(t => t in TERRAIN) || !s.exploredMap.every(t => typeof t === 'boolean')) return false;
-    const point = (p: { x: number; y: number }) => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.y >= 0 && p.x < m.width && p.y < m.height;
+
     if (m.playerTraps !== undefined && (!Array.isArray(m.playerTraps) || m.playerTraps.length > 2 || !m.playerTraps.every(t => typeof t.id === 'string' && point(t.position) && Number.isFinite(t.damage) && t.damage > 0 && (t.placedAt === undefined || Number.isInteger(t.placedAt) && t.placedAt >= 0 && t.placedAt <= s.playerActionCount) && (t.sourceSkillId === undefined || t.sourceSkillId in SKILLS)))) return false;
     if (s.playerState.movementLockedUntil !== undefined && (!Number.isInteger(s.playerState.movementLockedUntil) || s.playerState.movementLockedUntil < 0)) return false;
     if (m.traps !== undefined && (!Array.isArray(m.traps) || !m.traps.every(t => typeof t.id === 'string' && t.trapId in TRAPS && point(t.position) && typeof t.triggered === 'boolean') || new Set(m.traps.map(t => t.id)).size !== m.traps.length)) return false;

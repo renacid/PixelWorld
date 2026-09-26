@@ -15,6 +15,15 @@ export function validPlacement(bag: BagBlock[], skillId: SkillId, position: Poin
   const others = bag.filter(b => b.skillId !== skillId).flatMap(blockCells);
   return cells.every(c => available.some(p => p.x === c.x && p.y === c.y) && !others.some(o => c.x === o.x && c.y === o.y));
 }
+/** 外接矩形の左上が未解放でも、実セルが収まれば配置できる。凹形・斜め形も全候補を探索。 */
+export function placementOrigins(bag: BagBlock[], id: SkillId, rotation: number, available: Point[]): Point[] {
+  const candidates = new Map<string, Point>();
+  for (const slot of available) for (const cell of shape(id, rotation)) {
+    const p = { x: slot.x - cell.x, y: slot.y - cell.y };
+    candidates.set(`${p.x},${p.y}`, p);
+  }
+  return [...candidates.values()].filter(p => validPlacement(bag, id, p, rotation, available));
+}
 export function connectionBonus(bag: BagBlock[], skillId: SkillId): number {
   const start = bag.find(b => b.skillId === skillId && b.position);
   if (!start) return 0;
@@ -36,7 +45,8 @@ export function autoPlace(bag: BagBlock[], id: SkillId, available: Point[] = ini
   const block = bag.find(b => b.skillId === id)!;
   for(let n=0;n<(SKILLS[id].rotatable?4:1);n++) {
     const rotation=(block.rotation+n)%4;
-    for (const p of available) if (validPlacement(bag,id,p,rotation,available)) {block.position={...p};block.rotation=rotation;return;}
+    const p = placementOrigins(bag, id, rotation, available)[0];
+    if (p) {block.position={...p};block.rotation=rotation;return;}
   }
 }
 

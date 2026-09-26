@@ -3,8 +3,10 @@ import {spritePixels,PIXEL_COLORS} from '/src/render/SpriteAtlas.ts';
 import { ENEMIES, SUPPORT_ACTORS } from '/src/data/enemies.ts';
 const definitions=Object.values({...ENEMIES,...SUPPORT_ACTORS});
 const ctx=document.querySelector('canvas').getContext('2d');
-const kinds=['player','slime','goblin','fighter','reaper','archer','mage','wolf','treant','sprite','greaterSprite','golem'];
+// 定義から自動追加し、新モンスターのプレビュー漏れを防ぐ。
+const kinds=[...new Set(definitions.map(d=>d.sprite))];
+ctx.canvas.height=30+kinds.length*110;
 for(let i=0;i<kinds.length;i++){const kind=kinds[i],row=30+i*110;ctx.fillStyle='#364c45';ctx.fillText(kind,8,row+45);
 for(let n=0;n<4;n++){const dir=['down','left','up','right'][n],p=spritePixels(kind,dir),definition=definitions.find(d=>d.sprite===kind),sy=(definition.renderHeight??p.length*2)/p.length,lift=definition.renderLift??0,x=125+n*135,foot=row+86,size=kind==='golem'?64:32;ctx.fillStyle='#e2eacb';ctx.fillRect(x,foot-size,size,size);ctx.strokeStyle='#a2b391';ctx.strokeRect(x,foot-size,size,size);ctx.fillStyle='#364c45';ctx.fillText(dir,x,row-8);
-for(let y=0;y<p.length;y++)for(let px=0;px<p[y].length;px++){const c=PIXEL_COLORS[p[y][px]];if(c){ctx.fillStyle=c;ctx.fillRect(x+size/2-p[y].length+px*2,Math.round(foot-p.length*sy+y*sy-lift),2,sy)}}}}
+for(let y=0;y<p.length;y++)for(let px=0;px<p[y].length;px++){const c=PIXEL_COLORS[p[y][px]];if(c){ctx.fillStyle=c;ctx.fillRect(x+size/2-p[y].length+px*2,Math.round(foot-p.length*sy+y*sy-lift),2,Math.round(foot-p.length*sy+(y+1)*sy-lift)-Math.round(foot-p.length*sy+y*sy-lift))}}}}
 </script>

@@ -1,17 +1,18 @@
 import type { Point } from '../game/types';
 import type { ChestTier, Weighted } from './loot';
 
-export type TrapId = 'manaHealing' | 'treasure' | 'bearTrap' | 'fireMine' | 'rockfall' | 'healing' | 'wolfTerritory';
+export type TrapId = 'largeRock' | 'manaHealing' | 'treasure' | 'bearTrap' | 'fireMine' | 'rockfall' | 'healing' | 'wolfTerritory';
 import type { EnemyKind } from './enemies';
 import type { TrapVisual, SoundCue } from './effects';
 export type { TrapVisual, SoundCue } from './effects';
 export type TrapDefinition = {
   name: string; visual: TrapVisual; sound: SoundCue;
-  effect: { type: 'chest'; tiers: Weighted<ChestTier>[] } | { type: 'root'; turns: number } |
+  effect: {type:'delayedRock';damage:number} | { type: 'chest'; tiers: Weighted<ChestTier>[] } | { type: 'root'; turns: number } |
     { type: 'blast'; radius: number; damage: number } | { type: 'rocks'; radius: number; tiles: number; hits: number; damage: number } |
     { type: 'heal'; amount: number } | { type: 'restoreMp'; amount: number } | { type: 'summonPerimeter'; radius: number; count: number; enemy: EnemyKind };
 };
 export const TRAPS: Record<TrapId, TrapDefinition> = {
+ largeRock:{name:'大落石',visual:'largeRock',sound:'rocks',effect:{type:'delayedRock',damage:5}},
   manaHealing: { name:'魔力回復トラップ',visual:'healingGlow',sound:'healing',effect:{type:'restoreMp',amount:5} },
   wolfTerritory: { name: '狼の縄張り', visual: 'summonRing', sound: 'howl', effect: { type: 'summonPerimeter', radius: 4, count: 3, enemy: 'wolf' } },
   treasure: { name: '宝箱トラップ', visual: 'chestBurst', sound: 'treasure', effect: { type: 'chest', tiers: [{ value: 'wood', weight: 60 }, { value: 'iron', weight: 25 }, { value: 'silver', weight: 12 }, { value: 'gold', weight: 3 }] } },

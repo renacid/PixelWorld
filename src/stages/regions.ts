@@ -12,7 +12,7 @@ export const REGIONS: RegionDefinition[] = [
     loot: { items: COMMON_ITEMS, rareItems: RARE_ITEMS, skills: skillPool }, trapPool: DEFAULT_TRAP_POOL,
     trapPlacements: [{ count: 18 }],
   } },
-  { id: 'cave', number: 3, name: '洞窟', description: '暗闇の奥へ続く冒険（準備中）', plannedStages: 1, defaults: {
+  { id: 'cave', number: 3, name: '洞窟', description: '土壁と結晶の奥へ続く冒険', plannedStages: 1, defaults: {
     loot: { items: COMMON_ITEMS, rareItems: RARE_ITEMS, skills: skillPool }, trapPool: DEFAULT_TRAP_POOL,
   } },
 ];

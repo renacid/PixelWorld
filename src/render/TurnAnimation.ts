@@ -36,6 +36,7 @@ export class TurnAnimation {
           const t=Math.max(0,Math.min(1,(elapsed-step.start-(jump.delayMs??0))/750));
           a.position={x:interpolate(prev.position.x,next.position.x,t),y:interpolate(prev.position.y,next.position.y,t)-Math.sin(t*Math.PI)*2.5};
         }
+        if(step.events.some(e=>e.visual==='fallingStrike'&&e.actorId===id)){const t=Math.min(1,(elapsed-step.start)/300);a.position={x:interpolate(prev.position.x,next.position.x,t),y:interpolate(prev.position.y,next.position.y,t)-Math.sin(t*Math.PI)*1.3};}
         if (progress < .55) { a.hp = prev.hp; a.afflictions = prev.afflictions; }
       }
       const attack = step.events.find(e => (e.type === 'attack' || e.type === 'cast') && e.actorId === id);
