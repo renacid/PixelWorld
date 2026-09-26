@@ -1,6 +1,7 @@
 /** 道具の表示名・説明。使用効果はGameSession.useItemで処理。 */
 import type { ItemId } from '../game/types';
 export const ITEMS: Record<ItemId, { name: string; icon: string; description: string; rarity: 'common' | 'rare'; rareRank: 1 | 2 | 3 | 4 | 5; skillCellLimit?: number; fieldColor?: string; restoreHp?: number; restoreMp?: number }> = {
+  ironKey:{rarity:'common',rareRank:1,name:'鉄の鍵',icon:'',fieldColor:'#c7d1d7',description:'閉じた鉄扉に向かって移動すると1本消費して開く。'},
   bookmarkLesser: {rarity:'rare',rareRank:3,skillCellLimit:3,name:'魔法の栞（下級）',icon:'',description:'3マス以下の所持スキルを1つ選び、レベルを1上げる'},
   bookmarkMiddle: {rarity:'rare',rareRank:3,skillCellLimit:5,name:'魔法の栞（中級）',icon:'',description:'5マス以下の所持スキルを1つ選び、レベルを1上げる'},
   bookmarkGreater: {rarity:'rare',rareRank:3,skillCellLimit:7,name:'魔法の栞（上級）',icon:'',description:'7マス以下の所持スキルを1つ選び、レベルを1上げる'},

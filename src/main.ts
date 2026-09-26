@@ -15,7 +15,7 @@ import { SaveManager } from './game/SaveManager';
 import type { Command } from './game/Command';
 import type { BagBlock, Direction, Point, SkillId, Attribute } from './game/types';
 import { ATTRIBUTE_COLORS, ATTRIBUTE_NAMES, SKILLS } from './data/skills';
-import { GEM_REWARDS } from './data/gems';
+import { gemReward, GEM_REWARDS } from './data/gems';
 import { skillMpLabel, wearStage } from './skills/SkillWear';
 import { ITEMS } from './data/items';
 import { placementOrigins, blockCells, connectionDamageMultiplier, connectionBonus, effectiveLevel, shape, validPlacement } from './skills/SkillBag';
@@ -379,7 +379,7 @@ function openBook():void{
 }
 function openGem(): void {
   if (!session?.state.pendingGemChoices?.length) return;
-  dialog('<h2>宝石の力を選ぶ</h2><p>冒険中の強化を1つ選択してください。</p>' + session.state.pendingGemChoices[0].map((id, i) => '<button class="secondary gem-choice" data-reward="' + i + '">' + escape(GEM_REWARDS[id].name) + '</button>').join('') + '<div class="gem-inspect"><button id="gem-status" class="secondary">ステータスを見る</button><button id="gem-bag" class="secondary">スキルバッグを見る</button></div>');
+  dialog('<h2>宝石の力を選ぶ</h2><p>冒険中の強化を1つ選択してください。</p>' + session.state.pendingGemChoices[0].map((id, i) => '<button class="secondary gem-choice" data-reward="' + i + '">' + escape(gemReward(id,session!.state.floorNumber).name) + '</button>').join('') + '<div class="gem-inspect"><button id="gem-status" class="secondary">ステータスを見る</button><button id="gem-bag" class="secondary">スキルバッグを見る</button></div>');
   on('gem-status', () => showPlayerStatus(openGem));
   on('gem-bag', () => openBag(false, true, openGem));
   modal!.querySelectorAll<HTMLElement>('[data-reward]').forEach(b => b.addEventListener('click', () => {

@@ -74,6 +74,10 @@ export class GameCanvas {
     const width = (Math.max(...a.cells.map(c => c.x)) + 1) * TILE, height = (Math.max(...a.cells.map(c => c.y)) + 1) * TILE;
     const cx = x + width / 2;
     ctx.fillStyle = '#315d5c36'; ctx.beginPath(); ctx.ellipse(cx, y + height - (a.kind === 'wolf' ? 7 : 4), width * .3, 4, 0, 0, Math.PI * 2); ctx.fill();
+    if(a.buffs?.some(b=>b.skillMode==='thunderMode'&&b.remainingTurns>0)){
+      ctx.strokeStyle='#d5b6ff';ctx.lineWidth=1;
+      for(let n=0;n<3;n++){const t=Math.floor(clock/110)+n*3,ax=x+4+(t*7%24),ay=y+4+(n*9)%24;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax-3,ay+4);ctx.lineTo(ax+2,ay+4);ctx.lineTo(ax-1,ay+9);ctx.stroke();}
+    }
     const definition = actorDefinition(a.kind), pixels = spritePixels(definition.sprite, a.facing ?? 'down'), scale = definition.renderScale;
     const pixelHeight = pixels.length, pixelWidth = pixels[0].length;
     const scaleX = scale, scaleY = (definition.renderHeight ?? scale * pixelHeight) / pixelHeight;
@@ -200,6 +204,7 @@ export class GameCanvas {
       } else if(obj.type==='skillBook'){
         ctx.fillStyle='#fff3c5';ctx.fillRect(x+9,y+8,14,18);ctx.fillStyle='#b19871';ctx.fillRect(x+7,y+7,18,3);ctx.fillRect(x+7,y+25,18,3);
         ['#ec7666','#67b8e6','#b485d3','#72c7a0','#ad845d','#7c8184'].forEach((color,i)=>{ctx.fillStyle=color;ctx.fillRect(x+11+(i%2)*6,y+12+Math.floor(i/2)*4,4,3);});
+      } else if(obj.itemId==='ironKey'){ctx.strokeStyle='#edf4f6';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x+13,y+11,4,0,Math.PI*2);ctx.moveTo(x+13,y+15);ctx.lineTo(x+13,y+26);ctx.moveTo(x+13,y+21);ctx.lineTo(x+19,y+21);ctx.moveTo(x+13,y+25);ctx.lineTo(x+18,y+25);ctx.stroke();
       } else if (obj.type === 'skill') { ctx.fillStyle = '#fff3c5'; ctx.fillRect(x + 9, y + 8, 14, 18); ctx.fillStyle = '#e78474'; ctx.fillRect(x + 12, y + 12, 8, 2); ctx.fillRect(x + 12, y + 17, 7, 2); }
       else { ctx.fillStyle = obj.itemId ? itemFieldColor(obj.itemId) : '#ffd15d'; ctx.fillRect(x + 12, y + 10, 8, 3); ctx.fillRect(x + 10, y + 14, 12, 12); ctx.fillStyle = '#fffae7'; ctx.fillRect(x + 13, y + 7, 6, 3); ctx.fillRect(x + 11, y + 16, 2, 6); }
     }
@@ -273,6 +278,7 @@ export class GameCanvas {
     if (e.skillId === 'randomThunder') {ctx.strokeStyle='#bb8cf0';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(to.x+20,to.y-24);ctx.lineTo(to.x+11,to.y+3);ctx.lineTo(to.x+20,to.y+3);ctx.lineTo(to.x+16,to.y+22);ctx.stroke();}
     else if (e.skillId === 'flurry') {for(const p of e.path??[]){const c=screen(p);ctx.strokeStyle='#fff4cb';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(c.x+5,c.y+25);ctx.lineTo(c.x+26,c.y+6);ctx.stroke();}}
     else if (e.skillId === 'chainLightning') { ctx.strokeStyle='#a776ed';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(from.x+16,from.y+16);ctx.lineTo((from.x+to.x)/2+22,(from.y+to.y)/2+7);ctx.lineTo((from.x+to.x)/2+9,(from.y+to.y)/2+22);ctx.lineTo(to.x+16,to.y+16);ctx.stroke();ctx.strokeStyle='#fffbd1';ctx.lineWidth=2;ctx.stroke(); }
+    else if(e.enemySkillId==='thunderBall'){ctx.fillStyle='#9c62db';ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#f5e7ff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+2,y-6);ctx.lineTo(x-3,y);ctx.lineTo(x+3,y);ctx.lineTo(x-2,y+6);ctx.stroke();}
     else if (e.enemySkillId === 'arrowShot') { const angle = Math.atan2(to.y - from.y, to.x - from.x); ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.strokeStyle = '#715237'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(9,0); ctx.moveTo(4,-4); ctx.lineTo(9,0); ctx.lineTo(4,4); ctx.stroke(); ctx.restore(); }
     else if (e.enemySkillId === 'fireball') { for (let i=1;i<=5;i++) { const t=Math.max(0, Math.min(1,age*1.5)-i*.055); ctx.fillStyle=i%2?'#f6854288':'#ffc866bb'; ctx.fillRect(from.x+16+(to.x-from.x)*t-3,from.y+16+(to.y-from.y)*t-3,6,6); } ctx.fillStyle = '#fa773e'; ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fill(); ctx.fillStyle = '#ffe59b'; ctx.fillRect(x-3,y-3,6,6); }
     else if (e.visual === 'stone') { ctx.fillStyle = '#5e7359'; ctx.fillRect(x - 4, y - 4, 8, 8); ctx.fillStyle = '#d1d8b7'; ctx.fillRect(x - 3, y - 3, 5, 3); }

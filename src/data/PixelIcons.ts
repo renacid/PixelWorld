@@ -28,6 +28,7 @@ export const SKILL_ICONS:Record<SkillId,PixelIcon>={
  icestone:make('#5ba5d2',['...gg...','..gwwg..','.gwwwgg.','ggwwgggg','ggwggggg','.gggggg.','..gggg..','...gg...']),
  groundbreak:make('#718f42',['........','g...g...','.g.g....','..g..gg.','gg.g.g..','...gg...','gggggggg','.gggggg.'])};
 export const ITEM_ICONS:Record<ItemId,PixelIcon>={
+ ironKey:make('#9daebb',['..ggg...','.g...g..','.g...g..','..ggg...','...g....','...ggg..','...g....','...ggg..']),
  bookmarkLesser:make('#6baa88',['..gggg..','..gwwg..','..gggg..','..gwwg..','..gggg..','..gggg..','..g..g..','........']),
  bookmarkMiddle:make('#739cdb',['..gggg..','..gwwg..','..gwgg..','..ggwg..','..gwwg..','..gggg..','..g..g..','........']),
  bookmarkGreater:make('#b380db',['..gggg..','..gwwg..','..wwww..','..gwwg..','..gwwg..','..gggg..','..g..g..','........']),

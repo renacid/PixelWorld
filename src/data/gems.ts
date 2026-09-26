@@ -13,3 +13,11 @@ export const GEM_REWARDS: Record<string, GemReward> = {
   criticalRate: { name: '会心率＋3%', effect: { type: 'criticalRate', amount: .03 } },
   criticalMultiplier: { name: '会心ダメージ＋10%', effect: { type: 'criticalMultiplier', amount: .1 } },
 };
+
+/** HP/MP宝石のみ階層で増幅。4層以降も3層と同倍率。 */
+export function gemReward(id:string,floor=1):GemReward{
+ const reward=GEM_REWARDS[id],e=reward.effect;
+ if(e.type!=='hp'&&e.type!=='mp')return reward;
+ const amount=Math.floor(e.amount*(floor>=3?2:floor===2?1.4:1));
+ return {...reward,name:'最大'+e.type.toUpperCase()+'＋'+amount,effect:{...e,amount}};
+}

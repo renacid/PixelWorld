@@ -1,13 +1,53 @@
 /** 文字配列から4方向のドット絵を生成。パレットと各キャラの形をここで編集。 */
 import type { Direction } from '../game/types';
 import type { SpriteId } from '../data/enemies';
-export const PIXEL_COLORS: Record<string, string> = { '.': '', r: '#fa775e', R: '#c34b54', s: '#ffe6b0', w: '#fff9e6', b: '#4a9ed9', B: '#306da2', k: '#29445f', y: '#ffd05f', g: '#75d982', G: '#42ab70', p: '#b7f4a0', o: '#d8b987', O: '#ac9067', t: '#67e7d1', a: '#485557', c: '#7f8b87', C: '#b9bcb0', d: '#303e40', m: '#536d39', M: '#8ca659' };
+export const PIXEL_COLORS: Record<string, string> = { '.': '', v:'#a971e8', V:'#653d92', N:'#252034', r: '#fa775e', R: '#c34b54', s: '#ffe6b0', w: '#fff9e6', b: '#4a9ed9', B: '#306da2', k: '#29445f', y: '#ffd05f', g: '#75d982', G: '#42ab70', p: '#b7f4a0', o: '#d8b987', O: '#ac9067', t: '#67e7d1', a: '#485557', c: '#7f8b87', C: '#b9bcb0', d: '#303e40', m: '#536d39', M: '#8ca659' };
 function make(kind: SpriteId, facing: 'down' | 'up' | 'left'): string[] {
   if(kind==='stoneSlime')return make('slime',facing).map(row=>row.replaceAll('g','o').replaceAll('G','O').replaceAll('p','C'));
   if (kind === 'golem') return makeGolem(facing);
   const pixels = Array.from({ length: 16 }, () => Array<string>(16).fill('.'));
   const rect = (x: number, y: number, w: number, h: number, color: string) => { for (let dy = y; dy < y + h; dy++) for (let dx = x; dx < x + w; dx++) if (dy >= 0 && dy < 16 && dx >= 0 && dx < 16) pixels[dy][dx] = color; };
-  if(kind==='earthFlower'){
+  if(kind==='thunderButterfly'){
+    // 正面・背面は左右対称の前翅と後翅。中央の細い胴体と頭だけに目を置く。
+    // 横向きは専用の絵：奥の暗い翅と、手前の大きな紫の翅を重ねる。
+    if(facing==='left')return [
+      '.......NN.......',
+      '......NVVN......',
+      '.....NVVVVN.....',
+      '....NVVVVVVN....',
+      '....NVVNNNNN....',
+      '.....NNvvvvNN...',
+      '...N..NvvVvvvN..',
+      '..N...NvVvvvVN..',
+      '...NNNNvvVvvN...',
+      '..NyNNNNVVNN....',
+      '...NN.NvNvvN....',
+      '.......NvvvVN...',
+      '........NvvvN...',
+      '.........NNN....',
+      '................',
+      '................',
+    ];
+    const half=[
+      '.....N..',
+      '.NN..N..',
+      'NvvN..NN',
+      facing==='down'?'NvVvNNyN':'NvVvNNNN',
+      'NvvVvNNN',
+      '.NvvVvNN',
+      '..NvvVNN',
+      '...NNVNN',
+      '..NvVNNN',
+      '.NvvVvNN',
+      '.NvVvvNN',
+      '..NvvN.N',
+      '...NN..N',
+      '.......N',
+      '........',
+      '........',
+    ];
+    return half.map(row=>row+[...row].reverse().join(''));
+  }else if(kind==='earthFlower'){
     rect(7,9,2,5,'G');rect(3,13,5,2,'g');rect(9,12,5,2,'G');rect(1,14,4,1,'m');rect(11,14,4,1,'g');
     // 正面は花冠・ハイライト・両目を中心線で左右対称にする。
     rect(5,1,6,4,'b');rect(2,4,5,5,'b');rect(9,4,5,5,'b');rect(4,9,8,3,'B');rect(5,4,6,6,'k');

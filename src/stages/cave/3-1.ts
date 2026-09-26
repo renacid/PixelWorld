@@ -7,7 +7,7 @@ export const stage: Stage = {
   "regionId": "cave",
   "name": "洞窟 3-1",
   "subtitle": "森の根の下",
-  "description": "森の入口から土の洞へ。落石を避け、青い地晶花の咲く奥へ進む。",
+  "description": "森から土の洞へ。奥へ進む。",
   "objective": "洞窟の出口を目指そう",
   "vision": 5,
   "width": 42,
@@ -367,6 +367,24 @@ export const stage: Stage = {
             "position": {
               "x": 19,
               "y": 16
+            },
+            "triggered": false
+          },
+          {
+            "id": "c31-shower-0",
+            "trapId": "stoneSlimeShower",
+            "position": {
+              "x": 24,
+              "y": 17
+            },
+            "triggered": false
+          },
+          {
+            "id": "c31-shower-1",
+            "trapId": "stoneSlimeShower",
+            "position": {
+              "x": 35,
+              "y": 28
             },
             "triggered": false
           }

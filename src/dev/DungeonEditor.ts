@@ -1,3 +1,4 @@
+import cave2Stage from '../stages/cave/3-2.json';
 import caveStage from '../stages/cave/3-1.json';
 import forestStage from '../stages/forest/2-5.json';
 import { drawTerrainPreview } from '../render/TerrainPreview';
@@ -18,7 +19,7 @@ let project=newProject(), floorIndex=0, zoom=24, category='tile', tool='paint', 
 let dragging=false, anchor:Point|null=null, hover:Point|null=null, selected:Point|null=null;
 const undo: string[]=[],redo:string[]=[];
 const root=document.querySelector<HTMLDivElement>('#editor')!;
-root.innerHTML=`<header><div><small>PIXEL WORLD / DEVELOPER TOOLS</small><h1>ダンジョン工房</h1></div><nav><button id="new">新規</button><button id="open-cave">洞窟3-1を開く</button><button id="open-forest">森2-5を開く</button><button id="load">JSONを開く</button><button id="save">下書き保存</button><button id="json">JSON出力</button><button id="export" class="primary">TypeScript出力</button></nav></header>
+root.innerHTML=`<header><div><small>PIXEL WORLD / DEVELOPER TOOLS</small><h1>ダンジョン工房</h1></div><nav><button id="new">新規</button><button id="open-cave">洞窟3-1を開く</button><button id="open-cave2">洞窟3-2を開く</button><button id="open-forest">森2-5を開く</button><button id="load">JSONを開く</button><button id="save">下書き保存</button><button id="json">JSON出力</button><button id="export" class="primary">TypeScript出力</button></nav></header>
 <div class="workspace"><aside class="left"><h2>ダンジョン設定</h2><div id="stage-form"></div><h2>階層 <button id="add-floor">＋</button><button id="copy-floor">複製</button><button id="delete-floor">削除</button></h2><div id="floors"></div><div id="floor-form"></div></aside>
 <main><div class="toolbar"><select id="category"><option value="tile">地形</option><option value="object">宝箱・道具</option><option value="enemy">敵</option><option value="trap">罠</option><option value="installation">設置物</option><option value="spawn">開始地点</option></select><select id="tool"><option value="paint">ペン</option><option value="rectangle">四角塗り</option><option value="fill">塗りつぶし（地形）</option><option value="inspect">選択・詳細</option><option value="erase">配置物消去</option></select><button id="undo">戻す</button><button id="redo">やり直す</button><label>倍率 <input id="zoom" type="range" min="12" max="48" value="24"></label><span id="coordinates">X — / Y —</span></div><div id="palette"></div><div id="viewport"><canvas id="map"></canvas></div><footer id="status">ペンでドラッグして配置。右クリックで配置物を消去。Ctrl+Zで戻す。</footer></main>
 <aside class="right"><h2>選択マス</h2><div id="inspect">マスをクリックすると座標と配置を表示します。</div><h2>出力の使い方</h2><ol><li>サイズと階層を決める</li><li>床・壁・開始地点・出口を配置</li><li>敵・罠・宝箱などを配置</li><li>検査してTypeScriptを保存</li></ol><p>出力ファイルを <code>src/stages/地域名/番号.ts</code> に置き、<code>src/stages/index.ts</code> でimportし、STAGES配列に追加してください。</p><p>設定の反映は新規プレイから。JSONはこのエディタで再編集するための形式です。</p><button id="validate">配置を検査</button><details><summary>操作ガイド</summary><p>四角塗り・塗りつぶしは地形専用です。配置物は1マス1つ、大型敵は全占有セルを確保します。壁を上から塗ると配置物を消します。</p><p>「選択・詳細」で選んだ宝箱はcontents、巣穴はoverridesなどをJSONで編集できます。宝石は各層の上限1まで。魔導書は各層の設定上限以内です。</p><p>斬撃を含む初期宝箱には、ゲーム共通の開始報酬上書きが適用されます。</p></details></aside></div>
@@ -146,6 +147,7 @@ $('copy-output').onclick=()=>{if(applyOutput){applyOutput();return;}navigator.cl
 $('json').onclick=()=>download('dungeon-project.json',JSON.stringify(project,null,2));
 $('validate').onclick=()=>{try{const errors=validateProject(project);note(errors.length?errors.join(' / '):'固定配置・占有・出口への経路は正常です。');}catch(e){note(String(e));}};
 $('export').onclick=()=>{try{const errors=validateProject(project);if(errors.length){showOutput('配置を修正してください',errors.join('\n'),'validation.txt');return;}exportStage(project);showOutput('TypeScript / src/stages/地域名/番号.ts',stageCode(project),(project.stage.code??'custom')+'.ts');}catch(e){note(String(e));}};
+$('open-cave2').onclick=()=>{if(!confirm('下書きを洞窟3-2で置き換えますか？'))return;checkpoint();project=projectFromJson(cave2Stage);floorIndex=0;renderForms();commit();};
 $('open-cave').onclick=()=>{if(!confirm('下書きを洞窟3-1で置き換えますか？'))return;checkpoint();project=projectFromJson(caveStage);floorIndex=0;renderForms();commit();};
 $('open-forest').onclick=()=>{if(!confirm('下書きを森2-5で置き換えますか？'))return;checkpoint();project=projectFromJson(forestStage);floorIndex=0;renderForms();commit();};
 $('load').onclick=()=>$<HTMLInputElement>('file').click();

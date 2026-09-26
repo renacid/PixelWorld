@@ -39,6 +39,7 @@ export class TurnAnimation {
         if(step.events.some(e=>e.visual==='fallingStrike'&&e.actorId===id)){const t=Math.min(1,(elapsed-step.start)/300);a.position={x:interpolate(prev.position.x,next.position.x,t),y:interpolate(prev.position.y,next.position.y,t)-Math.sin(t*Math.PI)*1.3};}
         if (progress < .55) { a.hp = prev.hp; a.afflictions = prev.afflictions; }
       }
+      if(!prev&&next&&step.events.some(e=>e.actorId===id&&e.visual==='fallingStrike'))a.position={x:next.position.x,y:next.position.y-(1-Math.min(1,(elapsed-step.start)/400))*2};
       const attack = step.events.find(e => (e.type === 'attack' || e.type === 'cast') && e.actorId === id);
       if (attack?.target && !attack.bossJump && attack.skillId !== 'warp' && attack.enemySkillId !== 'dash') {
         const dx = attack.target.x - attack.position.x, dy = attack.target.y - attack.position.y, len = Math.hypot(dx, dy) || 1;

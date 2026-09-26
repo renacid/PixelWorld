@@ -1,3 +1,5 @@
+import { MONSTER_BOOKMARK_POOL } from '../data/loot';
+import { weighted as chooseWeightedLoot } from './LootSystem';
 import { triggerEarthBlessing } from '../skills/EarthBlessing';
 import { contactBossFire, startBoss, actKing, tickBanners, kingPhases, isGoblin, KING_RULES } from './BossEncounter';
 import { targetableCrystals } from './CrystalTargets';
@@ -33,7 +35,7 @@ import { makeChest, weighted, floorLoot, legacyLoot, rollDrops } from './LootSys
 import { tickDelayedRocks, triggerPlayerTraps } from './TrapSystem';
 import { tryEnemySkill, enemyActionCount } from '../skills/EnemySkillResolver';
 import { ITEMS } from '../data/items';
-import { GEM_REWARDS } from '../data/gems';
+import { gemReward, GEM_REWARDS } from '../data/gems';
 import { skillMp, wearSkill } from '../skills/SkillWear';
 import { SKILLS } from '../data/skills';
 import { dealAttributeHit } from '../skills/AttributeSystem';
@@ -311,7 +313,7 @@ export class GameSession {
     s.pendingSkillBooks--;s.pendingBookAttributes!.shift();this.acquireSkill(id);s.randomSeed=this.rng.seed;return true;
   }
   chooseGem(index: number): boolean {
-    const s = this.state, id = s.pendingGemChoices?.[0]?.[index], reward = id && GEM_REWARDS[id];
+    const s = this.state, id = s.pendingGemChoices?.[0]?.[index], reward = id && gemReward(id,s.floorNumber);
     if (!reward || s.status !== 'playing') return false;
     const e = reward.effect, p = s.playerState;
     if (e.type === 'skill') { const pool = Object.values(SKILLS).filter(d => d.attribute === e.attribute && canRollSkill(s,d.id)); if (!pool.length) return false; this.acquireSkill(pool[this.rng.int(0, pool.length - 1)].id); }
@@ -337,6 +339,7 @@ export class GameSession {
     }
     if (id === 'powerPotion') { applyBuff(p,{id:'item:powerPotion',attackBonus:5,attackMultiplier:1,detectionBonus:0,remainingTurns:10,appliedAt:s.playerActionCount});this.events.push({type:'heal',position:{...p.position},text:'攻撃力+5',sound:'healing'}); }
     if (id === 'hourglass') { if (!skillId || !s.skillLevels[skillId] || !(s.cooldowns[skillId]! > 0)) { this.log('再使用待ちのスキルを選んでください。'); return false; } s.cooldowns[skillId] = Math.max(0, s.cooldowns[skillId]! - 10); this.log(SKILLS[skillId].name + 'のクールタイムを短縮！'); }
+    if(id==='ironKey'){this.log('鉄扉に向かって移動すると鍵を使います。');return false;}
     if (ITEMS[id].restoreHp && p.hp >= p.maxHp || ITEMS[id].restoreMp && p.mp >= p.maxMp) { this.log('今は使う必要がありません。'); return false; }
     if (ITEMS[id].restoreHp) { p.hp = Math.min(p.maxHp, p.hp + ITEMS[id].restoreHp!); this.events.push({ type: 'heal', position: { ...p.position }, text: '+HP' }); }
     if (ITEMS[id].restoreMp) p.mp = Math.min(p.maxMp, p.mp + ITEMS[id].restoreMp!);
@@ -493,6 +496,7 @@ export class GameSession {
       if (s.lastKillAction === undefined || s.lastKillAction < s.playerActionCount - 1) s.killCombo = 0;
       s.killCombo = (s.killCombo ?? 0) + 1; s.lastKillAction = s.playerActionCount;
       const definition = actorDefinition(e.kind);
+      if(this.rng.next()<(definition.bookmarkDropChance??0))s.mapState.objects.push(floorLoot('bookmark-'+e.id,e.position,{type:'item',id:chooseWeightedLoot(MONSTER_BOOKMARK_POOL,this.rng)}));
       // 基礎HPに対する実際の最大HP比を経験値へ反映。被ダメージでは報酬を減らさない。
       // ステージ加算・階層倍率を含め、夜の補正を掛けて切り上げた後に連続撃破ボーナスを適用。
       const hpMultiplier = e.maxHp / Math.max(1, definition.hp);
@@ -660,6 +664,15 @@ export class GameSession {
       // 精霊を押し退けても自動行動の権利は消費せず、通常の味方フェーズへ進む。
       const ally = s.allyStates.find(a => a.hp > 0 && occupied(a).some(c => same(c, next)));
       const others = this.actors.filter(a => a.id !== p.id && a.id !== ally?.id);
+      // 鉄扉は攻撃では壊れない地形。歩行時だけ鍵を消費して土床へ変える。
+      const tileIndex=next.y*s.mapState.width+next.x;
+      if(next.x>=0&&next.x<s.mapState.width&&next.y>=0&&next.y<s.mapState.height&&s.mapState.tiles[tileIndex]===11){
+        const keySlot=s.itemSlots.indexOf('ironKey');
+        if(keySlot<0){this.log('鍵付き鉄扉。鉄の鍵が必要です。');return false;}
+        s.mapState.tiles[tileIndex]=7;
+        if(!canStand(s.mapState,p,next,this.actors)){s.mapState.tiles[tileIndex]=11;return false;}
+        s.itemSlots.splice(keySlot,1);this.log('鉄の鍵で扉を開けた！');this.events.push({type:'pickup',position:{...next},sound:'snap'});
+      }
       if (!canStand(s.mapState, p, next, ally ? others : this.actors) || ally && !canStand(s.mapState, ally, p.position, others)) { this.log('進路がふさがれています。'); return false; }
       if (ally) ally.position = { ...p.position };
       p.position = next; walked = true;

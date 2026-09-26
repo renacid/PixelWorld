@@ -63,6 +63,27 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
   for (const id of ids) {
     const skill = ENEMY_SKILLS[id];
     if (!skill || (caster.mp ?? 0) < skill.mpCost || (caster.enemyCooldownUntil?.[id] ?? 0) > context.action) continue;
+    if(skill.requiresMode&&!caster.buffs?.some(b=>b.skillMode===skill.requiresMode&&b.remainingTurns>0))continue;
+    if(skill.effect.type==='modeBuff'){
+      const mode=skill.effect.mode;
+      if(caster.buffs?.some(b=>b.skillMode===mode&&b.remainingTurns>0)||targets.some(t=>t.hp>0&&occupied(t).some(p=>occupied(caster).some(c=>Math.max(Math.abs(c.x-p.x),Math.abs(c.y-p.y))<=1))))continue;
+      if(context.rng.next()>=(caster.skillChances?.[id]??skill.chance))continue;
+      caster.mp!-=skill.mpCost;applyBuff(caster,{id,name:skill.name,skillMode:skill.effect.mode,remainingTurns:skill.effect.duration,appliedAt:context.action,attackMultiplier:1,detectionBonus:0});
+      context.events.push({type:'trap',actorId:caster.id,position:{...caster.position},visual:'summonRing',attribute:'thunder',sound:skill.sound});context.log(caster.name+'の'+skill.name+'！');return true;
+    }
+    if(skill.effect.type==='randomStrike'){
+      const effect=skill.effect,near=(p:Point)=>occupied(caster).some(c=>Math.max(Math.abs(c.x-p.x),Math.abs(c.y-p.y))<=effect.radius);
+      // マスを先に選び、巨大な相手も命中マス内の1体として処理。結晶は対象外。
+      const cells=new Map<string,Point>();
+      for(const t of targets.filter(t=>t.hp>0))for(const p of occupied(t).filter(near))cells.set(p.x+','+p.y,p);
+      if(effect.objects)for(const o of context.map.installations??[])if(near(o.position))cells.set(o.position.x+','+o.position.y,o.position);
+      const pool=[...cells.values()];if(!pool.length||context.rng.next()>=(caster.skillChances?.[id]??skill.chance))continue;
+      const cell=pool[context.rng.int(0,pool.length-1)];caster.mp!-=skill.mpCost;
+      context.events.push({type:'cast',actorId:caster.id,position:{...caster.position},target:cell,path:[cell],skillId:effect.attribute==='thunder'?'randomThunder':'tornado',attribute:effect.attribute,castingAura:true,sound:skill.sound,durationMs:350});
+      for(const t of targets)if(t.hp>0&&occupied(t).some(p=>same(p,cell)))context.damage(t,attackPower(caster)*(effect.damageMin+context.rng.next()*(effect.damageMax-effect.damageMin)),effect.attribute,false,skill.name);
+      if(effect.objects)for(const o of [...context.map.installations??[]])if(same(o.position,cell))context.hitInstallation?.(o.id);
+      context.log(caster.name+'の'+skill.name+'！');return true;
+    }
     if(skill.effect.type==='fallingStrike'||skill.effect.type==='earthPollen'){
       const effect=skill.effect.type,p=caster.position,v=VECTORS[caster.facing];let destination={...p};let cells:Point[]=[];
       if(effect==='fallingStrike'){

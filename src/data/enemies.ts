@@ -3,10 +3,11 @@ import { ENEMY_SKILLS } from './enemySkills';
 import type { DropEntry } from './loot';
 
 /** 絵の種類は敵の種類から独立。新しい敵でも既存の絵を再利用できます。 */
-export type SpriteId = 'stoneSlime' | 'earthFlower' | 'frostBoar' | 'reaper' | 'fighter' | 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'sprite' | 'greaterSprite' | 'treant';
+export type SpriteId = 'thunderButterfly' | 'stoneSlime' | 'earthFlower' | 'frostBoar' | 'reaper' | 'fighter' | 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'sprite' | 'greaterSprite' | 'treant';
 export type ActorDefinition = {
   /** 永続の炎被ダメージ加算。 */ fireVulnerability?: number;
   rootAfterMove?: boolean;
+  /** 基礎HP30以上は標準10%。0で無効化可能。 */ bookmarkDropChance?: number;
   lifetime?: number;
   wideAttack?: boolean; skillSelection?: 'exclusive';
   experience: number;
@@ -24,6 +25,7 @@ function define(config: Pick<ActorDefinition, 'name' | 'hp' | 'attack' | 'sprite
   for (const id of config.skills ?? []) if (!Object.hasOwn(ENEMY_SKILLS, id)) throw new Error(`${config.name}: 未定義の敵スキル ${id}`);
   for (const drop of config.drops ?? []) if (!Number.isFinite(drop.chance) || drop.chance < 0 || drop.chance > 1 || !Number.isInteger(drop.count ?? 1) || (drop.count ?? 1) < 1) throw new Error(`${config.name}: ドロップ確率は0〜1、個数は正の整数で指定してください`);
   return {
+    bookmarkDropChance:config.hp>=30?.1:0,
     experience: 2, criticalRate: .05, criticalMultiplier: 1.5, immobile: false, skillChances: {},
     hpPerStage: 1, size: 1, mp: 0, skills: [], drops: [], attribute: 'physical', detectionRange: 4,
     pattern: 'guard', attackRange: 1, priorityTarget: 'nearest', pursuitTurns: 6,
@@ -36,6 +38,7 @@ function define(config: Pick<ActorDefinition, 'name' | 'hp' | 'attack' | 'sprite
 
 /** 敵の追加はこの一覧から。IDの型もこのキーから自動生成されます。 */
 export const ENEMIES = {
+  thunderButterfly:define({name:'大雷蝶',hp:35,attack:3,mp:25,experience:11,detectionRange:4,sprite:'thunderButterfly',renderHeight:36,bob:true,skills:['windStrike','dash','strongThunderArmor','thunderBall','randomBolt'],drops:[{loot:{type:'skill',id:'thunder'},chance:.015},{loot:{type:'skill',id:'chainLightning'},chance:.015},{loot:{type:'skill',id:'tornado'},chance:.015},{loot:{type:'skill',id:'vacuumSlash'},chance:.015}]}),
   stoneSlime:define({   name:'ストーンスライム',hp:14,attack:2,mp:5,experience:3,detectionRange:3,sprite:'stoneSlime',innateAttribute:'earth',skills:['stoneThrow','fallingStrike'],skillChances:{stoneThrow:.2,fallingStrike:.2},bob:true}),
   earthFlower:define({  name:'地晶花',hp:30,attack:3,mp:15,experience:8,detectionRange:4,sprite:'earthFlower',renderHeight:40,fireVulnerability:1,rootAfterMove:true,skills:['stoneThrow','earthPollen'],skillChances:{stoneThrow:.2,earthPollen:.3}}),
   frostBoar: define({   name:'フロストボア',hp:23,attack:5,mp:10,detectionRange:4,sprite:'frostBoar',experience:5,skills:['chargingStrike','iceArmor','sweepingStrike']}),

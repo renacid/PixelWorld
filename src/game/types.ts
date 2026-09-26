@@ -8,7 +8,7 @@ export type Direction = 'up' | 'right' | 'down' | 'left';
 export const VECTORS: Record<Direction, Point> = { up: { x: 0, y: -1 }, right: { x: 1, y: 0 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 } };
 export type Attribute = 'fire' | 'ice' | 'thunder' | 'earth' | 'wind' | 'neutral' | 'physical' | 'nature';
 export type SkillId = 'earthBlessing' | 'flurry' | 'randomThunder' | 'thunderPrison' | 'meteor' | 'icePillar' | 'thunderArmor' | 'iceLance' | 'fireWall' | 'tornadoSummon' | 'earthquake' | 'summonSpirit' | 'iceShield' | 'sweep' | 'vacuumSlash' | 'chainLightning' | 'attack' | 'fireball' | 'thunder' | 'tornado' | 'firerain' | 'warp' | 'icestone' | 'groundbreak';
-export type ItemId = 'bookmarkLesser' | 'bookmarkMiddle' | 'bookmarkGreater' | 'powerPotion' | 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
+export type ItemId = 'ironKey' | 'bookmarkLesser' | 'bookmarkMiddle' | 'bookmarkGreater' | 'powerPotion' | 'healingPotion' | 'etherMedium' | 'potion' | 'ether' | 'scope' | 'summon' | 'hourglass';
 export type Affliction = { attribute: Attribute; remainingTurns: number; appliedAt: number };
 export type Actor = { stunnedUntil?: number; bossPhases?: number[]; bossLinkUntil?: number; summonedBy?: string; lastActedAt?:number; movementLockedUntil?: number; frostErosion?: { spent:boolean; rootUntil?:number };
   wideAttack?: boolean; skillSelection?: 'exclusive';
@@ -17,7 +17,7 @@ export type Actor = { stunnedUntil?: number; bossPhases?: number[]; bossLinkUnti
   experienceMultiplier?: number;
   criticalRate?: number; criticalMultiplier?: number;
   immobile?: boolean; skillChances?: Record<string, number>;
-  buffs?: { name?: string; iceFollowup?: { chance:number; ratio:number }; thunderFollowup?: { chance:number; ratio:number }; id: string; remainingTurns: number; appliedAt: number; attackBonus?: number; attackMultiplier: number; detectionBonus: number }[];
+  buffs?: { skillMode?: string; name?: string; iceFollowup?: { chance:number; ratio:number }; thunderFollowup?: { chance:number; ratio:number }; id: string; remainingTurns: number; appliedAt: number; attackBonus?: number; attackMultiplier: number; detectionBonus: number }[];
   id: string; name: string; kind: ActorKind;
   position: Point; cells: Point[]; directions: Direction[]; attackCells: Point[]; facing: Direction;
   hp: number; maxHp: number; attack: number; attribute: Attribute; afflictions: Affliction[];

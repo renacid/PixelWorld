@@ -5,6 +5,7 @@ export type TerrainDefinition = {
 };
 // pixelsは任意サイズのドット配列、imageはpublic/以下のPNGの相対パスです。
 export const TERRAIN: Record<number, TerrainDefinition> = {
+  11:{name:'鍵付き鉄扉',solid:true,blocksSight:true,color:'#49545f',pixels:['hhhhhhhh','hggggggh','hgaggagh','hgaggagh','hgggkkgh','hgagkagh','hgaggagh','hhhhhhhh'],palette:{h:'#a8b5ba',g:'#707d88',a:'#424c58',k:'#e8c257'}},
   7: {name:'土の床',solid:false,blocksSight:false,color:'#c6a67d',pixels:['........','..a.....','.....b..','........','.b......','......a.','...a....','........'],palette:{a:'#b39168',b:'#dcc09b'}},
   8: {name:'雑草の土床',solid:false,blocksSight:false,color:'#c6a67d',pixels:['........','..g.....','.ggg....','........','......g.','.....gg.','..a.....','........'],palette:{g:'#69804c',a:'#b39168'}},
   9: {name:'土の壁',solid:true,blocksSight:true,color:'#72523c',pixels:['.hhhhhh.','hhhhhhhh','hmmmmmmh','mmammmmm','mmmmammm','mmmmmamm','dddddddd','.dddddd.'],palette:{h:'#bc9768',m:'#987049',a:'#785237',d:'#523c30'}},

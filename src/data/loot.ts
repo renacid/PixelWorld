@@ -30,3 +30,6 @@ export const BOOKMARK_LOOT = { replacementChance: .2, pool: [
 
 /** 3層以降、通常道具枠の15%を出現表のレア2へ振り替える。 */
 export const DEEP_ITEM_BALANCE = { fromFloor: 3, rank2TransferChance: .15, rank1DropMultiplier: .85, rank2DropMultiplier: 1.15 };
+
+/** 基礎HP30以上の敵の追加栞。10%抽選後に1種類、下級:中級:上級=7:2:1。 */
+export const MONSTER_BOOKMARK_POOL: Weighted<ItemId>[]=[{value:'bookmarkLesser',weight:7},{value:'bookmarkMiddle',weight:2},{value:'bookmarkGreater',weight:1}];
