@@ -1,0 +1,2005 @@
+/** 工房の3-3.jsonと同じ配置。1層は手作り原本、2層は水路、3層は環状神殿。 */
+import type { Stage } from "../../game/types";
+export const stage: Stage = {
+  "id": 14,
+  "regionId": "cave",
+  "code": "3-3",
+  "name": "崩落した遺跡",
+  "subtitle": "新しい冒険",
+  "description": "",
+  "objective": "出口を目指す",
+  "width": 40,
+  "height": 70,
+  "vision": 5,
+  "enemyCount": 0,
+  "sleepRespawnCount": 3,
+  "dungeon": {
+    "floors": 3,
+    "gemCount": 0,
+    "extraPassages": 0,
+    "enemyVariance": 0,
+    "nightRevival": {
+      "min": 1,
+      "max": 2
+    },
+    "enemyScaling": {
+      "everyFloors": 4,
+      "multiplier": 1.2
+    },
+    "overrides": {
+      "1": {
+        "gemCount": 2
+      },
+      "2": {
+        "gemCount": 2
+      },
+      "3": {
+        "gemCount": 2
+      }
+    }
+  },
+  "floorSettings": {
+    "1": {
+      "trapPlacements": [
+        {
+          "count": 3,
+          "pool": [
+            {
+              "value": "stoneSlimeShower",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 5,
+          "pool": [
+            {
+              "value": "largeRock",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 5,
+          "pool": [
+            {
+              "value": "manaHealing",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 7,
+          "pool": [
+            {
+              "value": "healing",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 5,
+          "pool": [
+            {
+              "value": "fireMine",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 5,
+          "pool": [
+            {
+              "value": "bearTrap",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 5,
+          "pool": [
+            {
+              "value": "treasure",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 9,
+          "pool": [
+            {
+              "value": "rockfall",
+              "weight": 1
+            }
+          ]
+        }
+      ],
+      "installationPlacements": [],
+      "skillBooks": {
+        "max": 4,
+        "extraChance": 0.3
+      },
+      "enemySpawns": [
+        {
+          "kind": "stoneSlime",
+          "count": 15
+        },
+        {
+          "kind": "earthFlower",
+          "count": 2
+        },
+        {
+          "kind": "goblin",
+          "count": 5
+        },
+        {
+          "kind": "thunderButterfly",
+          "count": 3
+        },
+        {
+          "kind": "slime",
+          "count": 8
+        }
+      ],
+      "width": 40,
+      "height": 70,
+      "clearCondition": {
+        "type": "records",
+        "count": 1
+      },
+      "layout": {
+        "rows": [
+          "9999999999999999999999999999999999999999",
+          "977799979999977787777777799999999aaaaaaa",
+          "97779977997787777778777877777788b777777a",
+          "97779977797777777777997777877788aaaaa77a",
+          "97789978777777799777999777778778aaaaa77a",
+          "97779978877787999977799777779977aaaaa77a",
+          "97879997787777999977777787799977aaaaa77a",
+          "99877799777777997778778777799779aaaaa77a",
+          "99787789999778997777777777777799aaa7777a",
+          "99787777999977997777999977787799aaa7777a",
+          "99977878799977997779999997777799aaa7777a",
+          "99977777777777778799999997778999aaaaaaaa",
+          "99997777777777787779999997777999aaaaaaaa",
+          "99999777777777777779999117777999aaaaaaaa",
+          "8999977777777777777999917777719999999999",
+          "8999997887777777777999917777771199999999",
+          "8999999887777777777999917777777711111111",
+          "8999999987777787777999917777777771111111",
+          "8999999978777787777999917777777777111111",
+          "8888999977777778777999117777777777711111",
+          "8999999777777778777999117777777777777771",
+          "8999997778777777777999117777777777777771",
+          "8999978777877777877999117777777777777771",
+          "8888877777777777877999117777777777777771",
+          "8887778777777777777999117777777777777771",
+          "9999977777777777777999919777777777777771",
+          "9999999997777777777999119711111111111111",
+          "9999999997777877777999999791111111111111",
+          "9999999999777777999999997799999999999999",
+          "9999999999777779977999777777999999999999",
+          "9999999999997779977777777777777799999999",
+          "1111111111117779977777777777777777777779",
+          "1111111111777777999999977799997777777779",
+          "100777777b777777799999977799999977777779",
+          "1000007111111777777999977777997999777779",
+          "1007777111119777777779977777997779977779",
+          "1177777777777777777779977777997777777779",
+          "1117777199119977777779977777999997777779",
+          "1777777111119197777777777777999999777779",
+          "1777777111111199777777777777779997777779",
+          "1117777771111199977779999777777997777779",
+          "1777777771111199977779999777777997777779",
+          "1777777111111199977779999777777977777779",
+          "1117777771111199977779999777777777777779",
+          "1117777771111199777779999777777999777779",
+          "1777777111111199977779999777777999777779",
+          "1777777111111199977779999777777999777779",
+          "1777777771111199977779999777777999977779",
+          "1777777771111199977779999777777999977779",
+          "1111111111111199977779999777777999977779",
+          "1111111111111199977779999777777999977779",
+          "1111111111111199977779999777777999977779",
+          "1111111111111199777779999777777999777779",
+          "1111111111111199777777777777777777777779",
+          "1111111111999999977777777777777777779779",
+          "9999999999999999977779999777777777779779",
+          "9999999999999777777779999977777788779779",
+          "9999999999997777777779999999777778877889",
+          "9999999997777777777779999999977777777889",
+          "9999997799999999999999999999977777778799",
+          "9999777799999999999999999977777877777799",
+          "9997777799999999999999999977787770000799",
+          "9777777799999999999999999777787000000099",
+          "9777777777777777777779999778770022222229",
+          "9777977777777777877777777777700222222229",
+          "9777997777777777877777778877022255555555",
+          "9777799999787777887777788770225555555555",
+          "9977777799788777777777977770255555555555",
+          "9977777779997777777799997700555555555555",
+          "9999999999999999999999999995555555555555"
+        ],
+        "legend": {
+          "0": 0,
+          "1": 1,
+          "2": 2,
+          "3": 3,
+          "4": 4,
+          "5": 5,
+          "6": 6,
+          "7": 7,
+          "8": 8,
+          "9": 9,
+          "a": 10,
+          "b": 11
+        },
+        "spawn": {
+          "x": 2,
+          "y": 2
+        },
+        "objects": [
+          {
+            "id": "editor-6c3b8073-75a6-47a0-a909-aaf04f8fa53e",
+            "type": "gem",
+            "position": {
+              "x": 1,
+              "y": 45
+            }
+          },
+          {
+            "id": "editor-5ac76880-ae7a-4f49-8c7e-6fd54f5ef78d",
+            "type": "gem",
+            "position": {
+              "x": 2,
+              "y": 48
+            }
+          },
+          {
+            "id": "editor-1bd0122a-109e-4975-9e5c-635384297a45",
+            "type": "skillBook",
+            "position": {
+              "x": 2,
+              "y": 45
+            }
+          },
+          {
+            "id": "editor-5d50aba3-2a0d-448f-aa88-f936b498e493",
+            "type": "skillBook",
+            "position": {
+              "x": 1,
+              "y": 48
+            }
+          },
+          {
+            "id": "editor-8ba7d024-f4fe-4b60-9a7f-fcd6b1872d7f",
+            "type": "chest",
+            "position": {
+              "x": 1,
+              "y": 47
+            },
+            "chestTier": "gold"
+          },
+          {
+            "id": "editor-747a041c-395d-43b9-939c-55072e6513ff",
+            "type": "chest",
+            "position": {
+              "x": 1,
+              "y": 46
+            },
+            "chestTier": "silver"
+          },
+          {
+            "id": "editor-86e0743f-beeb-4983-8cd7-0316509b54f6",
+            "type": "item",
+            "position": {
+              "x": 1,
+              "y": 35
+            },
+            "itemId": "bookmarkLesser"
+          },
+          {
+            "id": "editor-5988fc53-0f55-4cb0-bb09-f6a42aad7694",
+            "type": "item",
+            "position": {
+              "x": 1,
+              "y": 34
+            },
+            "itemId": "powerPotion"
+          },
+          {
+            "id": "editor-ec219eb7-2763-416a-90f0-fa6b1d271fcf",
+            "type": "chest",
+            "position": {
+              "x": 30,
+              "y": 34
+            },
+            "chestTier": "iron"
+          },
+          {
+            "id": "editor-35b7a134-ab40-4b7a-8f26-0c13e55d47fe",
+            "type": "chest",
+            "position": {
+              "x": 17,
+              "y": 31
+            },
+            "chestTier": "iron"
+          },
+          {
+            "id": "editor-9d4af55e-5309-4af8-a8e6-6e53d575493f",
+            "type": "chest",
+            "position": {
+              "x": 7,
+              "y": 1
+            },
+            "chestTier": "silver"
+          },
+          {
+            "id": "editor-8bd4685d-638e-4178-bc23-61b4fa360fd8",
+            "type": "chest",
+            "position": {
+              "x": 38,
+              "y": 22
+            },
+            "chestTier": "gold"
+          },
+          {
+            "id": "editor-e99224b7-6669-425c-afcf-2aefb516744d",
+            "type": "chest",
+            "position": {
+              "x": 36,
+              "y": 20
+            },
+            "chestTier": "iron"
+          },
+          {
+            "id": "editor-f07c60c2-361d-4834-a451-2eddc9875db0",
+            "type": "chest",
+            "position": {
+              "x": 35,
+              "y": 10
+            },
+            "chestTier": "gold"
+          },
+          {
+            "id": "editor-7e3204d2-243e-4b3b-9f95-6a556a3c80d3",
+            "type": "chest",
+            "position": {
+              "x": 35,
+              "y": 9
+            },
+            "chestTier": "silver"
+          },
+          {
+            "id": "editor-ce795d03-0ac6-46bd-9ca2-344b8aee7849",
+            "type": "chest",
+            "position": {
+              "x": 38,
+              "y": 10
+            },
+            "chestTier": "wood"
+          },
+          {
+            "id": "editor-a0984d35-f0ba-4823-8724-6282bc5d50a1",
+            "type": "gem",
+            "position": {
+              "x": 35,
+              "y": 8
+            }
+          },
+          {
+            "id": "editor-a5a7f325-1764-451f-93af-76e9298838a0",
+            "type": "skillBook",
+            "position": {
+              "x": 37,
+              "y": 10
+            }
+          },
+          {
+            "id": "editor-ff04d07e-2db2-4a7f-b308-26b48ae6fca1",
+            "type": "chest",
+            "position": {
+              "x": 5,
+              "y": 68
+            },
+            "chestTier": "wood"
+          },
+          {
+            "id": "editor-c6fe5f7e-73b1-4b2d-a9e3-48dd7c992c41",
+            "type": "exit",
+            "position": {
+              "x": 6,
+              "y": 60
+            }
+          },
+          {
+            "id": "editor-fd0c180f-a4b6-40ea-9e58-95f16259dc8c",
+            "type": "gem",
+            "position": {
+              "x": 11,
+              "y": 58
+            }
+          },
+          {
+            "id": "editor-d5919483-4bb1-433a-9f53-6ce027bd9e24",
+            "type": "item",
+            "position": {
+              "x": 6,
+              "y": 2
+            },
+            "itemId": "ironKey"
+          },
+          {
+            "id": "editor-197f5401-b8f5-4a25-8493-df9de1bdb4eb",
+            "type": "chest",
+            "position": {
+              "x": 2,
+              "y": 3
+            },
+            "chestTier": "gold"
+          },
+          {
+            "id": "editor-ebecd63f-8d75-499a-96d6-6818993e520b",
+            "type": "skillBook",
+            "position": {
+              "x": 2,
+              "y": 4
+            }
+          },
+          {
+            "id": "editor-534c10ff-e185-497f-a98b-47510fa6c2a3",
+            "type": "record",
+            "position": {
+              "x": 9,
+              "y": 58
+            }
+          }
+        ],
+        "enemies": [
+          {
+            "kind": "golem",
+            "position": {
+              "x": 7,
+              "y": 40
+            }
+          },
+          {
+            "kind": "golem",
+            "position": {
+              "x": 1,
+              "y": 41
+            }
+          },
+          {
+            "kind": "golem",
+            "position": {
+              "x": 1,
+              "y": 38
+            }
+          },
+          {
+            "kind": "golem",
+            "position": {
+              "x": 7,
+              "y": 43
+            }
+          },
+          {
+            "kind": "golem",
+            "position": {
+              "x": 7,
+              "y": 47
+            }
+          },
+          {
+            "kind": "treant",
+            "position": {
+              "x": 1,
+              "y": 33
+            }
+          },
+          {
+            "kind": "golem",
+            "position": {
+              "x": 28,
+              "y": 17
+            }
+          },
+          {
+            "kind": "golem",
+            "position": {
+              "x": 32,
+              "y": 24
+            }
+          },
+          {
+            "kind": "earthFlower",
+            "position": {
+              "x": 36,
+              "y": 8
+            }
+          },
+          {
+            "kind": "earthFlower",
+            "position": {
+              "x": 38,
+              "y": 5
+            }
+          },
+          {
+            "kind": "earthFlower",
+            "position": {
+              "x": 25,
+              "y": 68
+            }
+          },
+          {
+            "kind": "earthFlower",
+            "position": {
+              "x": 25,
+              "y": 63
+            }
+          },
+          {
+            "kind": "earthFlower",
+            "position": {
+              "x": 28,
+              "y": 60
+            }
+          },
+          {
+            "kind": "earthFlower",
+            "position": {
+              "x": 37,
+              "y": 61
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 35,
+              "y": 64
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 28,
+              "y": 67
+            }
+          },
+          {
+            "kind": "thunderButterfly",
+            "position": {
+              "x": 22,
+              "y": 65
+            }
+          },
+          {
+            "kind": "thunderButterfly",
+            "position": {
+              "x": 37,
+              "y": 63
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 0,
+              "y": 19
+            }
+          },
+          {
+            "kind": "goblinMage",
+            "position": {
+              "x": 25,
+              "y": 4
+            }
+          },
+          {
+            "kind": "goblinFighter",
+            "position": {
+              "x": 27,
+              "y": 4
+            }
+          },
+          {
+            "kind": "goblinArcher",
+            "position": {
+              "x": 22,
+              "y": 6
+            }
+          },
+          {
+            "kind": "goblinArcher",
+            "position": {
+              "x": 26,
+              "y": 7
+            }
+          },
+          {
+            "kind": "goblinArcher",
+            "position": {
+              "x": 22,
+              "y": 2
+            }
+          },
+          {
+            "kind": "goblin",
+            "position": {
+              "x": 18,
+              "y": 1
+            }
+          },
+          {
+            "kind": "goblin",
+            "position": {
+              "x": 23,
+              "y": 7
+            }
+          },
+          {
+            "kind": "goblin",
+            "position": {
+              "x": 28,
+              "y": 10
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 17,
+              "y": 38
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 19,
+              "y": 45
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 17,
+              "y": 56
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 26,
+              "y": 42
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 29,
+              "y": 51
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 38,
+              "y": 49
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 35,
+              "y": 34
+            }
+          }
+        ],
+        "traps": [
+          {
+            "id": "editor-98cdcacd-0cdb-4742-bbc3-beafe88ca048",
+            "trapId": "stoneSlimeShower",
+            "position": {
+              "x": 11,
+              "y": 36
+            },
+            "triggered": false
+          },
+          {
+            "id": "editor-ee1c0230-5aa4-4be2-995f-41c2c0e3f6be",
+            "trapId": "rockfall",
+            "position": {
+              "x": 9,
+              "y": 36
+            },
+            "triggered": false
+          },
+          {
+            "id": "editor-393f06c3-9044-4265-bce0-6740bf781138",
+            "trapId": "largeRock",
+            "position": {
+              "x": 7,
+              "y": 36
+            },
+            "triggered": false
+          },
+          {
+            "id": "editor-6a4cca70-0b26-445a-bb71-96c19f68a6cf",
+            "trapId": "largeRock",
+            "position": {
+              "x": 3,
+              "y": 65
+            },
+            "triggered": false
+          },
+          {
+            "id": "editor-fef94543-c7b8-42c6-8526-6f42689991a8",
+            "trapId": "stoneSlimeShower",
+            "position": {
+              "x": 2,
+              "y": 66
+            },
+            "triggered": false
+          },
+          {
+            "id": "editor-bdd50bb0-a76d-4f93-9d04-b04c75ab3013",
+            "trapId": "treasure",
+            "position": {
+              "x": 0,
+              "y": 15
+            },
+            "triggered": false
+          },
+          {
+            "id": "editor-4d54309b-f09d-4b4c-948c-d14933b7aa8d",
+            "trapId": "treasure",
+            "position": {
+              "x": 2,
+              "y": 19
+            },
+            "triggered": false
+          }
+        ],
+        "installations": [
+          {
+            "id": "editor-81cfacb1-e4c6-4e77-bc9c-a7b8b9a8f487",
+            "kind": "pot",
+            "position": {
+              "x": 2,
+              "y": 46
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-339c11f1-4a19-4d4b-9039-1b736bc283e3",
+            "kind": "pot",
+            "position": {
+              "x": 2,
+              "y": 47
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-77754541-b337-49f7-8b6a-05122575520e",
+            "kind": "pot",
+            "position": {
+              "x": 3,
+              "y": 48
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-0337d078-9c50-4fa7-88b7-a5b08a45e3ef",
+            "kind": "pot",
+            "position": {
+              "x": 37,
+              "y": 25
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-408ce4de-41ae-47ca-a605-a12192871337",
+            "kind": "pot",
+            "position": {
+              "x": 38,
+              "y": 24
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-67dd7e33-e127-4439-bb68-16e04ea25277",
+            "kind": "pot",
+            "position": {
+              "x": 38,
+              "y": 23
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-1de441b1-ba35-42d3-86a9-5477b631eb00",
+            "kind": "pot",
+            "position": {
+              "x": 33,
+              "y": 18
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-a72d46b2-5394-448d-a5a6-82bd97df6ffe",
+            "kind": "goblinNest",
+            "position": {
+              "x": 29,
+              "y": 25
+            },
+            "spawned": 0,
+            "requiredForGoal": true
+          },
+          {
+            "id": "editor-3422436a-67ed-41c8-be60-d635ccac92ba",
+            "kind": "goblinNest",
+            "position": {
+              "x": 24,
+              "y": 16
+            },
+            "spawned": 0,
+            "requiredForGoal": true
+          },
+          {
+            "id": "editor-7bb5acca-6e09-4862-856b-b12aa08f6aec",
+            "kind": "pot",
+            "position": {
+              "x": 16,
+              "y": 44
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-e1b0dc2e-ea57-49b6-991d-bcd6976ef2cb",
+            "kind": "pot",
+            "position": {
+              "x": 16,
+              "y": 52
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-6fe136b4-d2b6-4e76-bb09-b6e360c7c35f",
+            "kind": "pot",
+            "position": {
+              "x": 16,
+              "y": 53
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-45686d47-0bfc-4a46-b691-71b0429246a1",
+            "kind": "goblinBanner",
+            "position": {
+              "x": 13,
+              "y": 15
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-7d5145ab-df76-4092-8adb-7cc06c652ec0",
+            "kind": "goblinBanner",
+            "position": {
+              "x": 13,
+              "y": 23
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-abb6ed25-2701-4c20-90a9-3a73906494f6",
+            "kind": "goblinNest",
+            "position": {
+              "x": 18,
+              "y": 16
+            },
+            "spawned": 0,
+            "requiredForGoal": true
+          },
+          {
+            "id": "editor-deea2951-ec8c-4b92-a375-9573884d498d",
+            "kind": "goblinNest",
+            "position": {
+              "x": 18,
+              "y": 24
+            },
+            "spawned": 0,
+            "requiredForGoal": true
+          },
+          {
+            "id": "editor-e61a1ff3-59af-4cae-bfe5-e11854f68355",
+            "kind": "goblinNest",
+            "position": {
+              "x": 8,
+              "y": 19
+            },
+            "spawned": 0,
+            "requiredForGoal": true
+          },
+          {
+            "id": "editor-66da5941-8bd8-4a14-af0e-ac78c4b92a78",
+            "kind": "pot",
+            "position": {
+              "x": 10,
+              "y": 11
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-969ce149-59b7-4834-a497-256c0d19355b",
+            "kind": "pot",
+            "position": {
+              "x": 7,
+              "y": 20
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-c895a204-9eca-41a4-9f4f-aa63eb27f2a5",
+            "kind": "pot",
+            "position": {
+              "x": 6,
+              "y": 21
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-dd75a4ec-b636-433e-8a61-958b9f01a5e3",
+            "kind": "pot",
+            "position": {
+              "x": 18,
+              "y": 27
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-b2a5ab03-499b-4ac0-8a90-adc0d0dfece4",
+            "kind": "pot",
+            "position": {
+              "x": 17,
+              "y": 27
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-7860c749-c26f-4fda-be15-eb9c7eb43a25",
+            "kind": "pot",
+            "position": {
+              "x": 18,
+              "y": 29
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-6f80be80-3842-4186-b6c9-0d8fa2eb0f62",
+            "kind": "pot",
+            "position": {
+              "x": 30,
+              "y": 36
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-6d532681-b956-4210-bae3-a289837ce4da",
+            "kind": "pot",
+            "position": {
+              "x": 24,
+              "y": 68
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-e2761288-57dc-421d-8c6b-820ed99dcee5",
+            "kind": "pot",
+            "position": {
+              "x": 23,
+              "y": 67
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-67d03757-cf40-418e-a545-d3bd0ee4b34f",
+            "kind": "pot",
+            "position": {
+              "x": 2,
+              "y": 68
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-5c112c13-a2f6-4363-a1c6-bc2b309b5ee9",
+            "kind": "pot",
+            "position": {
+              "x": 3,
+              "y": 68
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          },
+          {
+            "id": "editor-99090c19-0448-4a48-857f-f6aa7664520e",
+            "kind": "goblinBanner",
+            "position": {
+              "x": 26,
+              "y": 5
+            },
+            "spawned": 0,
+            "requiredForGoal": false
+          }
+        ],
+        "randomChests": 6,
+        "gemCount": 2,
+        "randomEnemies": [],
+        "trapPlacements": []
+      }
+    },
+    "2": {
+      "objective": "採掘跡の巣穴を2つ破壊し、東の昇降路へ",
+      "skillBooks": {
+        "max": 3,
+        "extraChance": 0.3
+      },
+      "enemySpawns": [
+        {
+          "kind": "stoneSlime",
+          "count": 10
+        },
+        {
+          "kind": "earthFlower",
+          "count": 2
+        },
+        {
+          "kind": "thunderButterfly",
+          "count": 3
+        }
+      ],
+      "trapPlacements": [
+        {
+          "count": 3,
+          "pool": [
+            {
+              "value": "largeRock",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 3,
+          "pool": [
+            {
+              "value": "rockfall",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 3,
+          "pool": [
+            {
+              "value": "stoneSlimeShower",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 3,
+          "pool": [
+            {
+              "value": "healing",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 3,
+          "pool": [
+            {
+              "value": "manaHealing",
+              "weight": 1
+            }
+          ]
+        }
+      ],
+      "installationPlacements": [],
+      "width": 70,
+      "height": 40,
+      "clearCondition": {
+        "type": "destroyInstallations",
+        "kind": "goblinNest",
+        "count": 2
+      },
+      "layout": {
+        "rows": [
+          "9999999999999999999999999999999999999999999999999999999999999999999999",
+          "9999999999999999999999999999999999999999999999999999999999999999999999",
+          "9999999999999999999999999999999999999999999999999999999999999999999999",
+          "9999999999999999999999999999999999999999999999999999999999999977777999",
+          "9999999999999999999997999999999999999999999979999999999999999977777999",
+          "9999999999999999977777777799999999999999777777777999999999999977777999",
+          "9999999999999997777777777777999999999997777777777799999999999977777999",
+          "99999999999999777777777777777999999999777777777aa779999999999977777999",
+          "999999999999977777777777777777999999977aa777777aa77799999999999b999999",
+          "999999999999977777777777777777999999977aa77777777777999999999997999999",
+          "9999999999997777777777777777777777799777777aa7777777999999999997999999",
+          "9999999999999777777777777777779999777777777aa7777777799999999797999999",
+          "9999999999999777777777777777779999999777777aa7777777777799977777999999",
+          "9999999999999777777777777777799999999777777777777777799799777777799999",
+          "9999999999999797777777777777999999999777777777777777799797777777779999",
+          "9999999799999799977777777799955555555555555555555559799797777777779999",
+          "9999977777999799999997999799955555555555555555555559799777777777777999",
+          "9999777777799799999997999777777777777777777777777777799777777777777999",
+          "9997777777779799999997999999955555555555555555555559999777777777777999",
+          "9997777777779799999997999999955555555555555555555559999777777777777999",
+          "9997777777777799999997999999955555555555555555555559999777777777777999",
+          "9977777777777999999997999999955555555555555555555559999777777777777799",
+          "9997777777779999999997999999955555555555555555555559999977777777777999",
+          "9997777777777799999997999799955555555555555555555559997777777777777999",
+          "9997777777777799999977777777777999999999777777777999997777777777777999",
+          "9999777777777799997777777777777779999997777777777799997777777777777999",
+          "9999977777977799977777777877777777999977777777777779997777777777777999",
+          "9999999799977799777777785588777777799777777777777777997777777777779999",
+          "9999999999977777777777885588877777779777777777777777777777777777779999",
+          "9999999999977777777778888888887777777777777777777777777779777777799999",
+          "9999999999977777777777888888877777777777777777777777777779977777999999",
+          "9999999999999999777777788888777777777777777777777777999999999799999999",
+          "9999999999999999977777777877777777777777777777777779999999999999999999",
+          "9999999999999999997777777777777779999997777777777799999999999999999999",
+          "9999999999999999999977777777777999999999777777777999999999999999999999",
+          "9999999999999999999999999799999999999999999979999999999999999999999999",
+          "9999999999999999999999999999999999999999999999999999999999999999999999",
+          "9999999999999999999999999999999999999999999999999999999999999999999999",
+          "9999999999999999999999999999999999999999999999999999999999999999999999",
+          "9999999999999999999999999999999999999999999999999999999999999999999999"
+        ],
+        "legend": {
+          "0": 0,
+          "1": 1,
+          "2": 2,
+          "3": 3,
+          "4": 4,
+          "5": 5,
+          "6": 6,
+          "7": 7,
+          "8": 8,
+          "9": 9,
+          "a": 10,
+          "b": 11
+        },
+        "spawn": {
+          "x": 3,
+          "y": 21
+        },
+        "objects": [
+          {
+            "id": "地下水路と採掘跡-exit-0",
+            "type": "exit",
+            "position": {
+              "x": 65,
+              "y": 21
+            }
+          },
+          {
+            "id": "地下水路と採掘跡-chest-1",
+            "type": "chest",
+            "position": {
+              "x": 18,
+              "y": 7
+            },
+            "chestTier": "iron",
+            "contents": [
+              {
+                "type": "item",
+                "id": "ironKey"
+              }
+            ]
+          },
+          {
+            "id": "地下水路と採掘跡-chest-2",
+            "type": "chest",
+            "position": {
+              "x": 65,
+              "y": 5
+            },
+            "chestTier": "gold"
+          },
+          {
+            "id": "地下水路と採掘跡-chest-3",
+            "type": "chest",
+            "position": {
+              "x": 41,
+              "y": 32
+            },
+            "chestTier": "silver"
+          },
+          {
+            "id": "地下水路と採掘跡-chest-4",
+            "type": "chest",
+            "position": {
+              "x": 44,
+              "y": 7
+            },
+            "chestTier": "iron"
+          },
+          {
+            "id": "地下水路と採掘跡-gem-5",
+            "type": "gem",
+            "position": {
+              "x": 64,
+              "y": 4
+            }
+          },
+          {
+            "id": "地下水路と採掘跡-gem-6",
+            "type": "gem",
+            "position": {
+              "x": 23,
+              "y": 32
+            }
+          },
+          {
+            "id": "地下水路と採掘跡-skillBook-7",
+            "type": "skillBook",
+            "position": {
+              "x": 63,
+              "y": 5
+            }
+          },
+          {
+            "id": "地下水路と採掘跡-skillBook-8",
+            "type": "skillBook",
+            "position": {
+              "x": 60,
+              "y": 29
+            }
+          }
+        ],
+        "enemies": [
+          {
+            "kind": "goblin",
+            "position": {
+              "x": 18,
+              "y": 9
+            }
+          },
+          {
+            "kind": "goblinFighter",
+            "position": {
+              "x": 23,
+              "y": 10
+            }
+          },
+          {
+            "kind": "goblinArcher",
+            "position": {
+              "x": 24,
+              "y": 8
+            }
+          },
+          {
+            "kind": "goblinMage",
+            "position": {
+              "x": 45,
+              "y": 28
+            }
+          },
+          {
+            "kind": "goblinFighter",
+            "position": {
+              "x": 48,
+              "y": 28
+            }
+          },
+          {
+            "kind": "stoneSlime",
+            "position": {
+              "x": 31,
+              "y": 17
+            }
+          },
+          {
+            "kind": "stoneSlime",
+            "position": {
+              "x": 38,
+              "y": 17
+            }
+          },
+          {
+            "kind": "stoneSlime",
+            "position": {
+              "x": 50,
+              "y": 17
+            }
+          },
+          {
+            "kind": "golem",
+            "position": {
+              "x": 40,
+              "y": 12
+            }
+          },
+          {
+            "kind": "golem",
+            "position": {
+              "x": 59,
+              "y": 19
+            }
+          },
+          {
+            "kind": "earthFlower",
+            "position": {
+              "x": 22,
+              "y": 29
+            }
+          },
+          {
+            "kind": "earthFlower",
+            "position": {
+              "x": 28,
+              "y": 30
+            }
+          },
+          {
+            "kind": "treant",
+            "position": {
+              "x": 24,
+              "y": 31
+            }
+          },
+          {
+            "kind": "thunderButterfly",
+            "position": {
+              "x": 26,
+              "y": 32
+            }
+          },
+          {
+            "kind": "thunderButterfly",
+            "position": {
+              "x": 62,
+              "y": 24
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 42,
+              "y": 31
+            }
+          }
+        ],
+        "traps": [],
+        "installations": [
+          {
+            "id": "地下水路と採掘跡-goblinNest-0",
+            "kind": "goblinNest",
+            "position": {
+              "x": 19,
+              "y": 10
+            },
+            "spawned": 0,
+            "requiredForGoal": true
+          },
+          {
+            "id": "地下水路と採掘跡-goblinNest-1",
+            "kind": "goblinNest",
+            "position": {
+              "x": 46,
+              "y": 29
+            },
+            "spawned": 0,
+            "requiredForGoal": true
+          },
+          {
+            "id": "地下水路と採掘跡-goblinBanner-2",
+            "kind": "goblinBanner",
+            "position": {
+              "x": 18,
+              "y": 11
+            },
+            "spawned": 0
+          },
+          {
+            "id": "地下水路と採掘跡-goblinBanner-3",
+            "kind": "goblinBanner",
+            "position": {
+              "x": 45,
+              "y": 30
+            },
+            "spawned": 0
+          },
+          {
+            "id": "地下水路と採掘跡-pot-4",
+            "kind": "pot",
+            "position": {
+              "x": 17,
+              "y": 8
+            },
+            "spawned": 0
+          },
+          {
+            "id": "地下水路と採掘跡-pot-5",
+            "kind": "pot",
+            "position": {
+              "x": 20,
+              "y": 7
+            },
+            "spawned": 0
+          },
+          {
+            "id": "地下水路と採掘跡-pot-6",
+            "kind": "pot",
+            "position": {
+              "x": 22,
+              "y": 8
+            },
+            "spawned": 0
+          },
+          {
+            "id": "地下水路と採掘跡-pot-7",
+            "kind": "pot",
+            "position": {
+              "x": 41,
+              "y": 30
+            },
+            "spawned": 0
+          },
+          {
+            "id": "地下水路と採掘跡-pot-8",
+            "kind": "pot",
+            "position": {
+              "x": 48,
+              "y": 31
+            },
+            "spawned": 0
+          },
+          {
+            "id": "地下水路と採掘跡-pot-9",
+            "kind": "pot",
+            "position": {
+              "x": 60,
+              "y": 16
+            },
+            "spawned": 0
+          },
+          {
+            "id": "地下水路と採掘跡-pot-10",
+            "kind": "pot",
+            "position": {
+              "x": 61,
+              "y": 26
+            },
+            "spawned": 0
+          }
+        ],
+        "randomChests": 4,
+        "gemCount": 2,
+        "randomEnemies": [],
+        "trapPlacements": []
+      }
+    },
+    "3": {
+      "objective": "神殿の3枚の古代の記録を集め、北の祭壇へ",
+      "skillBooks": {
+        "max": 3,
+        "extraChance": 0.3
+      },
+      "enemySpawns": [
+        {
+          "kind": "stoneSlime",
+          "count": 10
+        },
+        {
+          "kind": "earthFlower",
+          "count": 2
+        },
+        {
+          "kind": "thunderButterfly",
+          "count": 3
+        }
+      ],
+      "trapPlacements": [
+        {
+          "count": 3,
+          "pool": [
+            {
+              "value": "largeRock",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 3,
+          "pool": [
+            {
+              "value": "rockfall",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 3,
+          "pool": [
+            {
+              "value": "stoneSlimeShower",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 3,
+          "pool": [
+            {
+              "value": "healing",
+              "weight": 1
+            }
+          ]
+        },
+        {
+          "count": 3,
+          "pool": [
+            {
+              "value": "manaHealing",
+              "weight": 1
+            }
+          ]
+        }
+      ],
+      "installationPlacements": [],
+      "width": 50,
+      "height": 56,
+      "clearCondition": {
+        "type": "records",
+        "count": 3
+      },
+      "layout": {
+        "rows": [
+          "99999999999999999999999999999999999999999999999999",
+          "99999999999999999999999999999999999999999999999999",
+          "99999999999999999999999999999999999999999999999999",
+          "99999999999999999999999999999999999999999999999999",
+          "99999999999999999999777777777779999999999999999999",
+          "99999999997999999999777777777779999999997999999999",
+          "99999997777777999999777777777779999997777777999999",
+          "9999997777777779999977aa777aa779999977778777799999",
+          "9999977777777777999977aa777aa779999777855887779999",
+          "99999777777777777777777777777777777778855888779999",
+          "99997777777777777777777777777777777788888888877999",
+          "99999777777777777777777777777777777778888888779999",
+          "99999777777777779999777777777779999777888887779999",
+          "99999977777777799999999997999999999977778777799999",
+          "99999997777777999999999997999999999997777777999999",
+          "99999999777999999999999997999999999999977799999999",
+          "99999999777999999999999997999999999999977799999999",
+          "99999999777999999999999997999999999999977799999999",
+          "99999999777999999999999997999999999999977799999999",
+          "99999999777999999999999997999999999999977799999999",
+          "99999977777779999999777777777779999997777777999999",
+          "99999777777777999999777777777779999977777777799999",
+          "99997777777777799999775555555779999777777777779999",
+          "99997777777777799999775555555779999777777777779999",
+          "9997777777777777999977555555577999777aa77777777999",
+          "99977aa777777777999977555555577999777aa77777777999",
+          "99977aa7777777779999777777777779997777777777777999",
+          "99977777777777779999777777777779997777777777777999",
+          "99777777777777777777777777777777777777777777777799",
+          "99977777777777779999777777777779997777777777777999",
+          "999777777777aa779999775555555779997777777777777999",
+          "999777777777aa77999977777777777999777777777aa77999",
+          "9997777777777777999999997779999999777777777aa77999",
+          "99997777777777799999999977799999999777777777779999",
+          "99997777777777799999999977799999999777777777779999",
+          "99999777777777999999999977799999999977777777799999",
+          "99999977777779999999999977799999999997777777999999",
+          "99999999777999999977777777777777799999977799999999",
+          "99999999777999999977777777777777799999977799999999",
+          "99999999777999999977aa7777777777799999977799999999",
+          "99999999777777777777aa7777777777777777777799999999",
+          "99999999777777777777777777777777777777777799999999",
+          "99999999777777777777777777777777777777777799999999",
+          "999999999b9999999977777777777aa7799999999999999999",
+          "99977777779999999977777777777aa7799999999999999999",
+          "99977777779999999977777777777777799999999999999999",
+          "99977777779999999999999977799999999999999999999999",
+          "99977777779999999999999977799999999999999999999999",
+          "99977777779999999999999777779999999999999999999999",
+          "99977777779999999999999777779999999999999999999999",
+          "99977777779999999999999777779999999999999999999999",
+          "99999999999999999999999777779999999999999999999999",
+          "99999999999999999999999777779999999999999999999999",
+          "99999999999999999999999999999999999999999999999999",
+          "99999999999999999999999999999999999999999999999999",
+          "99999999999999999999999999999999999999999999999999"
+        ],
+        "legend": {
+          "0": 0,
+          "1": 1,
+          "2": 2,
+          "3": 3,
+          "4": 4,
+          "5": 5,
+          "6": 6,
+          "7": 7,
+          "8": 8,
+          "9": 9,
+          "a": 10,
+          "b": 11
+        },
+        "spawn": {
+          "x": 25,
+          "y": 51
+        },
+        "objects": [
+          {
+            "id": "沈黙の環状神殿-exit-0",
+            "type": "exit",
+            "position": {
+              "x": 25,
+              "y": 5
+            }
+          },
+          {
+            "id": "沈黙の環状神殿-record-1",
+            "type": "record",
+            "position": {
+              "x": 6,
+              "y": 10
+            }
+          },
+          {
+            "id": "沈黙の環状神殿-record-2",
+            "type": "record",
+            "position": {
+              "x": 44,
+              "y": 10
+            }
+          },
+          {
+            "id": "沈黙の環状神殿-record-3",
+            "type": "record",
+            "position": {
+              "x": 25,
+              "y": 26
+            }
+          },
+          {
+            "id": "沈黙の環状神殿-gem-4",
+            "type": "gem",
+            "position": {
+              "x": 5,
+              "y": 48
+            }
+          },
+          {
+            "id": "沈黙の環状神殿-gem-5",
+            "type": "gem",
+            "position": {
+              "x": 42,
+              "y": 12
+            }
+          },
+          {
+            "id": "沈黙の環状神殿-skillBook-6",
+            "type": "skillBook",
+            "position": {
+              "x": 5,
+              "y": 46
+            }
+          },
+          {
+            "id": "沈黙の環状神殿-skillBook-7",
+            "type": "skillBook",
+            "position": {
+              "x": 11,
+              "y": 7
+            }
+          },
+          {
+            "id": "沈黙の環状神殿-chest-8",
+            "type": "chest",
+            "position": {
+              "x": 31,
+              "y": 40
+            },
+            "chestTier": "iron",
+            "contents": [
+              {
+                "type": "item",
+                "id": "ironKey"
+              }
+            ]
+          },
+          {
+            "id": "沈黙の環状神殿-chest-9",
+            "type": "chest",
+            "position": {
+              "x": 7,
+              "y": 48
+            },
+            "chestTier": "gold"
+          },
+          {
+            "id": "沈黙の環状神殿-chest-10",
+            "type": "chest",
+            "position": {
+              "x": 13,
+              "y": 32
+            },
+            "chestTier": "silver"
+          },
+          {
+            "id": "沈黙の環状神殿-chest-11",
+            "type": "chest",
+            "position": {
+              "x": 44,
+              "y": 35
+            },
+            "chestTier": "iron"
+          }
+        ],
+        "enemies": [
+          {
+            "kind": "golem",
+            "position": {
+              "x": 7,
+              "y": 9
+            }
+          },
+          {
+            "kind": "golem",
+            "position": {
+              "x": 21,
+              "y": 27
+            }
+          },
+          {
+            "kind": "golem",
+            "position": {
+              "x": 38,
+              "y": 34
+            }
+          },
+          {
+            "kind": "earthFlower",
+            "position": {
+              "x": 37,
+              "y": 10
+            }
+          },
+          {
+            "kind": "earthFlower",
+            "position": {
+              "x": 43,
+              "y": 11
+            }
+          },
+          {
+            "kind": "treant",
+            "position": {
+              "x": 41,
+              "y": 13
+            }
+          },
+          {
+            "kind": "thunderButterfly",
+            "position": {
+              "x": 42,
+              "y": 8
+            }
+          },
+          {
+            "kind": "thunderButterfly",
+            "position": {
+              "x": 38,
+              "y": 12
+            }
+          },
+          {
+            "kind": "goblinFighter",
+            "position": {
+              "x": 40,
+              "y": 27
+            }
+          },
+          {
+            "kind": "goblinArcher",
+            "position": {
+              "x": 44,
+              "y": 27
+            }
+          },
+          {
+            "kind": "goblinMage",
+            "position": {
+              "x": 39,
+              "y": 30
+            }
+          },
+          {
+            "kind": "stoneSlime",
+            "position": {
+              "x": 10,
+              "y": 22
+            }
+          },
+          {
+            "kind": "stoneSlime",
+            "position": {
+              "x": 12,
+              "y": 26
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 11,
+              "y": 36
+            }
+          },
+          {
+            "kind": "frostBoar",
+            "position": {
+              "x": 33,
+              "y": 41
+            }
+          },
+          {
+            "kind": "earthFlower",
+            "position": {
+              "x": 20,
+              "y": 42
+            }
+          }
+        ],
+        "traps": [],
+        "installations": [
+          {
+            "id": "沈黙の環状神殿-pot-0",
+            "kind": "pot",
+            "position": {
+              "x": 21,
+              "y": 41
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-pot-1",
+            "kind": "pot",
+            "position": {
+              "x": 28,
+              "y": 39
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-pot-2",
+            "kind": "pot",
+            "position": {
+              "x": 7,
+              "y": 23
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-pot-3",
+            "kind": "pot",
+            "position": {
+              "x": 7,
+              "y": 31
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-pot-4",
+            "kind": "pot",
+            "position": {
+              "x": 11,
+              "y": 33
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-pot-5",
+            "kind": "pot",
+            "position": {
+              "x": 37,
+              "y": 32
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-pot-6",
+            "kind": "pot",
+            "position": {
+              "x": 43,
+              "y": 25
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-pot-7",
+            "kind": "pot",
+            "position": {
+              "x": 23,
+              "y": 10
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-pot-8",
+            "kind": "pot",
+            "position": {
+              "x": 28,
+              "y": 10
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-pot-9",
+            "kind": "pot",
+            "position": {
+              "x": 6,
+              "y": 46
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-pot-10",
+            "kind": "pot",
+            "position": {
+              "x": 7,
+              "y": 46
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-goblinNest-11",
+            "kind": "goblinNest",
+            "position": {
+              "x": 37,
+              "y": 28
+            },
+            "spawned": 0
+          },
+          {
+            "id": "沈黙の環状神殿-goblinBanner-12",
+            "kind": "goblinBanner",
+            "position": {
+              "x": 42,
+              "y": 29
+            },
+            "spawned": 0
+          }
+        ],
+        "randomChests": 4,
+        "gemCount": 2,
+        "randomEnemies": [],
+        "trapPlacements": []
+      }
+    }
+  }
+};

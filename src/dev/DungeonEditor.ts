@@ -1,6 +1,4 @@
-import cave2Stage from '../stages/cave/3-2.json';
-import caveStage from '../stages/cave/3-1.json';
-import forestStage from '../stages/forest/2-5.json';
+/// <reference types="vite/client" />
 import { drawTerrainPreview } from '../render/TerrainPreview';
 import './dungeon-editor.css';
 import { TERRAIN } from '../data/terrain';
@@ -15,14 +13,16 @@ import { exportStage, newFloor, newProject, projectFromJson, stageCode, validate
 
 // エディタ下書きはゲームのセーブと別キー。ゲーム状態を書き換えません。
 const SAVE_KEY='pixel-world:dungeon-editor:v1';
+// 地域フォルダへJSONを追加すると一覧へ自動追加。再編集用・ゲーム用の両形式に対応。
+const dungeonFiles=import.meta.glob<string>('../stages/*/*.json',{eager:true,query:'?raw',import:'default'});
 let project=newProject(), floorIndex=0, zoom=24, category='tile', tool='paint', brush='0';
 let dragging=false, anchor:Point|null=null, hover:Point|null=null, selected:Point|null=null;
 const undo: string[]=[],redo:string[]=[];
 const root=document.querySelector<HTMLDivElement>('#editor')!;
-root.innerHTML=`<header><div><small>PIXEL WORLD / DEVELOPER TOOLS</small><h1>ダンジョン工房</h1></div><nav><button id="new">新規</button><button id="open-cave">洞窟3-1を開く</button><button id="open-cave2">洞窟3-2を開く</button><button id="open-forest">森2-5を開く</button><button id="load">JSONを開く</button><button id="save">下書き保存</button><button id="json">JSON出力</button><button id="export" class="primary">TypeScript出力</button></nav></header>
+root.innerHTML=`<header><div><small>PIXEL WORLD / DEVELOPER TOOLS</small><h1>ダンジョン工房</h1></div><nav><button id="new">新規</button><select id="dungeon-select" aria-label="開くダンジョン"></select><button id="open-dungeon">開く</button><button id="load">JSONを開く</button><button id="save">下書き保存</button><button id="json">JSON出力</button><button id="export" class="primary">TypeScript出力</button></nav></header>
 <div class="workspace"><aside class="left"><h2>ダンジョン設定</h2><div id="stage-form"></div><h2>階層 <button id="add-floor">＋</button><button id="copy-floor">複製</button><button id="delete-floor">削除</button></h2><div id="floors"></div><div id="floor-form"></div></aside>
-<main><div class="toolbar"><select id="category"><option value="tile">地形</option><option value="object">宝箱・道具</option><option value="enemy">敵</option><option value="trap">罠</option><option value="installation">設置物</option><option value="spawn">開始地点</option></select><select id="tool"><option value="paint">ペン</option><option value="rectangle">四角塗り</option><option value="fill">塗りつぶし（地形）</option><option value="inspect">選択・詳細</option><option value="erase">配置物消去</option></select><button id="undo">戻す</button><button id="redo">やり直す</button><label>倍率 <input id="zoom" type="range" min="12" max="48" value="24"></label><span id="coordinates">X — / Y —</span></div><div id="palette"></div><div id="viewport"><canvas id="map"></canvas></div><footer id="status">ペンでドラッグして配置。右クリックで配置物を消去。Ctrl+Zで戻す。</footer></main>
-<aside class="right"><h2>選択マス</h2><div id="inspect">マスをクリックすると座標と配置を表示します。</div><h2>出力の使い方</h2><ol><li>サイズと階層を決める</li><li>床・壁・開始地点・出口を配置</li><li>敵・罠・宝箱などを配置</li><li>検査してTypeScriptを保存</li></ol><p>出力ファイルを <code>src/stages/地域名/番号.ts</code> に置き、<code>src/stages/index.ts</code> でimportし、STAGES配列に追加してください。</p><p>設定の反映は新規プレイから。JSONはこのエディタで再編集するための形式です。</p><button id="validate">配置を検査</button><details><summary>操作ガイド</summary><p>四角塗り・塗りつぶしは地形専用です。配置物は1マス1つ、大型敵は全占有セルを確保します。壁を上から塗ると配置物を消します。</p><p>「選択・詳細」で選んだ宝箱はcontents、巣穴はoverridesなどをJSONで編集できます。宝石は各層の上限1まで。魔導書は各層の設定上限以内です。</p><p>斬撃を含む初期宝箱には、ゲーム共通の開始報酬上書きが適用されます。</p></details></aside></div>
+<main><div class="toolbar"><select id="category"><option value="tile">地形</option><option value="object">宝箱・道具</option><option value="enemy">敵</option><option value="trap">罠</option><option value="installation">設置物</option><option value="spawn">開始地点</option></select><select id="tool"><option value="paint">ペン</option><option value="rectangle">四角塗り</option><option value="fill">塗りつぶし（地形）</option><option value="drag">ドラッグ配置・移動</option><option value="inspect">選択・詳細</option><option value="erase">配置物消去</option></select><button id="drag-trash" hidden>ここへドロップして削除</button><button id="undo">戻す</button><button id="redo">やり直す</button><label>倍率 <input id="zoom" type="range" min="12" max="48" value="24"></label><span id="coordinates">X — / Y —</span></div><div id="palette"></div><div id="viewport"><canvas id="map"></canvas></div><footer id="status">ペンでドラッグして配置。右クリックで配置物を消去。Ctrl+Zで戻す。</footer></main>
+<aside class="right"><h2>選択マス</h2><div id="inspect">マスをクリックすると座標と配置を表示します。</div><h2>出力の使い方</h2><ol><li>サイズと階層を決める</li><li>床・壁・開始地点・出口を配置</li><li>敵・罠・宝箱などを配置</li><li>検査してTypeScriptを保存</li></ol><p>出力ファイルを <code>src/stages/地域名/番号.ts</code> に置き、<code>src/stages/index.ts</code> でimportし、STAGES配列に追加してください。</p><p>設定の反映は新規プレイから。JSONはこのエディタで再編集するための形式です。</p><button id="validate">配置を検査</button><details><summary>操作ガイド</summary><p>「ドラッグ配置・移動」ではパレットからマップへドラッグして追加できます。マップの配置物はそのままドラッグで移動し、上部の削除枠へ落とすと削除します。赤い範囲は配置不可です。Escで中止、「戻す」で取り消せます。</p><p>四角塗り・塗りつぶしは地形専用です。配置物は1マス1つ、大型敵は全占有セルを確保します。壁を上から塗ると配置物を消します。</p><p>「選択・詳細」で選んだ宝箱はcontents、巣穴はoverridesなどをJSONで編集できます。宝石は各層の上限5まで。魔導書は各層の設定上限以内です。</p><p>斬撃を含む初期宝箱には、ゲーム共通の開始報酬上書きが適用されます。</p></details></aside></div>
 <dialog id="output"><div class="dialog-title"><h2 id="output-title">出力</h2><button id="close-output">×</button></div><textarea id="output-text" spellcheck="false"></textarea><div><button id="copy-output">コピー</button><button id="download-output" class="primary">ダウンロード</button></div></dialog><input id="file" type="file" accept=".json" hidden>`;
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const canvas=$<HTMLCanvasElement>('map'),ctx=canvas.getContext('2d')!;
@@ -44,14 +44,14 @@ function renderForms(){
   $('advanced-stage').onclick=()=>editJSON('ダンジョン詳細（loot・初期MP・夜の復活数など）',s,value=>{project.stage=value;});
   $('floors').innerHTML=project.floors.map((f,i)=>`<button data-floor="${i}" class="${i===floorIndex?'active':''}">${i+1}F ${escape(f.name)}</button>`).join('');
   document.querySelectorAll<HTMLElement>('[data-floor]').forEach(b=>b.onclick=()=>{floorIndex=Number(b.dataset.floor);selected=null;renderForms();draw();inspect();});
-  $('floor-form').innerHTML=field('階層名','fname',f.name)+`<div class="pair">${field('横マス','width',f.width,'number')}${field('縦マス','height',f.height,'number')}</div><button id="resize">サイズを適用（9～120）</button><label>クリア条件<select id="goal"><option value="exit">出口へ到達</option><option value="records">古代の記録を回収＋出口</option><option value="defeat">指定モンスター討伐＋出口</option><option value="destroyInstallations">設置物破壊＋出口</option></select></label><label>目標対象<select id="goal-kind"></select></label>`+field('必要数','goal-count','count' in f.clearCondition?f.clearCondition.count:1,'number')+field('ランダム宝箱数','chests',f.randomChests,'number')+field('宝石上限（0～1）','gems',f.gemCount,'number')+field('魔導書上限','books',f.settings.skillBooks?.max??0,'number')+field('追加魔導書確率（0～1）','book-chance',f.settings.skillBooks?.extraChance??0,'number')+'<button id="boss-settings">ボス戦エリア・封鎖マス</button><button id="advanced-floor">階層詳細JSON（ランダム配置・抽選表）</button>';
+  $('floor-form').innerHTML=field('階層名','fname',f.name)+`<div class="pair">${field('横マス','width',f.width,'number')}${field('縦マス','height',f.height,'number')}</div><button id="resize">サイズを適用（9～120）</button><label>クリア条件<select id="goal"><option value="exit">出口へ到達</option><option value="records">古代の記録を回収＋出口</option><option value="defeat">指定モンスター討伐＋出口</option><option value="destroyInstallations">設置物破壊＋出口</option></select></label><label>目標対象<select id="goal-kind"></select></label>`+field('必要数','goal-count','count' in f.clearCondition?f.clearCondition.count:1,'number')+field('ランダム宝箱数','chests',f.randomChests,'number')+field('宝石上限（0～5）','gems',f.gemCount,'number')+field('魔導書上限','books',f.settings.skillBooks?.max??0,'number')+field('追加魔導書確率（0～1）','book-chance',f.settings.skillBooks?.extraChance??0,'number')+'<button id="boss-settings">ボス戦エリア・封鎖マス</button><button id="advanced-floor">階層詳細JSON（ランダム配置・抽選表）</button>';
   $<HTMLSelectElement>('goal').value=f.clearCondition.type;
   const goalOptions=()=>{const type=$<HTMLSelectElement>('goal').value;const entries=type==='destroyInstallations'?Object.entries(INSTALLATIONS):Object.entries(ENEMIES).filter(([id])=>!['player','sprite','greaterSprite'].includes(id));$('goal-kind').innerHTML=entries.map(([id,d])=>`<option value="${id}">${escape(d.name)}</option>`).join('');if('kind' in f.clearCondition)$<HTMLSelectElement>('goal-kind').value=f.clearCondition.kind;};goalOptions();
   for(const id of ['fname','goal','goal-kind','goal-count','chests','gems','books','book-chance'])$(id).onchange=()=>{
     checkpoint();if(id==='goal')goalOptions();f.name=$<HTMLInputElement>('fname').value;
     const type=$<HTMLSelectElement>('goal').value,count=Math.floor(number('goal-count',1,1000)),kind=$<HTMLSelectElement>('goal-kind').value;
     f.clearCondition=(type==='exit'?{type}:type==='records'?{type,count}:{type,kind,count}) as ClearCondition;
-    f.randomChests=Math.floor(number('chests',0,100));f.gemCount=Math.floor(number('gems',0,1));f.settings.skillBooks={max:Math.floor(number('books',0,100)),extraChance:number('book-chance',0,1)};commit();
+    f.randomChests=Math.floor(number('chests',0,100));f.gemCount=Math.floor(number('gems',0,5));f.settings.skillBooks={max:Math.floor(number('books',0,100)),extraChance:number('book-chance',0,1)};commit();
   };
   $('resize').onclick=()=>{
     const w=Math.floor(number('width',9,120)),h=Math.floor(number('height',9,120));
@@ -80,7 +80,7 @@ function entries():[string,string,string][] {
   if(category==='spawn')return [['spawn','旅人の開始地点','#5f9de0']];
   return [...['wood','iron','silver','gold'].map((id,i):[string,string,string]=>['chest:'+id,['木の宝箱','鉄の宝箱','銀の宝箱','金の宝箱'][i],'#d4ad5b']),['exit','出口','#f0e0a0'],['record','古代の記録','#b6b4a6'],['gem','宝石','#a58ee8'],['skillBook','魔導書','#d5a3dd'],...Object.entries(ITEMS).map(([id,d]):[string,string,string]=>['item:'+id,d.name,'#5eae8d']),...Object.entries(SKILLS).map(([id,d]):[string,string,string]=>['skill:'+id,d.name,'#879cdb'])];
 }
-function palette(){const all=entries();if(!all.some(e=>e[0]===brush))brush=all[0][0];$('palette').innerHTML=all.map(([id,name,color])=>`<button data-brush="${id}" class="${brush===id?'active':''}"><i style="background:${color}"></i>${escape(name)}</button>`).join('');if(category==='tile')document.querySelectorAll<HTMLElement>('[data-brush]').forEach(b=>{const c=document.createElement('canvas');c.width=24;c.height=24;c.style.cssText='width:24px;height:24px;display:inline-block;vertical-align:middle;margin-right:5px';drawTerrainPreview(c.getContext('2d')!,Number(b.dataset.brush),0,0,24);b.querySelector('i')?.replaceWith(c);});document.querySelectorAll<HTMLElement>('[data-brush]').forEach(b=>b.onclick=()=>{brush=b.dataset.brush!;palette();});}
+function palette(){const all=entries();if(!all.some(e=>e[0]===brush))brush=all[0][0];$('palette').innerHTML=all.map(([id,name,color])=>`<button data-brush="${id}" class="${brush===id?'active':''}"><i style="background:${color}"></i>${escape(name)}</button>`).join('');if(category==='tile')document.querySelectorAll<HTMLElement>('[data-brush]').forEach(b=>{const c=document.createElement('canvas');c.width=24;c.height=24;c.style.cssText='width:24px;height:24px;display:inline-block;vertical-align:middle;margin-right:5px';drawTerrainPreview(c.getContext('2d')!,Number(b.dataset.brush),0,0,24);b.querySelector('i')?.replaceWith(c);});document.querySelectorAll<HTMLElement>('[data-brush]').forEach(b=>{b.onclick=()=>{brush=b.dataset.brush!;palette();};b.draggable=tool==='drag'&&category!=='tile'&&category!=='spawn';b.ondragstart=e=>{if(!b.draggable)return;brush=b.dataset.brush!;beginPlacementDrag(e,{category,brush,offset:{x:0,y:0}});};b.ondragend=clearPlacementDrag;});}
 function same(a:Point,b:Point){return a.x===b.x&&a.y===b.y;}
 function enemyAt(p:Point){return floor().enemies.find(e=>p.x>=e.position.x&&p.y>=e.position.y&&p.x<e.position.x+ENEMIES[e.kind].size&&p.y<e.position.y+ENEMIES[e.kind].size);}
 function erase(p:Point){const f=floor(),enemy=enemyAt(p);f.enemies=f.enemies.filter(e=>e!==enemy);f.objects=f.objects.filter(o=>!same(o.position,p));f.traps=f.traps.filter(o=>!same(o.position,p));f.installations=f.installations.filter(o=>!same(o.position,p));}
@@ -111,6 +111,7 @@ function draw(){
  for(const e of f.enemies)label(e.position,ENEMIES[e.kind].name.slice(0,2),'#a44757',ENEMIES[e.kind].size);
  label(f.spawn,'始','#387aa9');
  if(selected){ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.strokeRect(selected.x*zoom+1,selected.y*zoom+1,zoom-2,zoom-2);}
+ if(placementDrag&&hover){const p={x:hover.x-placementDrag.offset.x,y:hover.y-placementDrag.offset.y},size=dragSize();ctx.fillStyle=canDropPlacement(p)?'#43d49866':'#ee555588';ctx.fillRect(p.x*zoom,p.y*zoom,size*zoom,size*zoom);ctx.strokeStyle=canDropPlacement(p)?'#168b65':'#d5223d';ctx.lineWidth=3;ctx.strokeRect(p.x*zoom+1,p.y*zoom+1,size*zoom-2,size*zoom-2);}
  if(dragging&&tool==='rectangle'&&anchor&&hover){ctx.fillStyle='#ffffff55';ctx.fillRect(Math.min(anchor.x,hover.x)*zoom,Math.min(anchor.y,hover.y)*zoom,(Math.abs(anchor.x-hover.x)+1)*zoom,(Math.abs(anchor.y-hover.y)+1)*zoom);}
 }
 function inspect(){
@@ -119,9 +120,49 @@ function inspect(){
  $('inspect').innerHTML=`<p>X ${p.x} / Y ${p.y}<br>${escape(TERRAIN[f.tiles[p.y*f.width+p.x]].name)}</p>`+(entry?`<textarea id="entry" spellcheck="false">${escape(JSON.stringify(entry,null,2))}</textarea><button id="apply-entry">配置の詳細を適用</button><button id="remove-entry">この配置を削除</button><p>宝箱の固定報酬例：<code>"contents": [{"type":"skill","id":"fireball"}]</code></p>`:'<p>配置物なし</p>');
  if(entry){$('remove-entry').onclick=()=>{checkpoint();erase(p);commit();inspect();};$('apply-entry').onclick=()=>{try{const value=JSON.parse($<HTMLTextAreaElement>('entry').value);if(!value.position||!Number.isInteger(value.position.x)||!Number.isInteger(value.position.y))throw new Error('座標は整数で指定してください');checkpoint();Object.keys(entry).forEach(k=>delete (entry as unknown as Record<string,unknown>)[k]);Object.assign(entry,value);commit();inspect();}catch(e){note(String(e));}};}
 }
+// ドラッグ中は編集データを書き換えず、正常ドロップ時だけ履歴を作る。
+type Placement = ReturnType<typeof floor>['objects'][number] | ReturnType<typeof floor>['enemies'][number] | ReturnType<typeof floor>['traps'][number] | ReturnType<typeof floor>['installations'][number];
+type PlacementDrag = { category:string; brush:string; offset:Point; entry?:Placement };
+let placementDrag:PlacementDrag|null=null, dragGhost:HTMLElement|null=null;
+function dragSize(){const d=placementDrag!;return d.category==='enemy'?ENEMIES[d.brush as EnemyKind].size:1;}
+function canDropPlacement(p:Point):boolean{
+ const f=floor(),d=placementDrag!,size=dragSize();
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){const q={x:p.x+x,y:p.y+y};
+  if(q.x<0||q.y<0||q.x>=f.width||q.y>=f.height||TERRAIN[f.tiles[q.y*f.width+q.x]].solid||same(q,f.spawn))return false;
+  const enemy=enemyAt(q);if(enemy&&enemy!==d.entry)return false;
+  if([...f.objects,...f.traps,...f.installations].some(o=>o!==d.entry&&same(o.position,q)))return false;
+ }return true;
+}
+function clearPlacementDrag(){placementDrag=null;hover=null;dragGhost?.remove();dragGhost=null;$('drag-trash').classList.remove('drop-hover');draw();}
+function beginPlacementDrag(e:DragEvent,d:PlacementDrag){
+ placementDrag=d;dragGhost=document.createElement('div');dragGhost.className='placement-drag-ghost';dragGhost.textContent=d.entry?'配置物を移動':entries().find(v=>v[0]===d.brush)?.[1]??d.brush;document.body.append(dragGhost);
+ e.dataTransfer!.effectAllowed=d.entry?'move':'copy';e.dataTransfer!.setData('text/plain','dungeon-placement');e.dataTransfer!.setDragImage(dragGhost,32,20);
+}
+canvas.ondragstart=e=>{
+ if(tool!=='drag'||!selected){e.preventDefault();return;}
+ const f=floor(),cell=selected,entry=enemyAt(cell)??[...f.objects,...f.traps,...f.installations].find(o=>same(o.position,cell));
+ if(!entry){e.preventDefault();return;}
+ const c=f.enemies.includes(entry as typeof f.enemies[number])?'enemy':f.traps.includes(entry as typeof f.traps[number])?'trap':f.installations.includes(entry as typeof f.installations[number])?'installation':'object';
+ beginPlacementDrag(e,{entry,category:c,brush:'kind' in entry?entry.kind:'',offset:{x:selected.x-entry.position.x,y:selected.y-entry.position.y}});
+};
+canvas.ondragend=clearPlacementDrag;
+const dragPoint=(e:DragEvent):Point=>{const r=canvas.getBoundingClientRect();return{x:Math.floor((e.clientX-r.left)/zoom),y:Math.floor((e.clientY-r.top)/zoom)};};
+canvas.ondragover=e=>{
+ if(!placementDrag)return;e.preventDefault();hover=dragPoint(e);const p={x:hover.x-placementDrag.offset.x,y:hover.y-placementDrag.offset.y};e.dataTransfer!.dropEffect=canDropPlacement(p)?placementDrag.entry?'move':'copy':'none';
+ const viewport=$('viewport'),r=viewport.getBoundingClientRect();viewport.scrollLeft+=e.clientX>r.right-35?12:e.clientX<r.left+35?-12:0;viewport.scrollTop+=e.clientY>r.bottom-35?12:e.clientY<r.top+35?-12:0;draw();
+};
+canvas.ondrop=e=>{
+ if(!placementDrag)return;e.preventDefault();const d=placementDrag,q=dragPoint(e),p={x:q.x-d.offset.x,y:q.y-d.offset.y};
+ if(!canDropPlacement(p)){note('そこには配置できません。元の位置を維持します。');clearPlacementDrag();return;}
+ if(!d.entry||!same(d.entry.position,p)){checkpoint();if(d.entry)d.entry.position={...p};else{const oldCategory=category,oldBrush=brush;category=d.category;brush=d.brush;paint(p);category=oldCategory;brush=oldBrush;}commit();}
+ selected=p;clearPlacementDrag();inspect();
+};
+$('drag-trash').ondragover=e=>{if(!placementDrag?.entry)return;e.preventDefault();e.dataTransfer!.dropEffect='move';$('drag-trash').classList.add('drop-hover');};
+$('drag-trash').ondragleave=()=>{$('drag-trash').classList.remove('drop-hover');};
+$('drag-trash').ondrop=e=>{if(!placementDrag?.entry)return;e.preventDefault();checkpoint();erase(placementDrag.entry.position);selected=null;commit();clearPlacementDrag();inspect();note('配置物を削除しました。「戻す」で取り消せます。');};
 const pointer=(e:PointerEvent):Point=>{const r=canvas.getBoundingClientRect();return {x:Math.max(0,Math.min(floor().width-1,Math.floor((e.clientX-r.left)/zoom))),y:Math.max(0,Math.min(floor().height-1,Math.floor((e.clientY-r.top)/zoom)))};};
 canvas.oncontextmenu=e=>e.preventDefault();
-canvas.onpointerdown=e=>{if(e.button!==0&&e.button!==2)return;selected=pointer(e);anchor=selected;hover=selected;if(tool==='inspect'&&e.button===0){inspect();draw();return;}checkpoint();dragging=true;canvas.setPointerCapture(e.pointerId);
+canvas.onpointerdown=e=>{if(e.button!==0&&e.button!==2)return;selected=pointer(e);anchor=selected;hover=selected;if(tool==='drag'&&e.button===0){inspect();draw();return;}if(tool==='inspect'&&e.button===0){inspect();draw();return;}checkpoint();dragging=true;canvas.setPointerCapture(e.pointerId);
  if(e.button===2)erase(selected);else if(tool==='fill'&&category==='tile'){
    const f=floor(),old=f.tiles[selected.y*f.width+selected.x],queue=[selected],seen=new Set<string>();
    for(let i=0;i<queue.length;i++){const p=queue[i],key=p.x+','+p.y;if(p.x<0||p.y<0||p.x>=f.width||p.y>=f.height||seen.has(key)||f.tiles[p.y*f.width+p.x]!==old)continue;seen.add(key);paint(p);for(const [x,y] of [[1,0],[-1,0],[0,1],[0,-1]])queue.push({x:p.x+x,y:p.y+y});}
@@ -129,7 +170,7 @@ canvas.onpointerdown=e=>{if(e.button!==0&&e.button!==2)return;selected=pointer(e
 canvas.onpointermove=e=>{hover=pointer(e);$('coordinates').textContent=`X ${hover.x} / Y ${hover.y}`;if(!dragging)return;if(e.buttons===2)erase(hover);else if(tool==='paint'||tool==='erase')paint(hover);draw();};
 canvas.onpointerup=e=>{if(!dragging)return;if(tool==='rectangle'&&category==='tile'&&anchor&&hover)for(let y=Math.min(anchor.y,hover.y);y<=Math.max(anchor.y,hover.y);y++)for(let x=Math.min(anchor.x,hover.x);x<=Math.max(anchor.x,hover.x);x++)paint({x,y});dragging=false;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);commit();inspect();};
 canvas.onpointercancel=()=>{dragging=false;commit();};
-$('category').onchange=()=>{category=$<HTMLSelectElement>('category').value;palette();};$('tool').onchange=()=>{tool=$<HTMLSelectElement>('tool').value;};$('zoom').oninput=()=>{zoom=Number($<HTMLInputElement>('zoom').value);draw();};
+$('category').onchange=()=>{category=$<HTMLSelectElement>('category').value;palette();};$('tool').onchange=()=>{clearPlacementDrag();tool=$<HTMLSelectElement>('tool').value;canvas.draggable=tool==='drag';$('drag-trash').hidden=tool!=='drag';palette();note(tool==='drag'?'パレットから配置／配置物をつかんで移動／削除枠へドロップで削除。Escで中止。':'操作モードを変更しました。');};$('zoom').oninput=()=>{zoom=Number($<HTMLInputElement>('zoom').value);draw();};
 function history(back:boolean){const from=back?undo:redo,to=back?redo:undo;if(!from.length)return;to.push(JSON.stringify(project));project=JSON.parse(from.pop()!);floorIndex=Math.min(floorIndex,project.floors.length-1);selected=null;renderForms();commit();inspect();}
 $('undo').onclick=()=>history(true);$('redo').onclick=()=>history(false);
 document.addEventListener('keydown',e=>{if((e.target as HTMLElement).matches('input,textarea,select'))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();history(!e.shiftKey);}});
@@ -146,11 +187,24 @@ $('close-output').onclick=()=>$<HTMLDialogElement>('output').close();$('download
 $('copy-output').onclick=()=>{if(applyOutput){applyOutput();return;}navigator.clipboard.writeText($<HTMLTextAreaElement>('output-text').value).then(()=>note('コピーしました。'),()=>note('コピーできません。テキストを選択してコピーしてください。'));};
 $('json').onclick=()=>download('dungeon-project.json',JSON.stringify(project,null,2));
 $('validate').onclick=()=>{try{const errors=validateProject(project);note(errors.length?errors.join(' / '):'固定配置・占有・出口への経路は正常です。');}catch(e){note(String(e));}};
-$('export').onclick=()=>{try{const errors=validateProject(project);if(errors.length){showOutput('配置を修正してください',errors.join('\n'),'validation.txt');return;}exportStage(project);showOutput('TypeScript / src/stages/地域名/番号.ts',stageCode(project),(project.stage.code??'custom')+'.ts');}catch(e){note(String(e));}};
-$('open-cave2').onclick=()=>{if(!confirm('下書きを洞窟3-2で置き換えますか？'))return;checkpoint();project=projectFromJson(cave2Stage);floorIndex=0;renderForms();commit();};
-$('open-cave').onclick=()=>{if(!confirm('下書きを洞窟3-1で置き換えますか？'))return;checkpoint();project=projectFromJson(caveStage);floorIndex=0;renderForms();commit();};
-$('open-forest').onclick=()=>{if(!confirm('下書きを森2-5で置き換えますか？'))return;checkpoint();project=projectFromJson(forestStage);floorIndex=0;renderForms();commit();};
+$('export').onclick=()=>{try{const errors=validateProject(project);if(errors.length){showOutput('配置を修正してください',errors.join('\n'),'validation.txt');return;}const code=stageCode(project);showOutput('TypeScript / src/stages/地域名/番号.ts',code,(project.stage.code??'custom')+'.ts');}catch(e){note('TypeScript出力に失敗しました：'+(e instanceof Error?e.message:String(e)));}};
+const dungeonSelect=$<HTMLSelectElement>('dungeon-select');
+for(const path of Object.keys(dungeonFiles).sort((a,b)=>a.split('/').pop()!.localeCompare(b.split('/').pop()!,undefined,{numeric:true}))){
+ const code=path.split('/').pop()!.replace(/\.json$/,'');
+ let label=code;
+ try{const data=JSON.parse(dungeonFiles[path]);label=code+' '+(data.stage?.name??data.name??'');}catch{label+='（JSONを確認してください）';}
+ dungeonSelect.add(new Option(label,path));
+}
+$('open-dungeon').onclick=()=>{
+ try{
+  const next=projectFromJson(JSON.parse(dungeonFiles[dungeonSelect.value]));
+  if(!confirm('下書きを「'+dungeonSelect.selectedOptions[0].text+'」で置き換えますか？'))return;
+  checkpoint();clearPlacementDrag();project=next;floorIndex=0;selected=null;renderForms();commit();inspect();
+  note('ダンジョンを開きました。');
+ }catch(e){note('読み込み失敗：'+(e instanceof Error?e.message:String(e)));}
+};
 $('load').onclick=()=>$<HTMLInputElement>('file').click();
  $('file').onchange=async()=>{const file=$<HTMLInputElement>('file').files?.[0];if(!file)return;try{const next=projectFromJson(JSON.parse(await file.text()));const errors=validateProject(next);if(errors.length)throw new Error(errors.join(' / '));if(!confirm('現在の下書きを読み込んだ内容で置き換えますか？'))return;checkpoint();project=next;floorIndex=0;selected=null;renderForms();commit();inspect();note('JSONを読み込みました。続きから編集できます。');}catch(e){note('読み込み失敗：'+String(e));}$<HTMLInputElement>('file').value='';};
 try{const saved=localStorage.getItem(SAVE_KEY);if(saved){const loaded=JSON.parse(saved);validateProject(loaded);project=loaded;}}catch{note('保存済みの下書きを読み込めませんでした。');}
 renderForms();palette();draw();
+

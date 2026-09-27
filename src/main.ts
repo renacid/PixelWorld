@@ -1,5 +1,10 @@
 import { actorEffectDescriptions } from './game/ActorEffects';
 import { exportSave, importSave } from './game/PortableSave';
+import { skillCooldown } from './skills/SkillResolver';
+import { VECTORS, type SaveData } from './game/types';
+import { bottleImpact } from './game/FireBottle';
+import { gateDestinations } from './skills/TransferGate';
+import { createSaveImage, readSaveImage } from './game/SaveImage';
 import { skillUpgradeHtml } from './skills/SkillUpgrades';
 import { WORLD_SETTINGS } from './game/WorldSettings';
 import { itemCapacity } from './game/Inventory';
@@ -46,7 +51,7 @@ function selectSkill(id: SkillId): void {
   if(SKILLS[id].kind==='passive'&&session){selected=null;aim=undefined;secondAim=undefined;update();dialog('<div class="dialog-heading"><h2>'+SKILLS[id].name+'</h2><button id="close-passive" class="icon-button">×</button></div><p>パッシブ · '+skillMpLabel(session.state,id)+' / CT '+SKILLS[id].cooldown+'</p><p>'+skillDescription(session.state,id,session.state.skillBag)+'</p>');on('close-passive',closeModal);return;}
 
   selected = selected === id ? null : id; aim = undefined; secondAim = undefined;
-  if (renderer && selected && ['pointArea','installation','enemyWarp','chain'].includes(SKILLS[selected].target)) renderer.camera = null;
+  if (renderer && selected && ['pointArea','installation','enemyWarp','chain','gate','warp'].includes(SKILLS[selected].target)) renderer.camera = null;
   update();
   if (selected) { const strip = document.getElementById('skill-buttons'), button = strip?.querySelector<HTMLElement>('[data-skill="' + selected + '"]'); if (strip && button) { const r = button.getBoundingClientRect(), box = strip.getBoundingClientRect(); if (r.left < box.left || r.right > box.right) strip.scrollBy({ left: r.left < box.left ? r.left - box.left - 4 : r.right - box.right + 4, behavior: 'smooth' }); } }
 }
@@ -226,14 +231,14 @@ function showGame(): void {
   let drag: { x: number; y: number; camera: Point } | null = null;
   canvas.addEventListener('pointerdown', e => {
     if (modal || actionLocked) return;
-    if (selected && ['pointArea', 'installation', 'enemyWarp', 'chain'].includes(SKILLS[selected].target)) {
+    if (selected && (['pointArea', 'installation', 'enemyWarp', 'chain','gate'].includes(SKILLS[selected].target)||selected==='warp'&&effectiveLevel(s.state.skillBag,s.state.skillLevels,'warp')>=3)) {
       const target = renderer!.mapPoint(e.clientX, e.clientY);
       if (validSkillTarget(s.state, selected, target)) {
         if(skillTargetCount(s.state,selected)===2){
           if(aim&&same(aim,target)){aim=secondAim;secondAim=undefined;}
           else if(secondAim&&same(secondAim,target))secondAim=undefined;
           else if(!aim)aim=target;else secondAim=target;
-        }else aim=target;
+        }else aim=selected==='warp'&&aim&&same(aim,target)?undefined:target;
         update();
       }
       return;
@@ -293,7 +298,7 @@ function update(): void {
   buttons.innerHTML = equipped.map(id => {
     const def = SKILLS[id], cd = s.cooldowns[id] ?? 0;
     const unavailable = session!.canCast(id,true);
-    return `<button class="skill-button ${cd ? 'cooling' : unavailable ? 'unavailable' : 'available'} ${selected === id ? 'selected' : ''}" style="--skill-color:${ATTRIBUTE_COLORS[def.attribute]}" data-skill="${id}" aria-label="${def.name}、${skillMpLabel(s, id)}${selected === id ? '、もう一度タップで選択解除' : ''}${cd ? `、再使用まで${cd}行動` : ''}" aria-pressed="${selected === id}"><span class="skill-icon">${icons[id]}</span><strong>${def.name}</strong><small class="skill-cost">${skillMpLabel(s, id)}${selected === id ? ' · ×解除' : ''}</small><span class="skill-level">${cd ? `⌛ あと${cd}行動` : unavailable ? unavailable : `${def.kind==='passive'?'自動発動待機':'発動可能'} · CT ${def.cooldown}`} · Lv.${effectiveLevel(s.skillBag, s.skillLevels, id)}</span></button>`;
+    return `<button class="skill-button ${cd ? 'cooling' : unavailable ? 'unavailable' : 'available'} ${selected === id ? 'selected' : ''}" style="--skill-color:${ATTRIBUTE_COLORS[def.attribute]}" data-skill="${id}" aria-label="${def.name}、${skillMpLabel(s, id)}${selected === id ? '、もう一度タップで選択解除' : ''}${cd ? `、再使用まで${cd}行動` : ''}" aria-pressed="${selected === id}"><span class="skill-icon">${icons[id]}</span><strong>${def.name}</strong><small class="skill-cost">${skillMpLabel(s, id)}${selected === id ? ' · ×解除' : ''}</small><span class="skill-level">${cd ? `⌛ あと${cd}行動` : unavailable ? unavailable : `${def.kind==='passive'?'自動発動待機':'発動可能'} · CT ${skillCooldown(s,id)}`} · Lv.${effectiveLevel(s.skillBag, s.skillLevels, id)}</span></button>`;
   }).join('') || '<div class="empty-skills"><span>✦</span><p>宝箱から、最初のスキルを！<small>配置したスキルがここに並びます</small></p></div>';
   buttons.scrollLeft = scrollLeft; buttons.dispatchEvent(new Event('scroll'));
   buttons.querySelectorAll<HTMLButtonElement>('[data-skill]').forEach(b => b.addEventListener('click', () => selectSkill(b.dataset.skill as SkillId)));
@@ -310,6 +315,8 @@ function update(): void {
   cast.hidden = !selected;
   cast.textContent = selected ? castError ?? `${SKILLS[selected].short}を発動 ↗` : '';
   cast.setAttribute('aria-label', selected ? `${SKILLS[selected].name}：${castError ?? '発動確定'}` : 'スキルを選択');
+  if(selected==='transferGate')text('objective-text',aim?'指定した場所に転移門を設置':'周囲十字をタップで設置先指定 · 未指定なら空きマスへ設置');
+  if(selected==='warp'&&effectiveLevel(s.skillBag,s.skillLevels,'warp')>=3)text('objective-text',aim?'指定先へ転移（同じマスをタップでランダムに戻す）':'マップで転移先を選択可能 · 未指定ならランダム転移');
   if (selected && !aim && ['pointArea', 'installation', 'enemyWarp', 'chain'].includes(SKILLS[selected].target)) text('objective-text', SKILLS[selected].target === 'chain' ? '隣接8マスの敵をタップして起点を選択' : SKILLS[selected].target === 'enemyWarp' ? 'マップで表示範囲内の敵をタップして選択' : SKILLS[selected].target === 'installation' ? '周囲十字4マスから設置場所を選択' : 'マップをタップして着弾点を選択');
   if (renderer) { renderer.selected = selected; renderer.aim = aim; renderer.secondAim = secondAim; }
   document.getElementById('camera-reset')!.hidden = !renderer?.camera;
@@ -321,12 +328,16 @@ function direction(dir: Direction): void {
 }
 function act(command: Command): void {
   if (!session || modal || actionLocked) return;
+  if(command.type==='move'&&!command.gateId&&session.state.playerState.mp>=3&&!movementLocked(session.state.playerState,session.state.playerActionCount)&&(session.state.playerState.stunnedUntil??0)<=session.state.playerActionCount&&effectiveLevel(session.state.skillBag,session.state.skillLevels,'transferGate')>=3){
+    const v=VECTORS[command.direction],p=session.state.playerState.position,entrance={x:p.x+v.x,y:p.y+v.y},choices=gateDestinations(session.state,entrance);
+    if(choices.length){chooseGate(command.direction,choices);return;}
+  }
   sound.unlock();
   if (renderer) renderer.camera = null;
   const before = structuredClone(session.actors);
   const previousFloor = session.state.floorNumber;
   const success = session.execute(command);
-  if (success && command.type === 'cast' && selected && (session.canCast(selected) || !['warp','groundTrap','summon'].includes(SKILLS[selected].target) && !previewSkill(session.state,selected,session.state.playerState.facing,aim).targetIds.length)) { selected = null; aim = undefined; secondAim = undefined; }
+  if (success && command.type === 'cast' && selected && (session.canCast(selected) || !['warp','gate','groundTrap','summon'].includes(SKILLS[selected].target) && !previewSkill(session.state,selected,session.state.playerState.facing,aim).targetIds.length)) { selected = null; aim = undefined; secondAim = undefined; }
   if (success && previousFloor !== session.state.floorNumber) { selected = null; persist(); showGame(); session.onLog?.(session.state.log.at(-1)!); arrivalEffect(session.events.find(e=>e.announcement)?.announcement ?? '第' + session.state.floorNumber + '層へ', false,session.events.some(e=>e.announcement)); return; }
   if (success) {
     if (command.type === 'sleep') arrivalEffect('朝になった', true);
@@ -396,6 +407,11 @@ function itemDialog(slot: number): void {
   if (actionLocked) return;
   const id = session!.state.itemSlots[slot]; if (!id) return;
   const drop = () => { if (session!.dropItem(slot)) { persist(); closeModal(); update(); } };
+  if(id==='fireBottle'){
+    const dirs=[[-1,-1,'↖'],[0,-1,'↑'],[1,-1,'↗'],[-1,0,'←'],[0,0,''],[1,0,'→'],[-1,1,'↙'],[0,1,'↓'],[1,1,'↘']] as const;
+    dialog('<h2>'+pixelIcon(ITEM_ICONS[id])+' 火炎瓶</h2><p>投げる方向を選択 · 縦横3マス／斜め2マス<br>着弾5、炎上床3ダメージ（3ターン）</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+dirs.map(([x,y,label],i)=>'<button data-bottle="'+i+'" '+(!label||!bottleImpact(session!.state,{x,y})?'disabled':'')+'>'+label+'</button>').join('')+'</div><button id="drop-item" class="secondary">捨てる（消滅）</button><button id="close-item" class="secondary">戻る</button>');
+    modal!.querySelectorAll<HTMLButtonElement>('[data-bottle]').forEach(b=>b.onclick=()=>{const [x,y]=dirs[Number(b.dataset.bottle)];closeModal();act({type:'item',slot,target:{x,y}});});on('drop-item',drop);on('close-item',closeModal);return;
+  }
   const limit=ITEMS[id].skillCellLimit;
   if(limit!==undefined){
     const choices=session!.state.skillBag.filter(b=>SKILLS[b.skillId].cells.length<=limit);
@@ -407,17 +423,47 @@ function itemDialog(slot: number): void {
     dialog('<h2>砂時計（小）</h2><p>短縮するスキルを選択</p>' + choices.map(b => '<button class="secondary gem-choice" data-hourglass="' + b.skillId + '">' + SKILLS[b.skillId].name + ' CT ' + session!.state.cooldowns[b.skillId] + ' → ' + Math.max(0, session!.state.cooldowns[b.skillId]! - 10) + '</button>').join('') + (choices.length ? '' : '<p>再使用待ちのスキルはありません。</p>') + '<button id="drop-item" class="secondary">捨てる（消滅）</button><button id="close-item" class="text-button">戻る</button>');
     modal!.querySelectorAll<HTMLElement>('[data-hourglass]').forEach(b => b.addEventListener('click', () => { closeModal(); act({ type: 'item', slot, skillId: b.dataset.hourglass as SkillId }); })); on('drop-item', drop); on('close-item', closeModal); return;
   }
-  dialog(`<div class="eyebrow">ITEM / ${slot + 1}</div><h2>${pixelIcon(ITEM_ICONS[id])} ${ITEMS[id].name}</h2><p>レアランク ${ITEMS[id].rareRank} · ${ITEMS[id].description}。使用してもターンは経過しません。</p><button class="primary" id="use-item">使用する</button><button class="secondary" id="drop-item">捨てる（消滅）</button><button class="secondary" id="close-item">戻る</button>`);
+  dialog(`<div class="eyebrow">ITEM / ${slot + 1}</div><h2>${pixelIcon(ITEM_ICONS[id])} ${ITEMS[id].name}</h2><p>レアランク ${ITEMS[id].rareRank} · ${ITEMS[id].description}。使用してもターンは経過しません。</p>${ITEMS[id].important ? '<p>重要アイテム：召喚の媒体にはできません。</p>' : '<button class="primary" id="use-item">使用する</button>'}<button class="secondary" id="drop-item">${ITEMS[id].important ? '足元に置く' : '捨てる（消滅）'}</button><button class="secondary" id="close-item">戻る</button>`);
   on('drop-item', drop); on('use-item', () => { closeModal(); act({ type: 'item', slot }); }); on('close-item', closeModal);
 }
 function portableSave(exporting:boolean):void{
   dialog('<div class="dialog-heading"><h2>'+ (exporting?'進行状況をセーブ':'セーブデータを使用')+'</h2><button id="close-transfer">×</button></div><p>'+ (exporting?'文字列をコピーしてメモなどへ保存してください。同じアプリ版の端末で何度でも再開できます。':'保存した文字列を全文貼り付けてください。再開すると現在の中断データを置き換えます。')+'</p><textarea id="transfer-data" aria-label="セーブ文字列" rows="8" style="width:100%;font-size:16px" '+(exporting?'readonly':'')+'></textarea><p id="transfer-message" role="status"></p><button id="transfer-action" class="primary">'+(exporting?'文字列をコピー':'このデータで再開')+'</button>');
   const input=document.getElementById('transfer-data') as HTMLTextAreaElement;
+  const message=document.getElementById('transfer-message')!;
+  const resume=(text:string)=>{const state=importSave(text);session=new GameSession(state);selected=null;aim=undefined;lastOutcome='';closeModal();showGame();persist();};
+  const imageArea=document.createElement('div');
+  input.after(imageArea);
+  if(exporting){
+    imageArea.innerHTML='<p>画像でも保存できます。同じアプリ版で再開可能です。元のPNGを保存し、加工せず共有してください。</p><button id="save-image" class="secondary" disabled>画像を作成中…</button><button id="share-image" class="secondary" hidden>共有・写真に保存</button>';
+  }else{
+    imageArea.innerHTML='<label class="secondary" style="display:block;padding:12px">画像から再開（写真・ファイルを選択）<input id="load-save-image" type="file" accept="image/*,.png" style="display:block;max-width:100%;margin-top:8px"></label>';
+    imageArea.querySelector<HTMLInputElement>('input')!.onchange=async e=>{
+      const picker=e.target as HTMLInputElement,file=picker.files?.[0];if(!file)return;
+      picker.disabled=true;message.textContent='画像を読み込んでいます…';
+      try{const text=await readSaveImage(file);if(!imageArea.isConnected)return;resume(text);}
+      catch(error){message.textContent=error instanceof Error?error.message:String(error);}
+      finally{picker.disabled=false;picker.value='';}
+    };
+  }
   if(exporting)input.value=exportSave(session!.state);
+  if(exporting){
+    const saveButton=imageArea.querySelector<HTMLButtonElement>('#save-image')!;
+    const shareButton=imageArea.querySelector<HTMLButtonElement>('#share-image')!;
+    void createSaveImage(input.value,session!.stage.name+' / '+session!.state.playerActionCount+'行動').then(blob=>{
+      if(!imageArea.isConnected)return;
+      const file=new File([blob],'pixel-world-save.png',{type:'image/png'});
+      saveButton.disabled=false;saveButton.textContent='セーブ画像をダウンロード';
+      saveButton.onclick=()=>{const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);message.textContent='元のPNGを保存してください。再開はトップ画面の「セーブデータを使用」から行えます。';};
+      if(navigator.canShare?.({files:[file]})){
+        shareButton.hidden=false;
+        shareButton.onclick=async()=>{try{await navigator.share({files:[file]});}catch(error){if(!(error instanceof Error&&error.name==='AbortError'))message.textContent='共有できませんでした。「セーブ画像をダウンロード」をお使いください。';}};
+      }
+    }).catch(error=>{saveButton.textContent='画像の作成に失敗しました';message.textContent=error instanceof Error?error.message:String(error);});
+  }
   on('close-transfer',()=>{if(exporting)pause();else closeModal();});
   on('transfer-action',async()=>{try{
     if(exporting){input.select();try{await navigator.clipboard.writeText(input.value);}catch{if(!document.execCommand('copy'))throw new Error('文字列を長押しして、すべて選択してコピーしてください。');}document.getElementById('transfer-message')!.textContent='コピーしました。メモなどへ貼り付けて保存してください。';}
-    else{const state=importSave(input.value);session=new GameSession(state);selected=null;aim=undefined;lastOutcome='';closeModal();showGame();persist();}
+    else{resume(input.value);}
   }catch(error){document.getElementById('transfer-message')!.textContent=error instanceof Error?error.message:String(error);}});
 }
 function pause(): void {
@@ -432,6 +478,16 @@ function outcome(): void {
   const clear = session.state.status === 'cleared', id = session.state.stageId;
   dialog(`<div class="result-symbol">${clear ? '✦' : '◇'}</div><div class="eyebrow">${clear ? 'EXPEDITION COMPLETE' : 'END OF EXPEDITION'}</div><h2>${clear ? 'ステージを踏破した。' : 'また、新しい一歩を。'}</h2><p>${session.stage.name} · ${session.stage.subtitle}<br>${session.state.playerActionCount}行動 / 古代の記録 ${session.state.objectiveChests}個</p><div class="note-card"><p>${clear && id < STAGES.length ? `${STAGES[id].name}「${STAGES[id].subtitle}」が解放されました。` : clear ? 'すべてのステージを踏破しました！' : '集めたスキルと道具は回収されます。新しい構成で再挑戦しよう。'}</p></div><button id="next-adventure" class="primary">${clear && id < STAGES.length ? '次のステージへ' : 'もう一度挑戦'}</button><button id="result-stages" class="secondary">ステージ選択へ</button>`);
   on('next-adventure', () => startStage(clear && id < STAGES.length ? id + 1 : id)); on('result-stages', () => stages());
+}
+/** 門の番号は設置順。狭いスマホでも地図と大きなボタンから同じ行き先を選べる。 */
+function chooseGate(direction:Direction,choices:NonNullable<SaveData['mapState']['gates']>):void{
+  dialog('<div class="dialog-heading"><h2>転移先の門を選択</h2><button id="gate-cancel">×</button></div><p>転移MP3 · キャンセルでは移動しません</p><canvas id="gate-map" width="432" height="432" style="width:100%;touch-action:manipulation"></canvas><div id="gate-options"></div>');
+  const canvas=document.querySelector<HTMLCanvasElement>('#gate-map')!,ctx=canvas.getContext('2d')!,s=session!.state,scale=432/Math.max(s.mapState.width,s.mapState.height);
+  renderer!.drawMini(ctx);
+  const select=(id:string)=>{closeModal();act({type:'move',direction,gateId:id});};
+  choices.forEach(g=>{const n=(s.mapState.gates??[]).findIndex(a=>a.id===g.id)+1,x=(g.position.x+.5)*scale,y=(g.position.y+.5)*scale;ctx.fillStyle='#335d99';ctx.beginPath();ctx.arc(x,y,11,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(String(n),x,y+5);const b=document.createElement('button');b.className='secondary';b.textContent='門'+n+'（'+g.position.x+', '+g.position.y+'）';b.onclick=()=>select(g.id);document.getElementById('gate-options')!.append(b);});
+  canvas.onclick=e=>{const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*432/r.width,y=(e.clientY-r.top)*432/r.height;const nearest=choices.map(g=>({g,d:Math.hypot(x-(g.position.x+.5)*scale,y-(g.position.y+.5)*scale)})).sort((a,b)=>a.d-b.d)[0];if(nearest?.d<=18)select(nearest.g.id);};
+  on('gate-cancel',closeModal);
 }
 function fullMap(): void {
   if (actionLocked) return;
@@ -497,7 +553,7 @@ function openBag(acquisition: boolean, readOnly = false, onReturn?: () => void):
     document.getElementById('bag-message')!.textContent = message;
     document.getElementById('bag-list')!.innerHTML = draft.map(b => {
       const d = SKILLS[b.skillId];
-      return `<section class="bag-entry" data-entry="${b.skillId}"><button data-bag-skill="${b.skillId}" class="bag-list-item ${active === b.skillId ? 'active' : ''}" style="--skill-color:${ATTRIBUTE_COLORS[d.attribute]}" aria-expanded="${expanded.has(b.skillId)}"><span data-reorder="${b.skillId}" title="ドラッグして順番を変更">${icons[b.skillId]}</span><span><strong>${d.name}</strong><small>${ATTRIBUTE_NAMES[d.attribute]} · 現在Lv.${session!.state.skillLevels[b.skillId]} 連結${connectionBonus(draft, b.skillId)} · ダメージ×${connectionDamageMultiplier(draft, b.skillId).toFixed(2)}${wearStage(session!.state,b.skillId)>0?` <span class="skill-wear-stage">劣化${wearStage(session!.state,b.skillId)}段階</span>`:''}</small></span><small>${b.position ? '配置済' : '未配置'} ${expanded.has(b.skillId) ? '▴' : '▾'}</small>${b.isNew ? '<i class="new-badge">new</i>' : ''}</button><button class="placement-handle" data-drag-handle="${b.skillId}" aria-label="${d.name}のブロックをドラッグして配置">${blockThumbnail(b.skillId, b.rotation)}</button><div class="bag-description ${expanded.has(b.skillId) ? 'expanded' : ''}"><div><div class="bag-skill-meta"><span>${skillMpLabel(session!.state, b.skillId)} / CT ${d.cooldown} / Lv.${effectiveLevel(draft, session!.state.skillLevels, b.skillId)}</span><button class="skill-upgrades-button" data-upgrades="${b.skillId}">レベルアップ強化一覧</button></div><p>${skillDescription(session!.state,b.skillId,draft)}</p></div></div></section>`;
+      return `<section class="bag-entry" data-entry="${b.skillId}"><button data-bag-skill="${b.skillId}" class="bag-list-item ${active === b.skillId ? 'active' : ''}" style="--skill-color:${ATTRIBUTE_COLORS[d.attribute]}" aria-expanded="${expanded.has(b.skillId)}"><span data-reorder="${b.skillId}" title="ドラッグして順番を変更">${icons[b.skillId]}</span><span><strong>${d.name}</strong><small>${ATTRIBUTE_NAMES[d.attribute]} · 現在Lv.${session!.state.skillLevels[b.skillId]} 連結${connectionBonus(draft, b.skillId)} · ダメージ×${connectionDamageMultiplier(draft, b.skillId).toFixed(2)}${wearStage(session!.state,b.skillId)>0?` <span class="skill-wear-stage">劣化${wearStage(session!.state,b.skillId)}段階</span>`:''}</small></span><small>${b.position ? '配置済' : '未配置'} ${expanded.has(b.skillId) ? '▴' : '▾'}</small>${b.isNew ? '<i class="new-badge">new</i>' : ''}</button><button class="placement-handle" data-drag-handle="${b.skillId}" aria-label="${d.name}のブロックをドラッグして配置">${blockThumbnail(b.skillId, b.rotation)}</button><div class="bag-description ${expanded.has(b.skillId) ? 'expanded' : ''}"><div><div class="bag-skill-meta"><span>${skillMpLabel(session!.state, b.skillId)} / CT ${skillCooldown(session!.state,b.skillId)} / Lv.${effectiveLevel(draft, session!.state.skillLevels, b.skillId)}</span><button class="skill-upgrades-button" data-upgrades="${b.skillId}">レベルアップ強化一覧</button></div><p>${skillDescription(session!.state,b.skillId,draft)}</p></div></div></section>`;
     }).join('') || '<p class="footnote">まだスキルを持っていません。</p>';
     document.querySelectorAll<HTMLButtonElement>('[data-upgrades]').forEach(button=>button.onclick=()=>{
       const id=button.dataset.upgrades as SkillId,overlay=document.createElement('div');overlay.className='modal-backdrop upgrades-overlay';

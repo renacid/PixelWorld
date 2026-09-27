@@ -1,3 +1,4 @@
+import { gateCells } from './TransferGate';
 import { targetableCrystals } from '../game/CrystalTargets';
 import { icePillarCells } from './IcePillar';
 /** スキルの対象・射線・ワープ候補を計算。プレビューと実発動で同じ判定を共有。 */
@@ -10,7 +11,14 @@ export function attackTargets(state:SaveData, includeCrystals = true) {
 }
 export type TargetPreview = { cells: Point[]; blocked: Point | null; targetIds: string[] };
 /** 指定地点型の選択範囲。実効レベルの拡張をUIと実発動で共有。 */
+export function skillCooldown(state:SaveData,id:SkillId):number{const level=effectiveLevel(state.skillBag,state.skillLevels,id);return Math.max(0,SKILLS[id].cooldown-(id==='warp'?(level>=5?10:level>=3?5:0):0));}
+export function warpDestinations(state:SaveData,radius=4):Point[]{
+ const p=state.playerState.position,cells:Point[]=[];
+ for(let y=-radius;y<=radius;y++)for(let x=-radius;x<=radius;x++){if(Math.max(Math.abs(x),Math.abs(y))<=1)continue;const c={x:p.x+x,y:p.y+y};if(canStand(state.mapState,state.playerState,c,[...state.enemyStates,...state.allyStates])&&!state.mapState.objects.some(o=>same(o.position,c)))cells.push(c);}
+ return cells;
+}
 export function selectionRange(state: SaveData, id: SkillId): number {
+  if(id==='warp')return effectiveLevel(state.skillBag,state.skillLevels,id)>=5?4:3;
   const d = SKILLS[id], upgrade = d.rangeUpgrade;
   return upgrade && effectiveLevel(state.skillBag, state.skillLevels, id) >= upgrade.level ? upgrade.range : d.range;
 }
@@ -22,10 +30,12 @@ export function validSkillTargets(state: SaveData, id: SkillId, target?: Point, 
   return validSkillTarget(state,id,target) && (skillTargetCount(state,id)===1 ? secondTarget===undefined : !!target && !!secondTarget && !same(target,secondTarget) && validSkillTarget(state,id,secondTarget));
 }
 export function validSkillTarget(state: SaveData, id: SkillId, target?: Point): boolean {
+  if(id==='warp')return !target||effectiveLevel(state.skillBag,state.skillLevels,id)>=3&&warpDestinations(state,selectionRange(state,id)).some(c=>same(c,target));
+  if(id==='transferGate')return !target?gateCells(state).length>0:gateCells(state).some(p=>same(p,target));
   if(SKILLS[id].target==='chain')return !!chainOrigin(state,target);
   if(SKILLS[id].target==='installation'){
     if(!target||Math.abs(target.x-state.playerState.position.x)+Math.abs(target.y-state.playerState.position.y)!==1)return false;
-    const blocked=state.mapState.objects.some(o=>same(o.position,target))
+    const blocked=(state.mapState.gates??[]).some(g=>same(g.position,target))||state.mapState.objects.some(o=>same(o.position,target))
       ||(state.mapState.traps??[]).some(t=>same(t.position,target))
       ||(state.mapState.playerTraps??[]).some(t=>same(t.position,target))
       ||state.mapState.fields.some(f=>same(f.position,target))
@@ -41,6 +51,14 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
   const definition = SKILLS[id], p = state.playerState.position;
   const result: TargetPreview = { cells: [], blocked: null, targetIds: [] };
   if(definition.kind==='passive')return result;
+  if(id==='transferGate'){result.cells=gateCells(state);return result;}
+  if(id==='shadowBind'){
+   const level=effectiveLevel(state.skillBag,state.skillLevels,id),v=VECTORS[direction],range=level>=3?4:3;
+   for(let side=level>=5?-1:0;side<=(level>=5?1:0);side++)for(let n=1;n<=range;n++){
+    const cell={x:p.x+v.x*n-v.y*side,y:p.y+v.y*n+v.x*side};if(wall(state.mapState,cell))break;result.cells.push(cell);
+   }
+   result.targetIds=state.enemyStates.filter(e=>e.hp>0&&occupied(e).some(c=>result.cells.some(t=>same(c,t)))).map(e=>e.id);return result;
+  }
   if(definition.target==='flurry'||definition.target==='randomThunder'){
    const v=VECTORS[direction];
    if(definition.target==='flurry')for(let side=-1;side<=1;side++)for(let n=1;n<=2;n++){const c={x:p.x+v.x*n-v.y*side,y:p.y+v.y*n+v.x*side};if(wall(state.mapState,c))break;result.cells.push(c);}
@@ -100,11 +118,7 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
     }
     result.targetIds = attackTargets(state).filter(e => e.hp > 0 && occupied(e).some(c => result.cells.some(t => same(c, t)))).map(e => e.id);
   } else if (definition.target === 'warp') {
-    for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
-      if (Math.max(Math.abs(dx), Math.abs(dy)) <= 1) continue;
-      const cell = { x: p.x + dx, y: p.y + dy };
-      if (canStand(state.mapState, state.playerState, cell, [...state.enemyStates, ...state.allyStates]) && !state.mapState.objects.some(o => same(o.position, cell))) result.cells.push(cell);
-    }
+    result.cells=target?[target]:warpDestinations(state);
   } else if (definition.target === 'area') {
     const radius=selectionRange(state,id);
     for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {

@@ -3,6 +3,8 @@ import type { SkillId, ItemId } from '../game/types';
 export type PixelIcon = { rows: string[]; color: string; image?: string };
 const make=(color:string,rows:string[]):PixelIcon=>({color,rows:rows.flatMap(row=>[...Array(2)].map(()=>[...row].map(c=>c+c).join('')))});
 export const SKILL_ICONS:Record<SkillId,PixelIcon>={
+ shadowBind:make('#74708c',['....w...','...wg...','..wg....','.wg.....','ggggggg.','.g.g.g..','..ggg...','........']),
+ transferGate:make('#80bde0',['.wwwwww.','wwggggww','wg....gw','wg....gw','wg....gw','wg....gw','ww....ww','.wwwwww.']),
  earthBlessing:make('#ab8655',['...ww...','..wwww..','...ww...','.ggwwgg.','gggggggg','.gggggg.','..gggg..','...gg...']),
  flurry:make('#d4bf83',['..w...w.','.wg..wg.','wg..wg..','g..wg...','..wg..w.','.wg..wg.','wg..wg..','g...g...']),
  randomThunder:make('#b58beb',['..gggg..','.gggggg.','..w..w..','..w.w...','.w..w...','..w..w..','...w..w.','........']),
@@ -28,6 +30,7 @@ export const SKILL_ICONS:Record<SkillId,PixelIcon>={
  icestone:make('#5ba5d2',['...gg...','..gwwg..','.gwwwgg.','ggwwgggg','ggwggggg','.gggggg.','..gggg..','...gg...']),
  groundbreak:make('#718f42',['........','g...g...','.g.g....','..g..gg.','gg.g.g..','...gg...','gggggggg','.gggggg.'])};
 export const ITEM_ICONS:Record<ItemId,PixelIcon>={
+ fireBottle:make('#e97a42',['....wg..','...wg...','...ww...','..wggw..','.wggggw.','.wggggw.','.wggggw.','..wwww..']),
  ironKey:make('#9daebb',['..ggg...','.g...g..','.g...g..','..ggg...','...g....','...ggg..','...g....','...ggg..']),
  bookmarkLesser:make('#6baa88',['..gggg..','..gwwg..','..gggg..','..gwwg..','..gggg..','..gggg..','..g..g..','........']),
  bookmarkMiddle:make('#739cdb',['..gggg..','..gwwg..','..gwgg..','..ggwg..','..gwwg..','..gggg..','..g..g..','........']),

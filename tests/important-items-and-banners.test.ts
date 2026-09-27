@@ -1,0 +1,7 @@
+import {expect,it,vi} from 'vitest';
+import {GameSession} from '../src/game/GameSession';
+import {summonMedia} from '../src/game/Summoning';
+import {hitInstallation} from '../src/game/InstallationSystem';
+it('鉄の鍵は置いた直後は拾わず、離れて戻ると再取得できる',()=>{const g=GameSession.create(1,123),s=g.state;s.mapState.objects=[];s.itemSlots=['ironKey'];expect(g.dropItem(0)).toBe(true);expect(s.itemSlots).toEqual([]);expect(s.mapState.objects[0]).toMatchObject({itemId:'ironKey',waitForLeave:true});g.collect();expect(s.itemSlots).toEqual([]);const p={...s.playerState.position};s.playerState.position.x++;g.collect();s.playerState.position=p;g.collect();expect(s.itemSlots).toEqual(['ironKey']);});
+it('鍵は召喚媒体から除外、通常の道具は使える',()=>{const g=GameSession.create(1,123),s=g.state;s.itemSlots=['ironKey'];expect(summonMedia(s)).toEqual([]);s.itemSlots.push('potion');expect(summonMedia(s)).toEqual([1]);s.skillLevels.summonSpirit=3;s.itemSlots.push('etherMedium');expect(summonMedia(s)).toEqual([2]);});
+it('通常戦旗は30%で1種類、ボス戦旗は2種類確定',()=>{for(const [bossReward,roll,count]of [[false,.29,1],[false,.3,0],[true,.99,2]] as const){const g=GameSession.create(1,123),s=g.state;s.mapState.objects=[];s.mapState.installations=[{id:'banner',kind:'goblinBanner',position:{x:4,y:4},spawned:0,bossReward}];vi.spyOn(g.rng,'next').mockReturnValue(roll);hitInstallation(s,'banner',{rng:g.rng,events:g.events,log:()=>{}});expect(s.mapState.objects).toHaveLength(count);if(bossReward)expect(s.mapState.objects.map(o=>o.itemId)).toEqual(['healingPotion','etherMedium']);}});

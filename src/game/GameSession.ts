@@ -1,5 +1,7 @@
+import { contactBottleFire, throwBottle } from './FireBottle';
+import { gateCells, placeGate, gateDestinations } from '../skills/TransferGate';
 import { MONSTER_BOOKMARK_POOL } from '../data/loot';
-import { weighted as chooseWeightedLoot } from './LootSystem';
+import { rollCategorizedItem, weighted as chooseWeightedLoot } from './LootSystem';
 import { triggerEarthBlessing } from '../skills/EarthBlessing';
 import { contactBossFire, startBoss, actKing, tickBanners, kingPhases, isGoblin, KING_RULES } from './BossEncounter';
 import { targetableCrystals } from './CrystalTargets';
@@ -40,7 +42,7 @@ import { skillMp, wearSkill } from '../skills/SkillWear';
 import { SKILLS } from '../data/skills';
 import { dealAttributeHit } from '../skills/AttributeSystem';
 import { autoPlace, connectionDamageMultiplier, effectiveLevel } from '../skills/SkillBag';
-import { validSkillTargets, previewSkill, validSkillTarget } from '../skills/SkillResolver';
+import { skillCooldown, validSkillTargets, previewSkill, validSkillTarget } from '../skills/SkillResolver';
 import { floorRules, stageForFloor } from '../stages/DungeonRules';
 import { STAGES } from '../stages';
 import type { Command } from './Command';
@@ -173,6 +175,7 @@ export class GameSession {
     hitCrystalsAt(this.state,occupied(target),{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     // All damage paths (including reactions and fields) truncate only at this boundary.
     const value = Math.max(0, Math.floor(amount)+(attribute==='fire'?(actorDefinition(target.kind).fireVulnerability??0):0));
+    if(value>0)delete target.shadowBoundUntil;
     target.hp = Math.max(0, Math.floor(target.hp) - value);
     // 命中自体を敵視のきっかけにする（切り捨てで0ダメージでも反応）。
     // 索敵外からの攻撃や、追跡疲労によるスキップ中の攻撃にも対応します。
@@ -261,11 +264,17 @@ export class GameSession {
     s.fullBagRewardClaimed = true; s.randomSeed = this.rng.seed;
     this.log('バッグをぴったり埋めた！ 近くに' + CHESTS[tier].name + 'が出現！');
   }
-  /** 捨てた道具はそのマスから離れるまで自動取得しない。ターンは消費しない。 */
+  /** 通常道具は消滅。重要アイテムは足元へ置き、離れるまで再取得しない。ターン消費なし。 */
   dropItem(slot: number): boolean {
     const s = this.state, id = s.itemSlots[slot]; if (!id || s.status !== 'playing') return false;
     s.itemSlots.splice(slot, 1);
-    this.log(ITEMS[id].name + 'を捨てた。'); return true;
+    if(ITEMS[id].important){
+      // 重要アイテムは離れるまで再取得しない。複数個置いてもIDを重複させない。
+      let objectId='important-'+s.playerActionCount+'-'+s.mapState.objects.length;
+      while(s.mapState.objects.some(o=>o.id===objectId))objectId+='-new';
+      s.mapState.objects.push({id:objectId,type:'item',itemId:id,position:{...s.playerState.position},waitForLeave:true});
+      this.log(ITEMS[id].name+'を足元に置いた。');
+    }else this.log(ITEMS[id].name + 'を捨てた。'); return true;
   }
   collect(): void {
     const s = this.state;
@@ -329,8 +338,9 @@ export class GameSession {
     if (this.state.itemSlots.length < itemCapacity(this.state)) { this.state.itemSlots.push(id); this.log(`${ITEMS[id].name}を拾った。`); }
     else { this.state.mapState.objects.push({ id: `floor-${this.state.playerActionCount}-${this.state.mapState.objects.length}`, type: 'item', fullNotified: true, position: { ...p }, itemId: id }); this.log('道具枠がいっぱい。宝箱の道具を床に置いた。'); }
   }
-  useItem(slot: number, skillId?: SkillId): boolean {
+  useItem(slot: number, skillId?: SkillId, target?:Point): boolean {
     const s = this.state, p = s.playerState, id = s.itemSlots[slot]; if (!id) return false;
+    if(id==='fireBottle'&&(!target||!throwBottle(s,target,this.rng,this.events,this.damage,m=>this.log(m)))){this.log('投げられる方向を選んでください。');return false;}
     const cellLimit=ITEMS[id].skillCellLimit;
     if(cellLimit!==undefined){
       if(!skillId||!s.skillBag.some(b=>b.skillId===skillId)||!s.skillLevels[skillId]||SKILLS[skillId].cells.length>cellLimit){this.log(cellLimit+'マス以下の所持スキルを選んでください。');return false;}
@@ -361,6 +371,7 @@ export class GameSession {
       if(!summonCells(this.state).length)
         return '周囲に精霊が現れる空きマスがありません。';
     }
+    if(id==='transferGate'&&!gateCells(this.state).length)return '周囲十字に空きマスが必要です。';
     if(id==='icePillar'&&!(['up','right','down','left'] as const).some(direction=>icePillarCells(this.state,direction,this.rng).length>0))return '周囲十字に空きマスが必要です。';
     if(id==='fireWall'&&!previewSkill(this.state,id,this.state.playerState.facing).cells.length)return '前方が壁で設置できません。';
     if(id==='tornadoSummon'&&!previewSkill(this.state,id,this.state.playerState.facing).cells.length)return '竜巻が移動できるマスがありません。';
@@ -378,11 +389,13 @@ export class GameSession {
   }
   cast(id: SkillId, direction: keyof typeof VECTORS, aim?: Point, secondTarget?: Point): void {
     this.prepareCrystalReactions();
-    const s = this.state, p = s.playerState, def = SKILLS[id]; p.facing = direction; p.mp -= skillMp(s, id); s.cooldowns[id] = def.cooldown;
+    const s = this.state, p = s.playerState, def = SKILLS[id]; p.facing = direction; p.mp -= skillMp(s, id); s.cooldowns[id] = skillCooldown(s,id);
     if (wearSkill(s, id, this.rng)) this.log(def.name + 'が劣化し、次回からの消費MPが増えた。');
     const fieldStart=this.events.length;this.groupingDamage=true;
     const fieldCast=randomAttack(s,id,direction,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)})||castFieldSkill(s,id,direction,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)},aim);this.groupingDamage=false;
     if(fieldCast){if(this.events.slice(fieldStart).some(e=>e.type==='damage'))this.logHits(def.name,fieldStart);else this.log(def.name+'を発動！');return;}
+    if(id==='transferGate'){const cells=gateCells(s),cell=aim??cells[this.rng.int(0,cells.length-1)];placeGate(s,cell);this.events.push({type:'trap',position:cell,visual:'summonRing',sound:'magicCast'});this.log('転移門を設置した！');return;}
+    if(id==='shadowBind'){const targets=previewSkill(s,id,direction);for(const e of s.enemyStates)if(targets.targetIds.includes(e.id)){e.shadowBoundUntil=s.playerActionCount+3;e.mode='hostile';e.lastSeen={...p.position};e.alertedAt=s.playerActionCount;}this.events.push({type:'cast',actorId:p.id,position:{...p.position},path:targets.cells,target:targets.cells.at(-1),attribute:'neutral',sound:'magicCast'});this.log('影縫い！ '+targets.targetIds.length+'体に移動不可を付与。');return;}
     if(id==='thunderPrison'){startThunderPrison(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});return;}
     if(id==='icePillar'){
       const cells=placeIcePillars(s,direction,this.rng,aim);
@@ -439,9 +452,9 @@ export class GameSession {
     const impactStart=this.events.length;
     const targets = previewSkill(s, id, direction, impact);
     if (id === 'warp') {
-      const destination = targets.cells[this.rng.int(0, targets.cells.length - 1)];
+      const destination = aim ?? targets.cells[this.rng.int(0, targets.cells.length - 1)];
       this.events.push({ type: 'cast', actorId: p.id, position: { ...p.position }, target: destination, skillId: id, attribute: def.attribute });
-      p.position = { ...destination }; this.log('ランダムワープを発動！'); return;
+      p.position = { ...destination }; this.log(aim?'指定した場所へ転移！':'ランダム転移を発動！'); return;
     }
     const relocation = id === 'vacuumSlash' ? vacuumDestinations(s,s.enemyStates.find(e=>e.id===targets.targetIds[0])!) : [];
     this.events.push({ type: 'cast', actorId: p.id, position: { ...p.position }, target: impact ?? targets.cells.at(-1) ?? { ...p.position }, path: targets.cells, skillId: id, attribute: def.attribute, sound: id === 'icestone' ? 'ice' : id === 'vacuumSlash' ? 'magicCast' : id === 'sweep' ? 'strike' : undefined });
@@ -496,7 +509,7 @@ export class GameSession {
       if (s.lastKillAction === undefined || s.lastKillAction < s.playerActionCount - 1) s.killCombo = 0;
       s.killCombo = (s.killCombo ?? 0) + 1; s.lastKillAction = s.playerActionCount;
       const definition = actorDefinition(e.kind);
-      if(this.rng.next()<(definition.bookmarkDropChance??0))s.mapState.objects.push(floorLoot('bookmark-'+e.id,e.position,{type:'item',id:chooseWeightedLoot(MONSTER_BOOKMARK_POOL,this.rng)}));
+      if(this.rng.next()<(definition.bookmarkDropChance??0))s.mapState.objects.push(floorLoot('bookmark-'+e.id,e.position,{type:'item',id:s.mapState.loot?.itemCategories?rollCategorizedItem(s.mapState.loot,this.rng,s.floorNumber):chooseWeightedLoot(MONSTER_BOOKMARK_POOL,this.rng)}));
       // 基礎HPに対する実際の最大HP比を経験値へ反映。被ダメージでは報酬を減らさない。
       // ステージ加算・階層倍率を含め、夜の補正を掛けて切り上げた後に連続撃破ボーナスを適用。
       const hpMultiplier = e.maxHp / Math.max(1, definition.hp);
@@ -505,7 +518,7 @@ export class GameSession {
       const earned = Math.ceil(base * multiplier), bonus = earned - base;
       this.log(`${e.name}を倒した！経験値${earned}${bonus > 0 ? `(+${bonus})` : ''}獲得`);
       this.gainExperience(earned); this.events.push({ type: 'defeat', position: { ...e.position } });
-      rollDrops(this.stage.enemyDrops?.[e.kind as import("../data/enemies").EnemyKind] ?? actorDefinition(e.kind).drops, this.rng, this.state.floorNumber).forEach((loot, index) => this.state.mapState.objects.push(floorLoot(`drop-${e.id}-${index}`, e.position, loot)));
+      rollDrops(this.stage.enemyDrops?.[e.kind as import("../data/enemies").EnemyKind] ?? actorDefinition(e.kind).drops, this.rng, this.state.floorNumber, this.state.mapState.loot).forEach((loot, index) => this.state.mapState.objects.push(floorLoot(`drop-${e.id}-${index}`, e.position, loot)));
     }
     // 連帯責任は今回倒れたゴブリンだけを数え、王の撃破も通常処理へ渡す。
     const fallen=this.state.enemyStates.filter(e=>e.hp<=0&&isGoblin(e));
@@ -623,7 +636,7 @@ export class GameSession {
     p.hp += recovered; p.mp = p.maxMp; p.afflictions = []; delete p.frostErosion; p.movementLockedUntil = 0;
     // 一晩で期限付き状態と再使用待ちを解消。回復カウントも新しい朝から開始。
     s.cooldowns = {}; s.mpRecoveryActions = 0;
-    for (const a of this.actors) { a.buffs = []; a.afflictions = []; if(a.id!==p.id)a.hp=a.maxHp; if(a.maxMp!==undefined)a.mp=a.maxMp; }
+    for (const a of this.actors) { delete a.shadowBoundUntil; a.buffs = []; a.afflictions = []; if(a.id!==p.id)a.hp=a.maxHp; if(a.maxMp!==undefined)a.mp=a.maxMp; }
     s.allyStates=[];s.mapState.thunderPrisons=[];
     s.enemyStates=s.enemyStates.filter(e=>e.kind!=='reaper');
     s.defeatedEnemies=s.defeatedEnemies?.filter(e=>e.kind!=='reaper'&&e.kind!=='goblinKing');
@@ -674,11 +687,17 @@ export class GameSession {
         s.itemSlots.splice(keySlot,1);this.log('鉄の鍵で扉を開けた！');this.events.push({type:'pickup',position:{...next},sound:'snap'});
       }
       if (!canStand(s.mapState, p, next, ally ? others : this.actors) || ally && !canStand(s.mapState, ally, p.position, others)) { this.log('進路がふさがれています。'); return false; }
+      const destinations=gateDestinations(s,next);
+      const gate=command.gateId?destinations.find(g=>g.id===command.gateId):destinations[0];
+      if(command.gateId&&!gate){this.log('転移先の門が使えません。');return false;}
+      if(destinations.length&&p.mp>=3&&effectiveLevel(s.skillBag,s.skillLevels,'transferGate')>=3&&!command.gateId){this.log('ミニマップから転移先を選んでください。');return false;}
       if (ally) ally.position = { ...p.position };
       p.position = next; walked = true;
+      if(gate&&p.mp>=3){p.mp-=3;p.position={...gate.position};this.events.push({type:'cast',actorId:p.id,position:next,target:{...p.position},skillId:'warp',sound:'magicCast'});this.log('転移門を通った！ MP3消費。');}
+      else if(destinations.length)this.log('転移門：MP3が必要です。');
       }
     }
-    if (command.type === 'item') { if (!this.useItem(command.slot, command.skillId)) return false; this.capture('player'); this.explore(); s.randomSeed = this.rng.seed; return true; }
+    if (command.type === 'item') { if (!this.useItem(command.slot, command.skillId, command.target)) return false; this.reap(); this.capture('player'); this.explore(); s.randomSeed = this.rng.seed; return true; }
     if (command.type === 'sleep') return this.sleep();
     s.playerActionCount++; s.daylightCount = (s.daylightCount ?? 0) + 1;
     const bossWasStarted=!!s.mapState.bossArena?.started;
@@ -736,6 +755,7 @@ export class GameSession {
         this.groupingDamage = false; this.logHits('地砕きの罠', start);
         this.events.push({ type: 'trap', position: { ...trap.position }, visual: 'fallingRocks', sound: 'rocks' });
       }
+      if(arrivalActors)contactBottleFire(s,enemy,this.rng,this.events,this.damage);
       enemy.lastActedAt=s.playerActionCount;
       contactSkillFields(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
       if (arrivalActors && this.events.length > arrivalEventStart) {

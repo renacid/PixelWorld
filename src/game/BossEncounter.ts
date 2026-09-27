@@ -33,6 +33,7 @@ export function startBoss(s:SaveData,events:GameEvent[]):void {
  s.enemyStates=s.enemyStates.filter(e=>!occupied(e).some(sealed));s.allyStates=s.allyStates.filter(e=>!occupied(e).some(sealed));
  // 誤って進入マスを封鎖した場合も旅人を壁内に残さない。
  if(sealed(s.playerState.position)){const cells:Point[]=[];for(let y=arena.y;y<arena.y+arena.height;y++)for(let x=arena.x;x<arena.x+arena.width;x++)if(canStand(s.mapState,s.playerState,{x,y},[...s.enemyStates,...s.allyStates]))cells.push({x,y});if(cells.length)s.playerState.position=cells[0];}
+ s.mapState.gates=[];
  arena.started=true;for(const enemy of s.enemyStates)if(enemy.hp>0&&inArena(enemy.position,arena)){enemy.mode='hostile';enemy.lastSeen={...s.playerState.position};}king.bossLinkUntil=s.playerActionCount+KING_RULES.linkTurns;
  king.mode='hostile';king.lastSeen={...s.playerState.position};
  events.push({type:'trap',position:{...king.position},bossIntro:true,actorId:king.id,sound:'magicCast'});
@@ -61,7 +62,7 @@ export function kingPhases(s:SaveData,king:Actor,c:Context):void {
   for(const kind of [...Array(KING_RULES.bannerCount).fill('goblinBanner'),...Array(threshold===100?KING_RULES.nestCount:0).fill('goblinNest')] as ('goblinBanner'|'goblinNest')[]){
    const available=freeCells(s,king,arena);if(!available.length)break;
    const position=available[c.rng.int(0,available.length-1)];
-   (s.mapState.installations??=[]).push({id:`king-${king.id}-${threshold}-${kind}-${s.mapState.installations!.length}`,kind,position,spawned:0});
+   (s.mapState.installations??=[]).push({id:`king-${king.id}-${threshold}-${kind}-${s.mapState.installations!.length}`,kind,position,spawned:0,bossReward:kind==='goblinBanner'});
    c.events.push({type:'trap',position,visual:'summonRing',sound:'rocks',delayMs:1750});
   }
   c.log(king.name+'が大ジャンプ！ 戦旗を掲げ、MPを回復した！');

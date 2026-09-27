@@ -11,7 +11,7 @@ import type { GameSession } from '../game/GameSession';
 import { occupied, wall } from '../game/MapState';
 import type { Actor, GameEvent, Point, SkillId, TurnFrame } from '../game/types';
 import { ATTRIBUTE_COLORS, SKILLS } from '../data/skills';
-import { previewSkill, selectionRange } from '../skills/SkillResolver';
+import { previewSkill, selectionRange, validSkillTarget } from '../skills/SkillResolver';
 import type { Settings } from '../game/SaveManager';
 import { PIXEL_COLORS, spritePixels } from './SpriteAtlas';
 import { TurnAnimation } from './TurnAnimation';
@@ -170,6 +170,7 @@ export class GameCanvas {
     for (const trap of state.mapState.playerTraps ?? []) if (visible(trap.position)) {
       const p = screen(trap.position); ctx.fillStyle = '#53844e'; ctx.fillRect(p.x + 4, p.y + 22, 24, 5); ctx.strokeStyle = '#d5eb88'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x + 6, p.y + 15); ctx.lineTo(p.x + 15, p.y + 21); ctx.lineTo(p.x + 12, p.y + 8); ctx.lineTo(p.x + 25, p.y + 17); ctx.stroke();
     }
+    for(const g of state.mapState.gates??[])if(visible(g.position)){const p=screen(g.position),open=(state.mapState.gates?.length??0)>=2;ctx.fillStyle='#403c61';ctx.fillRect(p.x+5,p.y+5,22,25);ctx.fillStyle=open?'#6baee5':'#80708e';ctx.fillRect(p.x+8,p.y+8,16,20);ctx.fillStyle=open?'#beeafb':'#494459';ctx.fillRect(p.x+11,p.y+11,10,17);ctx.fillStyle='#ded6ed';ctx.fillRect(p.x+3,p.y+28,26,3);ctx.fillRect(p.x+5,p.y+4,22,4);}
     for(const i of state.mapState.installations??[])if(visible(i.position)){const p=screen(i.position);drawInstallation(ctx,i.kind,p.x,p.y);}
     const crystalCounts=new Map<string,number>();
     for(const crystal of state.mapState.crystals??[])if(visible(crystal.position)){
@@ -211,18 +212,20 @@ export class GameCanvas {
     if (this.selected && !sample) {
       const target = previewSkill(state, this.selected, state.playerState.facing, this.aim), color = ATTRIBUTE_COLORS[SKILLS[this.selected].attribute];
       if(this.selected==='icestone'&&this.secondAim){const extra=previewSkill(state,this.selected,state.playerState.facing,this.secondAim);target.cells.push(...extra.cells.filter(c=>!target.cells.some(p=>p.x===c.x&&p.y===c.y)));}
-      if (['pointArea','installation','enemyWarp','chain'].includes(SKILLS[this.selected].target)) {
+      if (['pointArea','installation','enemyWarp','chain','gate'].includes(SKILLS[this.selected].target)||(this.selected==='warp'&&(state.skillLevels.warp??1)>=3)) {
         const r = selectionRange(state, this.selected), center = state.playerState.position;
         ctx.strokeStyle = color; ctx.lineWidth = 1;
         for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
           // 氷柱の設置範囲は上下左右のみ。共通の正方形ガイドで斜めを表示しない。
-          if (SKILLS[this.selected].target === 'installation' && Math.abs(dx) + Math.abs(dy) !== 1) continue;
+          if (['installation','gate'].includes(SKILLS[this.selected].target) && Math.abs(dx) + Math.abs(dy) !== 1) continue;
+          if(this.selected==='warp'&&!validSkillTarget(state,'warp',{x:center.x+dx,y:center.y+dy}))continue;
           const cell = { x: center.x + dx, y: center.y + dy };
           if (cell.x < 0 || cell.y < 0 || cell.x >= state.mapState.width || cell.y >= state.mapState.height) continue;
           const p = screen(cell); ctx.strokeRect(p.x + 2, p.y + 2, 28, 28);
         }
         for (const aim of [this.aim,this.secondAim].filter((p):p is Point=>!!p)) { const p = screen(aim); ctx.fillStyle = '#f4fdff'; ctx.fillRect(p.x + 13, p.y + 7, 6, 18); ctx.fillRect(p.x + 7, p.y + 13, 18, 6); }
       }
+      if(this.selected==='warp'&&(state.skillLevels.warp??1)>=3&&!this.aim)target.cells=target.cells.filter(c=>validSkillTarget(state,'warp',c));
       target.cells.forEach((cell, i) => { const p = screen(cell); ctx.fillStyle = `${color}55`; ctx.fillRect(p.x + 1, p.y + 1, 30, 30); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(p.x + 2, p.y + 2, 28, 28);
         if (SKILLS[this.selected!].target === 'line') { ctx.fillStyle = '#fffdf2'; ctx.font = 'bold 17px monospace'; ctx.textAlign = 'center'; ctx.fillText(({ up: '↑', right: '→', down: '↓', left: '←' })[state.playerState.facing], p.x + 16, p.y + 21); }
         if (i === target.cells.length - 1 && SKILLS[this.selected!].target === 'line') { ctx.strokeStyle = '#fff9cb'; ctx.strokeRect(p.x + 6, p.y + 6, 20, 20); }
@@ -311,6 +314,7 @@ export class GameCanvas {
     for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) if (s.state.exploredMap[y * map.width + x]) { ctx.fillStyle = terrain(map.tiles[y * map.width + x]).solid ? '#172724' : terrain(map.tiles[y * map.width + x]).color; ctx.fillRect(x * scale, y * scale, Math.ceil(scale), Math.ceil(scale)); }
     for (const obj of map.objects) if ((timeOfDay(s.state) !== 'night' || s.visible(obj.position)) && s.state.exploredMap[obj.position.y * map.width + obj.position.x] && (obj.type === 'record' || obj.type === 'exit' || obj.type === 'gem' || obj.type === 'chest' && !obj.opened)) { ctx.fillStyle = '#ecab3e'; ctx.fillRect(obj.position.x * scale, obj.position.y * scale, Math.max(2, scale), Math.max(2, scale)); }
     for (const e of s.state.enemyStates) for (const p of occupied(e)) if (s.visible(p)) { ctx.fillStyle = '#ec6d83'; ctx.fillRect(p.x * scale, p.y * scale, Math.max(2, scale), Math.max(2, scale)); }
+    for(const g of map.gates??[]){ctx.fillStyle='#8369c5';ctx.fillRect(g.position.x*scale,g.position.y*scale,Math.max(3,scale),Math.max(3,scale));}
     ctx.fillStyle = '#3487c6'; const p = s.state.playerState.position; ctx.fillRect(p.x * scale, p.y * scale, Math.max(3, scale), Math.max(3, scale));
   }
 }

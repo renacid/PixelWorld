@@ -3,7 +3,7 @@ import { dealAttributeHit, type DamageHandler } from '../skills/AttributeSystem'
 import { installationDefinition, type InstallationPlacement } from '../data/installations';
 import { actor } from '../actors/Actor';
 import { canStand, occupied, same, wall, key } from './MapState';
-import { weighted } from './LootSystem';
+import { rollCategorizedItem, weighted } from './LootSystem';
 import type { Random } from './Random';
 import type { Actor, GameEvent, MapState, Point, SaveData } from './types';
 const neighbors = (p:Point) => [{x:p.x+1,y:p.y},{x:p.x-1,y:p.y},{x:p.x,y:p.y+1},{x:p.x,y:p.y-1}];
@@ -34,7 +34,8 @@ export function hitInstallation(state:SaveData,id:string,context:Context):boolea
  map.installations=map.installations!.filter(o=>o.id!==id);
  const counts=state.destroyedInstallations??={};counts[i.kind]=(counts[i.kind]??0)+1;
  const def=installationDefinition(i);
- if(i.kind==='goblinBanner')for(const itemId of ['healingPotion','etherMedium'] as const)map.objects.push({id:'drop-'+i.id+'-'+itemId,type:'item',position:{...i.position},itemId});
+ const bossReward=i.kind==='goblinBanner'&&(i.bossReward??i.id.startsWith('king-'));
+ if(bossReward)for(const itemId of ['healingPotion','etherMedium'] as const)map.objects.push({id:'drop-'+i.id+'-'+itemId,type:'item',position:{...i.position},itemId});
  context.events.push({type:'trap',position:{...i.position},visual:'shatter',sound:i.kind==='icePillar'?'ice':i.kind==='pot'?'shatter':'rocks',delayMs:160,durationMs:500});
  context.log(def.name+'が砕け散った！');
  if(i.kind==='icePillar'){
@@ -50,7 +51,7 @@ export function hitInstallation(state:SaveData,id:string,context:Context):boolea
   }
  }
 
- if(def.drop&&def.drop.pool.length&&context.rng.next()<def.drop.chance)map.objects.push({id:'drop-'+i.id,type:'item',position:{...i.position},itemId:weighted(def.drop.pool,context.rng)});
+ if(!bossReward&&def.drop&&def.drop.pool.length&&context.rng.next()<def.drop.chance)map.objects.push({id:'drop-'+i.id,type:'item',position:{...i.position},itemId:map.loot?.itemCategories?rollCategorizedItem(map.loot,context.rng,state.floorNumber):weighted(def.drop.pool,context.rng)});
  return true;
 }
 /** 成功した旅人の歩行だけから呼ぶ。待機・ワープ・敵の歩行では抽選しない。 */

@@ -18,8 +18,9 @@ export function actorEffectDescriptions(actor: Actor, action: number): string[] 
     effects.push(`${buff.name ? buff.name + '：' : ''}${details.join('・') || '強化'}（残り${buff.remainingTurns}ターン）`);
   }
   for (const affliction of actor.afflictions) if (affliction.remainingTurns > 0) effects.push(`${ATTRIBUTE_NAMES[affliction.attribute]}付着（残り${affliction.remainingTurns}ターン）`);
-  if (movementLocked(actor, action)) effects.push(`移動不可（残り${Math.max(actor.movementLockedUntil ?? 0, actor.frostErosion?.rootUntil ?? 0) - action}ターン）`);
+  if (movementLocked(actor, action)) effects.push(`移動不可（残り${Math.max(actor.movementLockedUntil ?? 0, actor.frostErosion?.rootUntil ?? 0, actor.shadowBoundUntil ?? 0) - action}ターン）`);
   if ((actor.stunnedUntil ?? 0) > action) effects.push(`行動不可（残り${actor.stunnedUntil! - action}ターン）`);
+  if ((actor.shadowBoundUntil??0)>action) effects.push('影縫い：ダメージを受けると解除');
   if (actor.frostErosion) effects.push('霜蝕：' + (actor.frostErosion.spent ? '追加ダメージ消費済み' : '次の属性反応で追加ダメージ'));
   const weakness = actorDefinition(actor.kind).fireVulnerability;
   if (weakness) effects.push(`炎耐性低下：受ける炎ダメージ＋${weakness}（永久）`);

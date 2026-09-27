@@ -11,4 +11,4 @@ export function criticalChance(a: Actor, target: Actor, attribute: Attribute): n
 export function applyBuff(actor: Actor, buff: NonNullable<Actor['buffs']>[number]): void { actor.buffs=(actor.buffs??[]).filter(b=>b.id!==buff.id);actor.buffs.push({...buff}); }
 
 /** 独立した移動不可効果を合成。霜蝕の解除は他の移動不可を解除しない。 */
-export function movementLocked(a:Actor,action:number):boolean{return (a.movementLockedUntil??0)>action||(a.frostErosion?.rootUntil??0)>action;}
+export function movementLocked(a:Actor,action:number):boolean{return (a.shadowBoundUntil??0)>action||(a.movementLockedUntil??0)>action||(a.frostErosion?.rootUntil??0)>action;}

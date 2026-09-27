@@ -8,7 +8,7 @@ import type { Random } from '../game/Random';
 export function icePillarCells(s: SaveData,direction: Direction,rng: Random,target?: Point): Point[]{
  const p=s.playerState,v=VECTORS[direction],level=effectiveLevel(s.skillBag,s.skillLevels,'icePillar');
  const cells:Point[]=[],actors=[p,...s.allyStates,...s.enemyStates];
- const free=(c:Point)=>!cells.some(t=>same(t,c))&&canStand(s.mapState,{...p,cells:[{x:0,y:0}],id:'pillar-probe'},c,actors)&&!s.mapState.crystals?.some(o=>same(o.position,c))&&!s.mapState.objects.some(o=>same(o.position,c))&&!s.mapState.traps?.some(t=>same(t.position,c))&&!s.mapState.playerTraps?.some(t=>same(t.position,c))&&!s.mapState.fields.some(f=>same(f.position,c));
+ const free=(c:Point)=>!s.mapState.gates?.some(g=>same(g.position,c))&&!cells.some(t=>same(t,c))&&canStand(s.mapState,{...p,cells:[{x:0,y:0}],id:'pillar-probe'},c,actors)&&!s.mapState.crystals?.some(o=>same(o.position,c))&&!s.mapState.objects.some(o=>same(o.position,c))&&!s.mapState.traps?.some(t=>same(t.position,c))&&!s.mapState.playerTraps?.some(t=>same(t.position,c))&&!s.mapState.fields.some(f=>same(f.position,c));
  const chosen=target&&Math.abs(target.x-p.position.x)+Math.abs(target.y-p.position.y)===1?target:{x:p.position.x+v.x,y:p.position.y+v.y};
  const first={x:chosen.x,y:chosen.y};if(!free(first))return cells;cells.push(first);
  if (level >= 3) {

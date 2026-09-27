@@ -77,7 +77,7 @@ function generateBaseMap(stage: Stage, rng: Random, floor = 1): { map: MapState;
       const enemy = actor(`enemy-${enemies.length}`, entry.kind, { x: 0, y: 0 }, stage.id, floor);
       enemy.position = freeCell(enemy); enemies.push(enemy);
     }
-    const gemLimit = Math.min(1, Math.max(0, stage.dungeon?.overrides?.[floor]?.gemCount ?? layout.gemCount ?? rules.gemCount));
+  const gemLimit = Math.min(5, Math.max(0, stage.dungeon?.overrides?.[floor]?.gemCount ?? layout.gemCount ?? rules.gemCount));
     let fixedGems = 0; map.objects = map.objects.filter(o => o.type !== 'gem' || fixedGems++ < gemLimit);
     const token = actor('placement-token', 'slime', { x: 0, y: 0 });
     for (let i = 0; i < (layout.randomChests ?? 0); i++) map.objects.push({ id: `random-chest-${i}`, type: 'chest', position: freeCell(token), chestTier: weighted([{ value: 'wood' as const, weight: 4 }, { value: 'iron' as const, weight: 3 }, { value: 'silver' as const, weight: 2 }, { value: 'gold' as const, weight: 1 }], rng) });
@@ -177,6 +177,11 @@ export function generateMap(base: Stage, rng: Random, floor = 1): { map: MapStat
     if(!cells.length)throw new Error(stage.name+': 初期宝箱の隣に魔導書の空きマスがありません');
     map.objects.push({id:'starting-skill-book',type:'skillBook',position:cells[0]});
   }
+ }
+ // 洞窟以降は手書きの固定宝箱にも転移門を1つ追加する（開始階層のみ）。
+ if(floor===1&&(Number(stage.code?.split('-')[0])>=3||stage.regionId==='cave')){
+  const chest=map.objects.filter(o=>o.type==='chest'&&distance(o.position,spawn)<=2).sort((a,b)=>distance(a.position,spawn)-distance(b.position,spawn))[0];
+  if(chest){chest.contents??=[];if(!chest.contents.some(l=>l.type==='skill'&&l.id==='transferGate'))chest.contents.push({type:'skill',id:'transferGate'});chest.skillIds=[...new Set([...(chest.skillIds??[]),'transferGate' as const])];}
  }
  placeInstallations(map, stage.installationPlacements ?? [], rng, spawn, enemies);
  // 手置き・開始地点の書も合算。追加の書は空き床へ配置し、階層単位の上限を守る。

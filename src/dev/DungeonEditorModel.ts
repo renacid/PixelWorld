@@ -53,10 +53,12 @@ export function exportStage(project:EditorProject):Stage {
   const legend=Object.fromEntries(tileIds.map((id,i)=>[symbols[i],id]));
   for(const [i,f] of project.floors.entries()){
     const rows=Array.from({length:f.height},(_,y)=>f.tiles.slice(y*f.width,(y+1)*f.width).map(id=>symbols[tileIds.indexOf(id)]).join(''));
-    floorSettings[i+1]={...structuredClone(f.settings),width:f.width,height:f.height,clearCondition:structuredClone(f.clearCondition),layout:{bossArena:structuredClone(f.bossArena),rows,legend,spawn:{...f.spawn},objects:structuredClone(f.objects),enemies:structuredClone(f.enemies),traps:structuredClone(f.traps),installations:structuredClone(f.installations),randomChests:f.randomChests,gemCount:f.gemCount,randomEnemies:[],trapPlacements:[]}};
+    floorSettings[i+1]={...structuredClone(f.settings??{}),width:f.width,height:f.height,clearCondition:structuredClone(f.clearCondition),layout:{bossArena:structuredClone(f.bossArena),rows,legend,spawn:{...f.spawn},objects:structuredClone(f.objects),enemies:structuredClone(f.enemies),traps:structuredClone(f.traps),installations:structuredClone(f.installations),randomChests:Math.max(0,Math.floor(Number(f.randomChests)||0)),gemCount:Math.min(5,Math.max(0,Math.floor(Number(f.gemCount)||0))),randomEnemies:[],trapPlacements:[]}};
   }
   const first=project.floors[0];
-  return {...structuredClone(project.stage),width:first.width,height:first.height,dungeon:{...project.stage.dungeon!,floors:project.floors.length,overrides:{...project.stage.dungeon?.overrides,...Object.fromEntries(project.floors.map((f,i)=>[i+1,{...project.stage.dungeon?.overrides?.[i+1],gemCount:f.gemCount}]))}},floorSettings};
+  const dungeon=project.stage.dungeon??{gemCount:0,extraPassages:0,enemyVariance:0,nightRevival:{min:1,max:2}};
+  const overrides=project.stage.dungeon?.overrides??{};
+  return {...structuredClone(project.stage),width:first.width,height:first.height,dungeon:{...dungeon,floors:project.floors.length,overrides:{...overrides,...Object.fromEntries(project.floors.map((f,i)=>[i+1,{...overrides[i+1],gemCount:Math.min(5,Math.max(0,Math.floor(Number(f.gemCount)||0)))}]))}},floorSettings};
 }
 export function stageCode(project:EditorProject):string {
   return '/** ダンジョン工房で作成。src/stages/地域名/番号.ts に保存してください。 */\nimport type { Stage } from "../../game/types";\n\nexport const stage: Stage = '+JSON.stringify(exportStage(project),null,2)+';\n';
@@ -87,8 +89,9 @@ export function validateProject(project:EditorProject):string[] {
       if(f.enemies.some(e=>e.kind==='goblinKing'&&(a.sealTiles??[]).some(p=>samePoint(p,e.position))))fail('ボスの配置マスは封鎖できません');
     }
     const exits=f.objects.filter(o=>o.type==='exit');if(!exits.length)fail('出口を置いてください');
+    if(f.gemCount<0||f.gemCount>5)fail('宝石上限は0～5にしてください');
     if(f.objects.filter(o=>o.type==='gem').length>f.gemCount)fail('宝石配置数が宝石上限を超えています');
-    if(f.objects.filter(o=>o.type==='skillBook').length>(f.settings.skillBooks?.max??1))fail('魔導書配置数が上限を超えています');
+    if(f.objects.filter(o=>o.type==='skillBook').length>(f.settings?.skillBooks?.max??1))fail('魔導書配置数が上限を超えています');
     if(f.clearCondition.type==='records'&&f.objects.filter(o=>o.type==='record').length<f.clearCondition.count)fail('クリアに必要な古代の記録が不足しています');
     if(f.clearCondition.type==='destroyInstallations'&&f.installations.filter(o=>o.kind===(f.clearCondition as {kind:string}).kind).length<f.clearCondition.count)fail('破壊目標の設置物が不足しています');
     const reached=new Set<string>(),queue=[f.spawn];

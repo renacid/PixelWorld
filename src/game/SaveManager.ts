@@ -86,6 +86,7 @@ export function validSave(value: unknown): value is SaveData {
     if (s.daylightCount !== undefined && (!Number.isInteger(s.daylightCount) || s.daylightCount < 0)) return false;
     if (s.defeatedEnemies !== undefined && (!Array.isArray(s.defeatedEnemies) || !s.defeatedEnemies.every(a => isActorKind(a.kind) && typeof a.id === 'string' && Number.isInteger(a.position.x) && Number.isInteger(a.position.y)))) return false;
     for (const a of [s.playerState, ...s.allyStates, ...s.enemyStates]) {
+      if(a.shadowBoundUntil!==undefined&&(!Number.isInteger(a.shadowBoundUntil)||a.shadowBoundUntil<0))return false;
       if (a.criticalRate !== undefined && (!Number.isFinite(a.criticalRate) || a.criticalRate < 0 || a.criticalRate > 1)) return false;
       if (a.criticalMultiplier !== undefined && (!Number.isFinite(a.criticalMultiplier) || a.criticalMultiplier < 1)) return false;
       if (a.buffs !== undefined && (!Array.isArray(a.buffs) || !a.buffs.every(b => typeof b.id === 'string' && (b.attackBonus === undefined || Number.isFinite(b.attackBonus)) && Number.isInteger(b.remainingTurns) && b.remainingTurns > 0 && Number.isInteger(b.appliedAt) && Number.isFinite(b.attackMultiplier) && b.attackMultiplier >= 1 && Number.isInteger(b.detectionBonus) && b.detectionBonus >= 0))) return false;
@@ -108,6 +109,7 @@ export function validSave(value: unknown): value is SaveData {
     if (new Set(s.skillBag.map(b => b.skillId)).size !== s.skillBag.length || !s.skillBag.every(b => b.skillId in SKILLS && Number.isInteger(b.rotation) && b.rotation >= 0 && b.rotation < 4 && (b.position === null || validPlacement(s.skillBag, b.skillId, b.position, b.rotation, s.bagCells)))) return false;
     if (!Object.entries(s.skillLevels).every(([id, n]) => id in SKILLS && Number.isInteger(n) && n > 0) || !s.skillBag.every(b => s.skillLevels[b.skillId])) return false;
     if (!Object.entries(s.cooldowns).every(([id, n]) => id in SKILLS && Number.isInteger(n) && n >= 0)) return false;
+    if(m.gates!==undefined&&(!Array.isArray(m.gates)||m.gates.length>5||new Set(m.gates.map(g=>g.id)).size!==m.gates.length||!m.gates.every(g=>typeof g.id==='string'&&point(g.position)&&Number.isInteger(g.placedAt))))return false;
     if (m.installations !== undefined && (!Array.isArray(m.installations) || new Set(m.installations.map(i=>i.id)).size !== m.installations.length || !m.installations.every(i=>typeof i.id==='string' && i.kind in INSTALLATIONS && point(i.position) && Number.isInteger(i.spawned) && i.spawned>=0))) return false;
     if (!m.objects.every(o => point(o.position) && ['skillBook', 'record', 'chest', 'item', 'skill', 'exit', 'gem'].includes(o.type) && (!o.skillId || o.skillId in SKILLS) && (!o.skillIds || o.skillIds.every(id => id in SKILLS)) && (!o.itemId || o.itemId in ITEMS) && (!o.chestTier || o.chestTier in CHESTS) && (o.contents === undefined || Array.isArray(o.contents) && o.contents.every(l => l.type === 'item' ? l.id in ITEMS : l.type === 'skill' && l.id in SKILLS)))) return false;
     return Array.isArray(m.fields) && m.fields.every(f => point(f.position) && attributes.includes(f.attribute) && Number.isFinite(f.remainingTurns));

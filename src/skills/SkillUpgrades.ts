@@ -2,6 +2,9 @@ import { SKILLS } from '../data/skills';
 import type { SkillId } from '../game/types';
 /** 特殊なレベル強化はここへ集約。通常の説明には基本効果だけを載せる。 */
 export const SKILL_UPGRADES: Partial<Record<SkillId,Record<number,string>>> = {
+ warp:{3:'7×7内の空きマスを指定して転移可能。未指定なら従来のランダム転移。CTを基本値から5短縮。',5:'指定範囲9×9。CTを基本値から合計10短縮。'},
+ transferGate:{3:'最大3門。門を踏むとミニマップで転移先を選択できる。',5:'最大5門。'},
+ shadowBind:{3:'直線4マスになる。',5:'前方4×横3の12マスになる。'},
  fireball:{5:'着弾点と上下左右の計5マスに、3ターン持続する炎上床（30%炎ダメージ）を生成。'},
  flurry:{3:'追加攻撃が3回（初撃を含め4回）になる。',5:'追加攻撃が4回（初撃を含め5回）になる。'},
  randomThunder:{3:'対象が2体になる。',5:'対象が4体になる。'},

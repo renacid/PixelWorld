@@ -32,7 +32,7 @@ export function summonMedia(s: SaveData): number[] {
   const slots = s.itemSlots.map((id, index) => ({
     index,
     rank: ITEMS[id].rareRank
-  }));
+  })).filter(e => !ITEMS[s.itemSlots[e.index]].important);
 
   if (!slots.length) return [];
 
