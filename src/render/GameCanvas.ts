@@ -16,6 +16,7 @@ import type { Settings } from '../game/SaveManager';
 import { PIXEL_COLORS, spritePixels } from './SpriteAtlas';
 import { TurnAnimation } from './TurnAnimation';
 import { terrain } from '../data/terrain';
+import { drawTerrain } from './TerrainRenderer';
 export const TILE = 32, VIEW_SIZE = 320, DRAW_CELLS = 11;
 type Effect = GameEvent & { born: number; duration: number; index: number; played: boolean; shown: boolean };
 export class GameCanvas {
@@ -26,7 +27,6 @@ export class GameCanvas {
   private animation: TurnAnimation | null = null;
   private animationStart = 0;
   private phase = '';
-  private tileImages = new Map<string, HTMLImageElement>();
   session: GameSession | null = null;
   selected: SkillId | null = null;
   aim?: Point;
@@ -92,6 +92,10 @@ export class GameCanvas {
       ctx.fillStyle = flash ? '#fffcef' : color; ctx.fillRect(Math.round(cx - scaleX * pixelWidth / 2 + px * scaleX), Math.round(spriteTop + py * scaleY + bob - foot), scaleX, Math.round(spriteTop + (py + 1) * scaleY + bob - foot) - Math.round(spriteTop + py * scaleY + bob - foot));
     }
     // 王冠と深紅の肩飾りで、同じ1マスの兵士から区別する。
+    if(a.kind==='greaterCrystalFlower'){
+      ctx.strokeStyle='#245f43';ctx.lineWidth=2;
+      for(let i=0;i<5;i++){const phase=this.settings.motion?clock/450+i:i;ctx.beginPath();ctx.moveTo(cx+(i-2)*7,y+height-12);ctx.quadraticCurveTo(cx+(i-2)*12+Math.sin(phase)*4,y+height-23,cx+(i-2)*13+Math.cos(phase)*3,y+height-5);ctx.stroke();}
+    }
     if(a.kind==='goblinKing'){
       ctx.fillStyle='#6b273e';ctx.fillRect(cx-12,spriteTop+17,5,10);ctx.fillRect(cx+7,spriteTop+17,5,10);
       ctx.fillStyle='#79502d';ctx.fillRect(cx-9,spriteTop+2,18,7);ctx.fillStyle='#ffd36d';ctx.fillRect(cx-8,spriteTop+3,16,5);
@@ -100,27 +104,11 @@ export class GameCanvas {
     if (a.kind !== 'player' && a.hp < a.maxHp) { ctx.fillStyle = '#fffefa'; ctx.fillRect(cx - 12, y, 24, 4); ctx.fillStyle = '#f27276'; ctx.fillRect(cx - 11, y + 1, 22 * a.hp / a.maxHp, 2); }
   }
 
-  private tile(ctx: CanvasRenderingContext2D, x: number, y: number, tx: number, ty: number, isWall: boolean, explored: boolean): void {
+  private tile(ctx: CanvasRenderingContext2D, x: number, y: number, tx: number, ty: number, _isWall: boolean, explored: boolean): void {
     if (!explored) { ctx.fillStyle = '#080b10'; ctx.fillRect(x, y, TILE + .5, TILE + .5); return; }
-    const map = this.session!.state.mapState, id = map.tiles[ty * map.width + tx], def = terrain(id);
-    if (explored && (id > 2 || def.pixels || def.image)) {
-      ctx.fillStyle = def.color; ctx.fillRect(x, y, TILE, TILE);
-      if (def.pixels) { const rows = def.pixels, h = rows.length, w = rows[0].length; rows.forEach((row, py) => [...row].forEach((symbol, px) => { const color = def.palette?.[symbol]; if (color) { ctx.fillStyle = color; ctx.fillRect(x + px * TILE / w, y + py * TILE / h, TILE / w, TILE / h); } })); }
-      if (def.image) { let image = this.tileImages.get(def.image); if (!image) { image = new Image(); image.src = `${import.meta.env.BASE_URL}${def.image}`; this.tileImages.set(def.image, image); } if (image.complete && image.naturalWidth) ctx.drawImage(image, x, y, TILE, TILE); }
-      if (this.settings.grid) { ctx.strokeStyle = '#407d4840'; ctx.strokeRect(x, y, TILE, TILE); } return;
-    }
-    const hash = Math.abs(Math.imul(tx + 71, 198491317) ^ Math.imul(ty + 13, 6542989));
-    ctx.fillStyle = !explored ? '#cfdfdb' : isWall ? '#91bc8e' : ['#a2db83', '#a8df87', '#a4dc84', '#9ed980'][hash % 4]; ctx.fillRect(x, y, TILE + .5, TILE + .5);
-    if (!explored) { if (hash % 3 === 0) { ctx.fillStyle = '#bcd3ce'; ctx.fillRect(x + 13, y + 13, 2, 2); } return; }
-    if (isWall) {
-      ctx.fillStyle = '#7ca988'; ctx.fillRect(x + 1, y + 24, 30, 7); ctx.fillStyle = '#c3d4b1'; ctx.fillRect(x + 1, y + 3, 29, 21); ctx.fillStyle = '#e2eccb'; ctx.fillRect(x + 2, y + 3, 27, 4);
-      ctx.fillStyle = '#9ebc98'; ctx.fillRect(x + 3, y + 18, 26, 5); ctx.fillRect(x + 14, y + 8, 2, 6); ctx.fillStyle = '#68b97b'; ctx.fillRect(x + 2, y + 1, 8, 4);
-    } else {
-      const gx = x + 4 + hash % 19, gy = y + 4 + (hash >> 5) % 20;
-      ctx.fillStyle = '#7abc6a'; ctx.fillRect(gx, gy, 2, 4); ctx.fillRect(gx - 2, gy + 1, 2, 2); ctx.fillRect(gx + 2, gy - 1, 2, 4);
-      if (hash % 11 === 0) { ctx.fillStyle = hash % 2 ? '#fff3b7' : '#fffdf3'; ctx.fillRect(x + 18, y + 12, 2, 6); ctx.fillRect(x + 16, y + 14, 6, 2); ctx.fillStyle = '#efb64c'; ctx.fillRect(x + 18, y + 14, 2, 2); }
-    }
-    if (this.settings.grid) { ctx.strokeStyle = '#407d4820'; ctx.lineWidth = .5; ctx.strokeRect(x, y, TILE, TILE); }
+    const map = this.session!.state.mapState;
+    drawTerrain(ctx, map.tiles[ty * map.width + tx], x, y, TILE, map, tx, ty);
+    if (this.settings.grid) { ctx.strokeStyle = '#407d4840'; ctx.lineWidth = .5; ctx.strokeRect(x, y, TILE, TILE); }
   }
   draw(): void {
     const s = this.session; if (!s) return;
@@ -171,7 +159,13 @@ export class GameCanvas {
       const p = screen(trap.position); ctx.fillStyle = '#53844e'; ctx.fillRect(p.x + 4, p.y + 22, 24, 5); ctx.strokeStyle = '#d5eb88'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x + 6, p.y + 15); ctx.lineTo(p.x + 15, p.y + 21); ctx.lineTo(p.x + 12, p.y + 8); ctx.lineTo(p.x + 25, p.y + 17); ctx.stroke();
     }
     for(const g of state.mapState.gates??[])if(visible(g.position)){const p=screen(g.position),open=(state.mapState.gates?.length??0)>=2;ctx.fillStyle='#403c61';ctx.fillRect(p.x+5,p.y+5,22,25);ctx.fillStyle=open?'#6baee5':'#80708e';ctx.fillRect(p.x+8,p.y+8,16,20);ctx.fillStyle=open?'#beeafb':'#494459';ctx.fillRect(p.x+11,p.y+11,10,17);ctx.fillStyle='#ded6ed';ctx.fillRect(p.x+3,p.y+28,26,3);ctx.fillRect(p.x+5,p.y+4,22,4);}
-    for(const i of state.mapState.installations??[])if(visible(i.position)){const p=screen(i.position);drawInstallation(ctx,i.kind,p.x,p.y);}
+    for(const i of state.mapState.installations??[])if(visible(i.position)){
+      const emerging=this.effects.find(e=>e.actorId===i.id&&e.visual==='iceLance');
+      if(emerging&&clock<emerging.born)continue;
+      const p=screen(i.position);ctx.save();
+      if(emerging){const t=Math.max(0,Math.min(1,(clock-emerging.born)/emerging.duration));ctx.beginPath();ctx.rect(p.x,p.y+32*(1-t),32,32*t);ctx.clip();}
+      drawInstallation(ctx,i.kind,p.x,p.y);ctx.restore();
+    }
     const crystalCounts=new Map<string,number>();
     for(const crystal of state.mapState.crystals??[])if(visible(crystal.position)){
       const p=screen(crystal.position),key=crystal.position.x+','+crystal.position.y,index=crystalCounts.get(key)??0;
@@ -304,6 +298,13 @@ export class GameCanvas {
       const fall=Math.min(1,age*2),mx=to.x+16,my=to.y+16-(1-fall)*64;
       ctx.fillStyle='#ffb744';ctx.fillRect(mx-5,my-20,10,20);ctx.fillStyle='#f1703e';ctx.fillRect(mx-9,my-9,18,18);ctx.fillStyle='#7b5146';ctx.fillRect(mx-6,my-4,12,11);ctx.fillStyle='#ffe0a0';ctx.fillRect(mx-4,my-6,5,5);
       if(fall===1)for(const cell of e.path??[]){const p=screen(cell);ctx.fillStyle='#ff8a4566';ctx.fillRect(p.x+2,p.y+2,28,28);}
+    }
+    else if(e.skillId==='blizzardBreath'){
+      for(const [i,cell] of (e.path??[]).entries()){
+        const p=screen(cell),distance=Math.max(Math.abs(cell.x-e.position.x),Math.abs(cell.y-e.position.y)),t=age*1.6-distance*.09;
+        if(t<0||t>1)continue;ctx.globalAlpha*=Math.sin(t*Math.PI)*.7;ctx.fillStyle='#9ee6ff';ctx.fillRect(p.x+1,p.y+1,30,30);ctx.globalAlpha=1;
+        ctx.fillStyle='#f4ffff';for(let j=0;j<3;j++){const drift=(t*31+i*7+j*11)%28;ctx.fillRect(p.x+drift,p.y+5+j*8,5,2);}
+      }
     }
     else if (e.skillId === 'firerain') { for (const [i, cell] of (e.path ?? []).entries()) { const p = screen(cell), pulse = (age * 3 + i % 3 * .06) % 1; ctx.fillStyle = '#ff965c'; ctx.fillRect(p.x + 12, p.y - 13 + pulse * 30, 5, 12); ctx.fillStyle = '#fff19b'; ctx.fillRect(p.x + 13, p.y - 8 + pulse * 30, 3, 6); } }
     else { const angle = Math.atan2(to.y - from.y, to.x - from.x); ctx.strokeStyle = e.type === 'attack' ? e.actorId?.startsWith('ally') ? '#39bdb1' : '#ef6d85' : '#fff5bc'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(from.x + 16, from.y + 16, 23, angle - 1.2 + age, angle + .2 + age); ctx.stroke(); ctx.strokeStyle = '#fffefa'; ctx.lineWidth = 2; ctx.stroke(); }

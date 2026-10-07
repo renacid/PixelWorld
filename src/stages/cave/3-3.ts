@@ -40,6 +40,7 @@ export const stage: Stage = {
   },
   "floorSettings": {
     "1": {
+      "enemyMultiplier": 1,
       "trapPlacements": [
         {
           "count": 3,
@@ -1059,6 +1060,7 @@ export const stage: Stage = {
       }
     },
     "2": {
+      "enemyMultiplier": 1.4,
       "objective": "採掘跡の巣穴を2つ破壊し、東の昇降路へ",
       "skillBooks": {
         "max": 3,
@@ -1503,6 +1505,7 @@ export const stage: Stage = {
       }
     },
     "3": {
+      "enemyMultiplier": 1.8,
       "objective": "神殿の3枚の古代の記録を集め、北の祭壇へ",
       "skillBooks": {
         "max": 3,

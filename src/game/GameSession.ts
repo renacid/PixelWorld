@@ -8,6 +8,7 @@ import { targetableCrystals } from './CrystalTargets';
 import { startThunderPrison, tickThunderPrisons } from '../skills/ThunderPrison';
 import { afterSwirlCrystals, createCrystal, crystalSource, hitCrystalsAt, tickCrystals } from './CrystalSystem';
 import { bindAttributeBatch, bindCrystalReaction, bindSwirlReaction, reactionLabel } from '../skills/AttributeSystem';
+import { placeBreathPillars } from '../skills/BlizzardBreath';
 import { icePillarCells, placeIcePillars } from '../skills/IcePillar';
 import { initializeBooks, rollBookAttributes } from './SkillBooks';
 import {randomAttack} from '../skills/RandomAttacks';
@@ -90,6 +91,8 @@ export class GameSession {
     // 旧セーブで朝まで残っていた死神も補正し、通常の復活候補には入れない。
     if(timeOfDay(state)!=='night')state.enemyStates=state.enemyStates.filter(e=>e.kind!=='reaper');
     state.defeatedEnemies=state.defeatedEnemies.filter(e=>e.kind!=='reaper'&&e.kind!=='goblinKing');
+    // 変更前のセーブと復活待ちの個体にも、大結晶花の通常移動禁止を反映。
+    for(const enemy of [...state.enemyStates,...state.defeatedEnemies])if(enemy.kind==='greaterCrystalFlower')enemy.immobile=actorDefinition(enemy.kind).immobile;
     state.reinforcementKinds=state.reinforcementKinds?.filter(k=>k!=='reaper'&&k!=='goblinKing');
     // Older saves remain playable; existing hostile enemies do not alert again.
     for (const a of this.actors) {
@@ -457,7 +460,7 @@ export class GameSession {
       p.position = { ...destination }; this.log(aim?'指定した場所へ転移！':'ランダム転移を発動！'); return;
     }
     const relocation = id === 'vacuumSlash' ? vacuumDestinations(s,s.enemyStates.find(e=>e.id===targets.targetIds[0])!) : [];
-    this.events.push({ type: 'cast', actorId: p.id, position: { ...p.position }, target: impact ?? targets.cells.at(-1) ?? { ...p.position }, path: targets.cells, skillId: id, attribute: def.attribute, sound: id === 'icestone' ? 'ice' : id === 'vacuumSlash' ? 'magicCast' : id === 'sweep' ? 'strike' : undefined });
+    this.events.push({ type: 'cast', actorId: p.id, position: { ...p.position }, target: impact ?? targets.cells.at(-1) ?? { ...p.position }, path: targets.cells, skillId: id, attribute: def.attribute, durationMs:id==='blizzardBreath'?850:undefined, castingAura:id==='blizzardBreath', sound: id === 'blizzardBreath'||id === 'icestone' ? 'ice' : id === 'vacuumSlash' ? 'magicCast' : id === 'sweep' ? 'strike' : undefined });
     const level = effectiveLevel(s.skillBag, s.skillLevels, id), multiplier = (1 + (level - 1) * .05) * connectionDamageMultiplier(s.skillBag, id);
     const hitStart = this.events.length; this.groupingDamage = true;
     for (const targetId of targets.targetIds) {
@@ -473,6 +476,11 @@ export class GameSession {
         const v = VECTORS[direction], pos = { x: target.position.x + v.x, y: target.position.y + v.y };
         if (canStand(s.mapState, target, pos, this.actors)) target.position = pos;
       }
+    }
+    if(id==='blizzardBreath'){
+      for(const event of this.events.slice(hitStart))event.delayMs=(event.delayMs??0)+650;
+      const pillars=placeBreathPillars(s,targets.cells,this.rng);
+      for(const [i,pillar] of pillars.entries())this.events.push({type:'trap',actorId:pillar.id,position:{...pillar.position},visual:'iceLance',sound:i===0?'magicCast':undefined,delayMs:900+i*65,durationMs:400});
     }
     if(id==='fireball'&&level>=5&&targets.cells.length){
       const center=targets.cells.at(-1)!;
@@ -733,7 +741,7 @@ export class GameSession {
       const beforePosition = { ...enemy.position };
       const innate = actorDefinition(enemy.kind).innateAttribute;
       if (innate && innate !== 'wind') { enemy.afflictions = enemy.afflictions.filter(f => f.attribute !== innate); if (enemy.afflictions.length >= 2) enemy.afflictions.shift(); enemy.afflictions.push({ attribute: innate, remainingTurns: 10, appliedAt: s.playerActionCount }); }
-      const skillContext = { hitInstallation:(id:string)=>hitInstallation(s,id,{rng:this.rng,events:this.events,log:m=>this.log(m)}), action: s.playerActionCount, allies: s.enemyStates, map: s.mapState, actors: this.actors, rng: this.rng, events: this.events, damage: (target: Actor, amount: number, attribute: Attribute, _critical?: boolean, label?: string) => this.strike(enemy, target, amount, attribute, label), log: (message: string) => { if (this.inPlayerScreen(enemy.position) || this.events.at(-1)?.path?.some(p => this.inPlayerScreen(p))) this.log(message); } };
+      const skillContext = { spawn:(kind:import('../data/enemies').EnemyKind,position:Point,experienceMultiplier:number)=>{const summoned=actor('summoned-'+s.playerActionCount+'-'+s.enemyStates.length,kind,position,s.stageId,s.floorNumber);summoned.experienceMultiplier=experienceMultiplier;summoned.summonedBy=enemy.id;summoned.mode='hostile';summoned.lastSeen={...p.position};summoned.pursuitLeft=summoned.pursuitTurns;summoned.alertedAt=s.playerActionCount;s.enemyStates.push(summoned);return summoned;}, hitInstallation:(id:string)=>hitInstallation(s,id,{rng:this.rng,events:this.events,log:m=>this.log(m)}), action: s.playerActionCount, allies: s.enemyStates, map: s.mapState, actors: this.actors, rng: this.rng, events: this.events, damage: (target: Actor, amount: number, attribute: Attribute, _critical?: boolean, label?: string) => this.strike(enemy, target, amount, attribute, label), log: (message: string) => { if (this.inPlayerScreen(enemy.position) || this.events.at(-1)?.path?.some(p => this.inPlayerScreen(p))) this.log(message); } };
       // 支援は敵を見つけていなくても使用可能。攻撃スキルは通常AIの索敵後に試す。
       Object.assign(skillContext,{allowSkills:canRollSkills});
       enemy.enemyCooldownUntil ??= {};

@@ -3,6 +3,7 @@ import type { SkillId, ItemId } from '../game/types';
 export type PixelIcon = { rows: string[]; color: string; image?: string };
 const make=(color:string,rows:string[]):PixelIcon=>({color,rows:rows.flatMap(row=>[...Array(2)].map(()=>[...row].map(c=>c+c).join('')))});
 export const SKILL_ICONS:Record<SkillId,PixelIcon>={
+ blizzardBreath:make('#77c8e8',['..w...w.','.gw..wg.','ggw.wgg.','.ggwgg..','..www...','...w....','..gwg...','...g....']),
  shadowBind:make('#74708c',['....w...','...wg...','..wg....','.wg.....','ggggggg.','.g.g.g..','..ggg...','........']),
  transferGate:make('#80bde0',['.wwwwww.','wwggggww','wg....gw','wg....gw','wg....gw','wg....gw','ww....ww','.wwwwww.']),
  earthBlessing:make('#ab8655',['...ww...','..wwww..','...ww...','.ggwwgg.','gggggggg','.gggggg.','..gggg..','...gg...']),

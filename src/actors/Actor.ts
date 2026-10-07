@@ -1,6 +1,7 @@
 /** キャラクターの基礎値・占有セルを生成。正方形1・4・9マスのみ。追跡間隔はchaseMoveLimit、回復確率はchaseRecoveryChance。 */
 import type { Actor, Player, Point } from '../game/types';
 import { STAGES } from '../stages';
+import { enemyFloorMultiplier } from '../stages/DungeonRules';
 import { actorDefinition } from '../data/enemies';
 export function isSquareFootprint(cells: Point[]): boolean {
   const side = Math.sqrt(cells.length);
@@ -9,9 +10,8 @@ export function isSquareFootprint(cells: Point[]): boolean {
 export function rectangle(width: number, height: number): Point[] { if (width !== height || ![1, 2, 3].includes(width)) throw new Error('占有サイズは1×1・2×2・3×3のみです。'); return Array.from({ length: width * height }, (_, i) => ({ x: i % width, y: Math.floor(i / width) })); }
 export function actor(id: string, kind: Actor['kind'], position: Point, stage = 1, floor = 1): Actor {
   const d = actorDefinition(kind);
-  // 第3層から1.2倍、第6層から1.44倍。再生成する敵にも同じ基準値から適用。
-  const rule = STAGES.find(s => s.id === stage)?.dungeon?.enemyScaling;
-  const multiplier = kind !== 'player' && kind !== 'sprite' && kind !== 'greaterSprite' && rule ? rule.multiplier ** Math.floor(floor / Math.max(1, rule.everyFloors)) : 1;
+  // 固定配置・召喚・再出現すべて同じ階層倍率。味方は対象外。
+  const multiplier = kind !== 'player' && kind !== 'sprite' && kind !== 'greaterSprite' ? enemyFloorMultiplier(STAGES.find(s => s.id === stage), floor) : 1;
   const hp = Math.floor((d.hp + stage * d.hpPerStage) * multiplier), mp = Math.floor(d.mp * multiplier);
   // 配列は複製し、プレイ中の変更が共通定義や別の敵へ漏れないようにします。
   return {

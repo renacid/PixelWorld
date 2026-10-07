@@ -6,7 +6,7 @@ import type { Random } from '../game/Random';
 import { VECTORS, type Actor, type Direction, type GameEvent, type MapState, type Point } from '../game/types';
 import { applyBuff, attackPower, movementLocked } from '../game/ActorStats';
 
-type Context = { allowSkills?: boolean; hitInstallation?: (id:string)=>boolean; action: number; allies: Actor[]; map: MapState; actors: Actor[]; rng: Random; events: GameEvent[]; damage: (target: Actor, amount: number, attribute: import("../game/types").Attribute, critical?: boolean, label?: string) => void; log: (message: string) => void };
+type Context = { spawn?: (kind:import('../data/enemies').EnemyKind,position:Point,experienceMultiplier:number)=>Actor; allowSkills?: boolean; hitInstallation?: (id:string)=>boolean; action: number; allies: Actor[]; map: MapState; actors: Actor[]; rng: Random; events: GameEvent[]; damage: (target: Actor, amount: number, attribute: import("../game/types").Attribute, critical?: boolean, label?: string) => void; log: (message: string) => void };
 type PreparedAction = { installationId?:string; position: Point; facing: Direction; origin?: Point; impact?: Point; path?: Point[] };
 /** 効果ごとの事前検証。新効果はここに分岐を追加し、抽選前に実行可能性を確定します。 */
 function prepare(skill: EnemySkillDefinition, caster: Actor, target: Actor, context: Context): PreparedAction | null {
@@ -64,6 +64,51 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
     const skill = ENEMY_SKILLS[id];
     if (!skill || (caster.mp ?? 0) < skill.mpCost || (caster.enemyCooldownUntil?.[id] ?? 0) > context.action) continue;
     if(skill.requiresMode&&!caster.buffs?.some(b=>b.skillMode===skill.requiresMode&&b.remainingTurns>0))continue;
+    // 範囲は占有矩形の外周基準。大型キャラでも移動先の全セルを検査します。
+    if(skill.effect.type==='summonNearby'||skill.effect.type==='approachTeleport'||skill.effect.type==='delayedBoulder'||skill.effect.type==='bindingRay'){
+      const effect=skill.effect;if(caster.mode!=='hostile')continue;
+      const body=occupied(caster),xs=body.map(p=>p.x),ys=body.map(p=>p.y),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+      const roll=()=>exclusive||context.rng.next()<(caster.skillChances?.[id]??skill.chance);
+      const finish=()=>{caster.mp!-=skill.mpCost;context.log(caster.name+'の'+skill.name+'！');};
+      if(effect.type==='summonNearby'){
+        if(!context.spawn)continue;
+        const cells:Point[]=[];const probe={...caster,id:'summon-probe',cells:[{x:0,y:0}]};
+        for(let y=minY-1;y<=maxY+1;y++)for(let x=minX-1;x<=maxX+1;x++){const p={x,y};if(canStand(context.map,probe,p,context.actors)&&!context.map.objects.some(o=>same(o.position,p)))cells.push(p);}
+        if(!cells.length||!roll())continue;
+        const ally=context.spawn(effect.kind,cells[context.rng.int(0,cells.length-1)],effect.experienceMultiplier);
+        context.events.push({type:'trap',actorId:ally.id,position:{...ally.position},visual:'summonRing',attribute:'earth',sound:skill.sound});finish();return true;
+      }
+      if(effect.type==='approachTeleport'){
+        if(movementLocked(caster,context.action)||!targets.some(t=>t.hp>0))continue;
+        const near=(p:Point)=>Math.min(...occupied(caster,p).flatMap(c=>targets.filter(t=>t.hp>0).flatMap(t=>occupied(t).map(q=>Math.max(Math.abs(q.x-c.x),Math.abs(q.y-c.y))))));
+        const cells:Point[]=[];
+        for(let y=minY-effect.radius;y<=minY+effect.radius;y++)for(let x=minX-effect.radius;x<=minX+effect.radius;x++){const p={x,y};if(near(p)<near(caster.position)&&canStand(context.map,caster,p,context.actors)&&!occupied(caster,p).some(c=>context.map.objects.some(o=>same(o.position,c))))cells.push(p);}
+        if(!cells.length||!roll())continue;
+        const from={...caster.position};caster.position=cells[context.rng.int(0,cells.length-1)];
+        context.events.push({type:'cast',actorId:caster.id,position:from,target:{...caster.position},skillId:'warp',sound:skill.sound});finish();return true;
+      }
+      if(effect.type==='delayedBoulder'){
+        const cells:Point[]=[];
+        for(let y=minY-effect.radius;y<maxY+effect.radius;y++)for(let x=minX-effect.radius;x<maxX+effect.radius;x++){
+          const p={x,y};if([p,{x:x+1,y},{x,y:y+1},{x:x+1,y:y+1}].every(q=>!wall(context.map,q)))cells.push(p);
+        }
+        if(!cells.length||!roll())continue;
+        const position=cells[context.rng.int(0,cells.length-1)];
+        (context.map.delayedRocks??=[]).push({position,dueAt:context.action+1,damage:attackPower(caster)*(effect.damageMin+context.rng.next()*(effect.damageMax-effect.damageMin)),owner:'enemy',sourceId:caster.id});
+        context.events.push({type:'trap',actorId:caster.id,position:{...caster.position},target:position,visual:'summonRing',attribute:'earth',castingAura:true,sound:skill.sound});finish();return true;
+      }
+      if(effect.type==='bindingRay'){
+        const proxy={...skill,effect:{type:'projectile' as const,damageMin:effect.ratio,damageMax:effect.ratio,attribute:'physical' as const}};
+        const candidates=targets.filter(t=>t.hp>0).map(t=>({t,action:prepare(proxy,caster,t,context)})).filter(e=>e.action);
+        if(!candidates.length||!roll())continue;
+        const {t,action}=candidates[0];caster.facing=action!.facing;
+        context.events.push({type:'cast',actorId:caster.id,position:action!.origin??caster.position,target:action!.impact,path:action!.path,attribute:'physical',enemySkillId:'bindingVine',sound:skill.sound,durationMs:380});
+        if(action!.installationId)context.hitInstallation?.(action!.installationId);
+        else{context.damage(t,attackPower(caster)*effect.ratio,'physical',false,skill.name);t.movementLockedUntil=Math.max(t.movementLockedUntil??0,context.action+effect.rootTurns+1);}
+        finish();return true;
+      }
+    }
+    if(skill.effect.type==='summonNearby'||skill.effect.type==='approachTeleport'||skill.effect.type==='delayedBoulder'||skill.effect.type==='bindingRay')continue;
     if(skill.effect.type==='modeBuff'){
       const mode=skill.effect.mode;
       if(caster.buffs?.some(b=>b.skillMode===mode&&b.remainingTurns>0)||targets.some(t=>t.hp>0&&occupied(t).some(p=>occupied(caster).some(c=>Math.max(Math.abs(c.x-p.x),Math.abs(c.y-p.y))<=1))))continue;
@@ -93,7 +138,9 @@ export function tryEnemySkill(caster: Actor, targets: Actor[], context: Context)
         if(context.rng.next()>=(caster.skillChances?.[id]??skill.chance))continue;
         destination=choices[context.rng.int(0,choices.length-1)];cells=Object.values(VECTORS).map(v=>({x:destination.x+v.x,y:destination.y+v.y})).filter(q=>!wall(context.map,q));
       }else{
-        for(let n=1;n<=3;n++)for(let lateral=-1;lateral<=1;lateral++){const q={x:p.x+v.x*n-v.y*lateral,y:p.y+v.y*n+v.x*lateral};if(!wall(context.map,q))cells.push(q);}
+        // 大型キャラも体の前縁から3×3。自身の占有セルを攻撃範囲に含めない。
+        const body=occupied(caster),front={x:v.x>0?Math.max(...body.map(c=>c.x)):p.x,y:v.y>0?Math.max(...body.map(c=>c.y)):p.y};
+        for(let n=1;n<=3;n++)for(let lateral=-1;lateral<=1;lateral++){const q={x:front.x+v.x*n-v.y*lateral,y:front.y+v.y*n+v.x*lateral};if(!wall(context.map,q))cells.push(q);}
         if(!targets.some(t=>t.hp>0&&occupied(t).some(q=>cells.some(c=>same(c,q))))||context.rng.next()>=(caster.skillChances?.[id]??skill.chance))continue;
       }
       caster.mp!-=skill.mpCost;caster.position=destination;

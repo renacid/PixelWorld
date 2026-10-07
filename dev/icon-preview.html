@@ -31,6 +31,6 @@ const crystalCtx=document.querySelector('#crystals').getContext('2d');
 function frame(clock){
  crystalCtx.fillStyle=input.value;crystalCtx.fillRect(0,0,96,64);
  for(let n=0;n<3;n++)for(let i=0;i<(n===2?3:1);i++)drawCrystal(crystalCtx,{attribute:n===1?'thunder':'ice'},n*32,16,clock,i);
-ctx.fillStyle=input.value;ctx.fillRect(0,0,96,64);ctx.strokeStyle='#73925f';ctx.strokeRect(32,16,32,32);const pixels=spritePixels('goblin','down');pixels.forEach((row,y)=>[...row].forEach((c,x)=>{if(PIXEL_COLORS[c]){ctx.fillStyle=PIXEL_COLORS[c];ctx.fillRect(32+x*2,12+y*2,2,2);}}));drawStatusIcons(ctx,a,32,16,32,32,clock,0);requestAnimationFrame(frame);}
+ctx.fillStyle=input.value;ctx.fillRect(0,0,96,64);ctx.strokeStyle='#73925f';ctx.strokeRect(32,16,32,32);const pixels=spritePixels('goblin','down'),scale=32/pixels[0].length;pixels.forEach((row,y)=>[...row].forEach((c,x)=>{if(PIXEL_COLORS[c]){ctx.fillStyle=PIXEL_COLORS[c];ctx.fillRect(32+x*scale,12+y*scale,scale,scale);}}));drawStatusIcons(ctx,a,32,16,32,32,clock,0);requestAnimationFrame(frame);}
 input.addEventListener('input',()=>document.querySelectorAll('.status canvas').forEach(c=>c.style.background=input.value));requestAnimationFrame(frame);
 </script></body></html>

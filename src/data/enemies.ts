@@ -3,7 +3,7 @@ import { ENEMY_SKILLS } from './enemySkills';
 import type { DropEntry } from './loot';
 
 /** 絵の種類は敵の種類から独立。新しい敵でも既存の絵を再利用できます。 */
-export type SpriteId = 'thunderButterfly' | 'stoneSlime' | 'earthFlower' | 'frostBoar' | 'reaper' | 'fighter' | 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'sprite' | 'greaterSprite' | 'treant';
+export type SpriteId = 'greaterCrystalFlower' | 'thunderButterfly' | 'stoneSlime' | 'earthFlower' | 'frostBoar' | 'reaper' | 'fighter' | 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'sprite' | 'greaterSprite' | 'treant';
 export type ActorDefinition = {
   /** 永続の炎被ダメージ加算。 */ fireVulnerability?: number;
   rootAfterMove?: boolean;
@@ -32,12 +32,15 @@ function define(config: Pick<ActorDefinition, 'name' | 'hp' | 'attack' | 'sprite
     chaseMoveLimit: 12, chaseRecoveryChance: .3,
     directions: ['up', 'right', 'down', 'left'],
     attackCells: [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }],
-    renderScale: 2, renderLift: 2, bob: false, idleStep: false, ...config,
+    // 小型は32ドット原画を1倍、大型は32ドット原画を2倍。占有・表示サイズは維持。
+    renderScale: config.sprite === 'golem' || config.sprite === 'greaterCrystalFlower' ? 2 : 1, renderLift: 2, bob: false, idleStep: false, ...config,
   };
 }
 
 /** 敵の追加はこの一覧から。IDの型もこのキーから自動生成されます。 */
 export const ENEMIES = {
+  // 通常の追跡・巡回では動かず、専用の転移スキルだけで場所を変える。
+  greaterCrystalFlower:define({name:'大結晶花',hp:75,hpPerStage:0,attack:6,mp:30,experience:20,size:2,immobile:true,detectionRange:3,sprite:'greaterCrystalFlower',renderHeight:72,renderLift:2,fireVulnerability:3,skills:['summonFlower','approachTeleport','earthPollen','delayedBoulder','bindingVine'],skillChances:{summonFlower:.1,approachTeleport:.05,earthPollen:.3,delayedBoulder:.15,bindingVine:.05}}),
   thunderButterfly:define({name:'大雷蝶',hp:35,attack:3,mp:25,experience:11,detectionRange:4,sprite:'thunderButterfly',renderHeight:36,bob:true,skills:['windStrike','dash','strongThunderArmor','thunderBall','randomBolt'],drops:[{loot:{type:'skill',id:'thunder'},chance:.015},{loot:{type:'skill',id:'chainLightning'},chance:.015},{loot:{type:'skill',id:'tornado'},chance:.015},{loot:{type:'skill',id:'vacuumSlash'},chance:.015}]}),
   stoneSlime:define({   name:'ストーンスライム',hp:14,attack:2,mp:5,experience:3,detectionRange:3,sprite:'stoneSlime',innateAttribute:'earth',skills:['stoneThrow','fallingStrike'],skillChances:{stoneThrow:.2,fallingStrike:.2},bob:true}),
   earthFlower:define({  name:'地晶花',hp:30,attack:3,mp:15,experience:8,detectionRange:4,sprite:'earthFlower',renderHeight:40,fireVulnerability:1,rootAfterMove:true,skills:['stoneThrow','earthPollen'],skillChances:{stoneThrow:.2,earthPollen:.3}}),

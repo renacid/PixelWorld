@@ -3760,7 +3760,8 @@
             "kind": "slime",
             "count": 8
           }
-        ]
+        ],
+        "enemyMultiplier": 1
       }
     },
     {
@@ -6949,7 +6950,8 @@
             ]
           }
         ],
-        "installationPlacements": []
+        "installationPlacements": [],
+        "enemyMultiplier": 1.4
       }
     },
     {
@@ -10177,7 +10179,8 @@
             ]
           }
         ],
-        "installationPlacements": []
+        "installationPlacements": [],
+        "enemyMultiplier": 1.8
       }
     }
   ]

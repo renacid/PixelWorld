@@ -1,4 +1,4 @@
- {
+{
   "id": 13,
   "code": "3-2",
   "regionId": "cave",
@@ -306,7 +306,8 @@
         "gemCount": 1,
         "randomEnemies": [],
         "trapPlacements": []
-      }
+      },
+      "enemyMultiplier": 1
     },
     "2": {
       "objective": "洞窟の出口を目指そう",
@@ -611,7 +612,8 @@
         "gemCount": 1,
         "randomEnemies": [],
         "trapPlacements": []
-      }
+      },
+      "enemyMultiplier": 1.25
     },
     "3": {
       "objective": "洞窟の出口を目指そう",
@@ -958,7 +960,8 @@
         "gemCount": 1,
         "randomEnemies": [],
         "trapPlacements": []
-      }
+      },
+      "enemyMultiplier": 1.55
     }
   }
 }

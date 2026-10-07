@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ja"><meta charset="utf-8"><title>地形・境界プレビュー</title>
+<style>body{margin:24px;background:#edf2e6;color:#304a41;font:14px sans-serif}h1{font-size:20px}main{display:flex;gap:24px;flex-wrap:wrap}h2{font-size:15px}canvas{image-rendering:pixelated;display:block;max-width:100%}a{color:#367654}p{line-height:1.7}</style>
+<h1>地形・境界プレビュー</h1><p>木は上に張り出し、水際は点線なし、壁は四角い輪郭です。ゲームと工房で同じ描画を使用しています。<br>マスの通行判定は変わりません。</p>
+<p><a href="./sprite-preview.html">キャラクター</a> ／ <a href="./dungeon-editor.html">ダンジョン工房</a></p>
+<main id="samples"></main>
+<script type="module">
+import { drawTerrain } from '/src/render/TerrainRenderer.ts';
+import { TERRAIN } from '/src/data/terrain.ts';
+const rows=['............','..TT..WWWW..','.TTT..WWWWW.','..T...WWWW..','.......WW...','..RRR.......','..RR...DDDD.','.......DSSD.','..T....DSSD.','............'];
+for(const [label,floor] of [['草地',0],['森の床',3],['洞窟の土床',7]]){
+ const section=document.createElement('section');section.innerHTML=`<h2>${label}</h2><canvas width="384" height="320"></canvas>`;document.querySelector('main').append(section);
+ const ctx=section.querySelector('canvas').getContext('2d'),map={width:12,height:10,tiles:rows.join('').split('').map(c=>({T:4,W:5,R:1,D:9,S:10}[c]??floor))};
+ for(let y=0;y<map.height;y++)for(let x=0;x<map.width;x++)drawTerrain(ctx,map.tiles[y*map.width+x],x*32,y*32,32,map,x,y);
+}
+for(const [id,d] of Object.entries(TERRAIN)){
+ const section=document.createElement('section');section.innerHTML=`<h2>${id} / ${d.name}</h2><canvas width="96" height="108"></canvas>`;document.querySelector('main').append(section);drawTerrain(section.querySelector('canvas').getContext('2d'),Number(id),0,12,96);
+}
+</script></html>

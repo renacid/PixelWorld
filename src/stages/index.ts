@@ -1,3 +1,4 @@
+import { stage as cave4 } from './cave/3-4';
 import { stage as cave3 } from './cave/3-3';
 import { stage as cave2 } from './cave/3-2';
 import { stage as cave1 } from './cave/3-1';
@@ -16,7 +17,7 @@ import { stage as s8 } from './forest/2-3';
 import { stage as s11 } from './forest/2-5';
 import { stage as testStage } from './plains/test-dungeon';
 export { REGIONS } from './regions';
-export const STAGES: Stage[] = [s1, s2, s3, s4, s5, s6, s7, s8, s9, s11, cave1, cave2, cave3, testStage].map(stage => {
+export const STAGES: Stage[] = [s1, s2, s3, s4, s5, s6, s7, s8, s9, s11, cave1, cave2, cave3, cave4, testStage].map(stage => {
  const defaults = REGIONS.find(r => r.id === stage.regionId)!.defaults;
  // 地域内のステージ番号1〜3は最大1冊、4以降は30%で2冊目。各ステージで上書き可能。
  return { skillBooks: { max: Number(stage.code?.split('-')[1]) >= 4 ? 2 : 1, extraChance: .3 }, ...defaults, ...stage, loot: { ...defaults.loot, ...stage.loot }, enemyDrops: { ...defaults.enemyDrops, ...stage.enemyDrops } };

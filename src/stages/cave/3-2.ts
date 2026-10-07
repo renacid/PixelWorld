@@ -41,6 +41,7 @@ export const stage: Stage = {
   },
   "floorSettings": {
     "1": {
+      "enemyMultiplier": 1,
       "objective": "洞窟の出口を目指そう",
       "enemySpawns": [],
       "trapPlacements": [],
@@ -312,6 +313,7 @@ export const stage: Stage = {
       }
     },
     "2": {
+      "enemyMultiplier": 1.25,
       "objective": "洞窟の出口を目指そう",
       "enemySpawns": [],
       "trapPlacements": [],
@@ -617,6 +619,7 @@ export const stage: Stage = {
       }
     },
     "3": {
+      "enemyMultiplier": 1.55,
       "objective": "洞窟の出口を目指そう",
       "enemySpawns": [],
       "trapPlacements": [],

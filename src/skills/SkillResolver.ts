@@ -1,3 +1,4 @@
+import { breathCells } from './BlizzardBreath';
 import { gateCells } from './TransferGate';
 import { targetableCrystals } from '../game/CrystalTargets';
 import { icePillarCells } from './IcePillar';
@@ -51,6 +52,7 @@ export function previewSkill(state: SaveData, id: SkillId, direction: Direction,
   const definition = SKILLS[id], p = state.playerState.position;
   const result: TargetPreview = { cells: [], blocked: null, targetIds: [] };
   if(definition.kind==='passive')return result;
+  if(id==='blizzardBreath'){result.cells=breathCells(state,direction);result.targetIds=attackTargets(state).filter(a=>a.hp>0&&occupied(a).some(p=>result.cells.some(c=>same(c,p)))).map(a=>a.id);return result;}
   if(id==='transferGate'){result.cells=gateCells(state);return result;}
   if(id==='shadowBind'){
    const level=effectiveLevel(state.skillBag,state.skillLevels,id),v=VECTORS[direction],range=level>=3?4:3;

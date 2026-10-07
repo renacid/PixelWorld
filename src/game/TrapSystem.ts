@@ -111,7 +111,7 @@ export function tickDelayedRocks(s:SaveData,c:Context):void{
  s.mapState.delayedRocks=s.mapState.delayedRocks?.filter(r=>r.dueAt>s.playerActionCount);
  for(const rock of due){const cells=[{x:0,y:0},{x:1,y:0},{x:0,y:1},{x:1,y:1}].map(p=>({x:p.x+rock.position.x,y:p.y+rock.position.y}));
   c.events.push({type:'trap',position:rock.position,visual:'largeRock',sound:'rocks',durationMs:650});const start=c.events.length;
-  const actors=[s.playerState,...s.allyStates,...s.enemyStates];for(const a of actors)if(a.hp>0&&occupied(a).some(p=>cells.some(q=>same(p,q))))dealAttributeHit(a,rock.damage,'earth',s.playerActionCount,actors,c.damage,c.events,()=>c.rng.next());
+  const actors=rock.owner==='enemy'?[s.playerState,...s.allyStates]:[s.playerState,...s.allyStates,...s.enemyStates];for(const a of actors)if(a.hp>0&&occupied(a).some(p=>cells.some(q=>same(p,q))))dealAttributeHit(a,rock.damage,'earth',s.playerActionCount,actors,c.damage,c.events,()=>c.rng.next());
   for(const event of c.events.slice(start))event.delayMs=(event.delayMs??0)+320;
  }
 }

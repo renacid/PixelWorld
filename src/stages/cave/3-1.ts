@@ -26,6 +26,7 @@ export const stage: Stage = {
   },
   "floorSettings": {
     "1": {
+      "enemyMultiplier": 1,
       "width": 42,
       "height": 38,
       "objective": "森を抜け、洞窟の奥へ進もう",
@@ -216,6 +217,7 @@ export const stage: Stage = {
       }
     },
     "2": {
+      "enemyMultiplier": 1.2,
       "width": 46,
       "height": 38,
       "objective": "地晶花の洞を抜けて出口へ",

@@ -1,8 +1,10 @@
 /** 文字配列から4方向のドット絵を生成。パレットと各キャラの形をここで編集。 */
 import type { Direction } from '../game/types';
 import type { SpriteId } from '../data/enemies';
+import { detailSprite, DETAIL_COLORS } from './SpriteDetail';
 export const PIXEL_COLORS: Record<string, string> = { '.': '', v:'#a971e8', V:'#653d92', N:'#252034', r: '#fa775e', R: '#c34b54', s: '#ffe6b0', w: '#fff9e6', b: '#4a9ed9', B: '#306da2', k: '#29445f', y: '#ffd05f', g: '#75d982', G: '#42ab70', p: '#b7f4a0', o: '#d8b987', O: '#ac9067', t: '#67e7d1', a: '#485557', c: '#7f8b87', C: '#b9bcb0', d: '#303e40', m: '#536d39', M: '#8ca659' };
 function make(kind: SpriteId, facing: 'down' | 'up' | 'left'): string[] {
+  if(kind==='greaterCrystalFlower')return makeCrystalFlower(facing);
   if(kind==='stoneSlime')return make('slime',facing).map(row=>row.replaceAll('g','o').replaceAll('G','O').replaceAll('p','C'));
   if (kind === 'golem') return makeGolem(facing);
   const pixels = Array.from({ length: 16 }, () => Array<string>(16).fill('.'));
@@ -62,7 +64,7 @@ function make(kind: SpriteId, facing: 'down' | 'up' | 'left'): string[] {
     for(const [x,y] of [[6,5],[10,6],[8,9],[12,8]]){rect(x,y,2,2,'b');rect(x,y,1,1,'w');}
   }else if(kind==='reaper'){
     rect(4,2,7,2,'a');rect(3,4,9,7,'k');rect(4,4,7,5,'d');rect(5,5,2,1,'r');rect(9,5,2,1,'r');rect(4,9,7,3,'a');rect(3,11,3,2,'k');rect(8,11,4,2,'k');rect(5,12,2,2,'a');
-    const x=facing==='left'?1:13;rect(x,3,1,11,'O');rect(Math.max(0,x-4),1,5,1,'C');rect(Math.max(0,x-5),2,2,2,'w');rect(Math.max(0,x-5),4,1,2,'c');
+    // 鎌はSpriteDetailの32ドット版で描画する。
     if(facing==='up'){rect(4,4,7,4,'a');rect(6,4,2,5,'k');}
   }else if (kind === 'player') {
     rect(4, 1, 8, 1, 'R'); rect(3, 2, 10, 7, 'r'); rect(2, 3, 12, 4, 'r'); rect(4, 9, 8, 4, 'b'); rect(3, 10, 1, 3, 's'); rect(12, 10, 1, 3, 's'); rect(5, 13, 2, 2, 'k'); rect(9, 13, 2, 2, 'k'); rect(4, 12, 8, 1, 'B');
@@ -176,9 +178,24 @@ function makeGolem(facing: 'down' | 'up' | 'left'): string[] {
   return pixels.map(row => row.join(''));
 }
 
+/** 大型花専用32×36ドット。1マスキャラと同じドット密度を維持。 */
+function makeCrystalFlower(facing:'down'|'up'|'left'):string[]{
+ const pixels=Array.from({length:36},()=>Array<string>(32).fill('.'));
+ const dot=(x:number,y:number,c:string)=>{if(x>=0&&x<32&&y>=0&&y<36)pixels[y][x]=c;};
+ const oval=(cx:number,cy:number,rx:number,ry:number,c:string)=>{for(let y=0;y<36;y++)for(let x=0;x<32;x++)if(((x-cx)/rx)**2+((y-cy)/ry)**2<=1)dot(x,y,c);};
+ // 絡まる暗いツタと地面へ広がる根。
+ for(let arm=0;arm<6;arm++)for(let n=0;n<15;n++){const x=Math.round(16+Math.sin(arm*1.15+n*.17)*n),y=20+n;dot(x,y,'m');dot(x+1,y,'G');}
+ const petals=[[16,7,6,7],[7,12,6,7],[25,12,6,7],[8,22,7,6],[24,22,7,6],[16,26,6,7]];
+ for(const [x,y,rx,ry] of petals){oval(x,y,rx,ry,'k');oval(x,y-1,rx-1,ry-1,'B');oval(x-1,y-2,rx-2,ry-2,'b');}
+ oval(16,17,8,8,'k');oval(16,17,6,6,'m');
+ if(facing!=='up'){const cx=facing==='left'?12:16;oval(cx,17,5,4,'R');oval(cx,17,4,3,'r');oval(cx,17,1,3,'d');dot(cx-2,15,'w');}
+ else{oval(16,14,5,6,'b');oval(16,16,3,5,'B');}
+ return pixels.map(row=>row.join(''));
+}
+Object.assign(PIXEL_COLORS, DETAIL_COLORS);
 const atlas = new Map<string, string[]>();
 export function spritePixels(kind: SpriteId, direction: Direction): string[] {
   const key = `${kind}:${direction}`;
-  if (!atlas.has(key)) { const pixels = make(kind, direction === 'right' ? 'left' : direction); atlas.set(key, direction === 'right' ? pixels.map(row => [...row].reverse().join('')) : pixels); }
+  if (!atlas.has(key)) { const facing=direction === 'right' ? 'left' : direction; const pixels = detailSprite(kind, facing, make(kind, facing)); atlas.set(key, direction === 'right' ? pixels.map(row => [...row].reverse().join('')) : pixels); }
   return atlas.get(key)!;
 }

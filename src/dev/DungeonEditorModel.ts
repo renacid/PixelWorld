@@ -71,6 +71,7 @@ export function validateProject(project:EditorProject):string[] {
   if(!Number.isInteger(project.stage.id)||project.stage.id<1)errors.push('ステージIDは1以上の整数にしてください');
   for(const [index,f] of project.floors.entries()){
     const fail=(text:string)=>errors.push((index+1)+'層：'+text);
+    if(f.settings.enemyMultiplier!==undefined&&(!Number.isFinite(f.settings.enemyMultiplier)||f.settings.enemyMultiplier<=0))fail('敵倍率は0より大きい数で指定してください');
     if(!Number.isInteger(f.width)||!Number.isInteger(f.height)||f.width<9||f.height<9||f.width>120||f.height>120||f.tiles.length!==f.width*f.height){fail('サイズは9～120、タイル数と一致させてください');continue;}
     if(f.tiles.some(id=>!(id in TERRAIN))){fail('未定義の地形があります');continue;}
     const pass=(p:Point)=>Number.isInteger(p.x)&&Number.isInteger(p.y)&&p.x>=0&&p.y>=0&&p.x<f.width&&p.y<f.height&&!TERRAIN[f.tiles[p.y*f.width+p.x]].solid;

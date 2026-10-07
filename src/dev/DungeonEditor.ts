@@ -44,13 +44,16 @@ function renderForms(){
   $('advanced-stage').onclick=()=>editJSON('ダンジョン詳細（loot・初期MP・夜の復活数など）',s,value=>{project.stage=value;});
   $('floors').innerHTML=project.floors.map((f,i)=>`<button data-floor="${i}" class="${i===floorIndex?'active':''}">${i+1}F ${escape(f.name)}</button>`).join('');
   document.querySelectorAll<HTMLElement>('[data-floor]').forEach(b=>b.onclick=()=>{floorIndex=Number(b.dataset.floor);selected=null;renderForms();draw();inspect();});
-  $('floor-form').innerHTML=field('階層名','fname',f.name)+`<div class="pair">${field('横マス','width',f.width,'number')}${field('縦マス','height',f.height,'number')}</div><button id="resize">サイズを適用（9～120）</button><label>クリア条件<select id="goal"><option value="exit">出口へ到達</option><option value="records">古代の記録を回収＋出口</option><option value="defeat">指定モンスター討伐＋出口</option><option value="destroyInstallations">設置物破壊＋出口</option></select></label><label>目標対象<select id="goal-kind"></select></label>`+field('必要数','goal-count','count' in f.clearCondition?f.clearCondition.count:1,'number')+field('ランダム宝箱数','chests',f.randomChests,'number')+field('宝石上限（0～5）','gems',f.gemCount,'number')+field('魔導書上限','books',f.settings.skillBooks?.max??0,'number')+field('追加魔導書確率（0～1）','book-chance',f.settings.skillBooks?.extraChance??0,'number')+'<button id="boss-settings">ボス戦エリア・封鎖マス</button><button id="advanced-floor">階層詳細JSON（ランダム配置・抽選表）</button>';
+  $('floor-form').innerHTML=field('階層名','fname',f.name)+`<div class="pair">${field('横マス','width',f.width,'number')}${field('縦マス','height',f.height,'number')}</div><button id="resize">サイズを適用（9～120）</button><label>クリア条件<select id="goal"><option value="exit">出口へ到達</option><option value="records">古代の記録を回収＋出口</option><option value="defeat">指定モンスター討伐＋出口</option><option value="destroyInstallations">設置物破壊＋出口</option></select></label><label>目標対象<select id="goal-kind"></select></label>`+field('必要数','goal-count','count' in f.clearCondition?f.clearCondition.count:1,'number')+field('敵の総倍率（空欄＝共通設定）','floor-enemy-multiplier',f.settings.enemyMultiplier??'','number')+field('ランダム宝箱数','chests',f.randomChests,'number')+field('宝石上限（0～5）','gems',f.gemCount,'number')+field('魔導書上限','books',f.settings.skillBooks?.max??0,'number')+field('追加魔導書確率（0～1）','book-chance',f.settings.skillBooks?.extraChance??0,'number')+'<button id="boss-settings">ボス戦エリア・封鎖マス</button><button id="advanced-floor">階層詳細JSON（ランダム配置・抽選表）</button>';
   $<HTMLSelectElement>('goal').value=f.clearCondition.type;
   const goalOptions=()=>{const type=$<HTMLSelectElement>('goal').value;const entries=type==='destroyInstallations'?Object.entries(INSTALLATIONS):Object.entries(ENEMIES).filter(([id])=>!['player','sprite','greaterSprite'].includes(id));$('goal-kind').innerHTML=entries.map(([id,d])=>`<option value="${id}">${escape(d.name)}</option>`).join('');if('kind' in f.clearCondition)$<HTMLSelectElement>('goal-kind').value=f.clearCondition.kind;};goalOptions();
-  for(const id of ['fname','goal','goal-kind','goal-count','chests','gems','books','book-chance'])$(id).onchange=()=>{
+  for(const id of ['fname','goal','goal-kind','goal-count','floor-enemy-multiplier','chests','gems','books','book-chance'])$(id).onchange=()=>{
     checkpoint();if(id==='goal')goalOptions();f.name=$<HTMLInputElement>('fname').value;
     const type=$<HTMLSelectElement>('goal').value,count=Math.floor(number('goal-count',1,1000)),kind=$<HTMLSelectElement>('goal-kind').value;
     f.clearCondition=(type==='exit'?{type}:type==='records'?{type,count}:{type,kind,count}) as ClearCondition;
+    const multiplierText=$<HTMLInputElement>('floor-enemy-multiplier').value;
+    if(multiplierText.trim()==='')delete f.settings.enemyMultiplier;
+    else f.settings.enemyMultiplier=number('floor-enemy-multiplier',.1,100);
     f.randomChests=Math.floor(number('chests',0,100));f.gemCount=Math.floor(number('gems',0,5));f.settings.skillBooks={max:Math.floor(number('books',0,100)),extraChance:number('book-chance',0,1)};commit();
   };
   $('resize').onclick=()=>{
@@ -103,7 +106,7 @@ function paint(p:Point){
 }
 function draw(){
  const f=floor();canvas.width=f.width*zoom;canvas.height=f.height*zoom;ctx.imageSmoothingEnabled=false;
- for(let y=0;y<f.height;y++)for(let x=0;x<f.width;x++){drawTerrainPreview(ctx,f.tiles[y*f.width+x],x*zoom,y*zoom,zoom);ctx.strokeStyle='#17372925';ctx.strokeRect(x*zoom,y*zoom,zoom,zoom);}
+ for(let y=0;y<f.height;y++)for(let x=0;x<f.width;x++){drawTerrainPreview(ctx,f.tiles[y*f.width+x],x*zoom,y*zoom,zoom,f,x,y);ctx.strokeStyle='#17372925';ctx.strokeRect(x*zoom,y*zoom,zoom,zoom);}
  const label=(p:Point,text:string,color:string,size=1)=>{ctx.fillStyle=color;ctx.fillRect(p.x*zoom+2,p.y*zoom+2,zoom*size-4,zoom*size-4);ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(10,zoom*.45)}px sans-serif`;ctx.textAlign='center';ctx.fillText(text,p.x*zoom+zoom*size/2,p.y*zoom+zoom*size/2+4);};
  for(const o of f.objects)label(o.position,({chest:'箱',exit:'出',record:'記',gem:'宝',skillBook:'書',item:'薬',skill:'技'})[o.type],'#80714c');
  for(const t of f.traps)label(t.position,'罠','#b86742');
