@@ -6,7 +6,7 @@ import {effectiveLevel,connectionDamageMultiplier} from './SkillBag';
 import {previewSkill} from './SkillResolver';
 import {dealAttributeHit,type DamageHandler} from './AttributeSystem';
 import {hitInstallation} from '../game/InstallationSystem';
-import {occupied,same,wall} from '../game/MapState';
+import {canStand,occupied,same,wall} from '../game/MapState';
 import {VECTORS,type SaveData,type SkillId,type Direction,type GameEvent,type Point,type FieldEffect} from '../game/types';
 import type {Random} from '../game/Random';
 type Context={rng:Random;events:GameEvent[];damage:DamageHandler;log:(m:string)=>void};
@@ -19,14 +19,22 @@ export function castFieldSkill(s:SaveData,id:SkillId,direction:Direction,c:Conte
   for(let step=0;step<steps;step++){
    const choices=(step===0?[VECTORS[direction]]:Object.values(VECTORS)).map(v=>({x:position.x+v.x,y:position.y+v.y})).filter(p=>!visited.has(p.x+','+p.y)&&!wall(s.mapState,p));
    if(!choices.length)break;
-   const next=choices[c.rng.int(0,choices.length-1)],delay=step*240;
+   const next=choices[c.rng.int(0,choices.length-1)],delay=step*240,travel={x:next.x-position.x,y:next.y-position.y};
    c.events.push({type:'trap',position:{...position},target:{...next},visual:'windVortex',sound:step===0?'magicCast':undefined,delayMs:delay,durationMs:240});
    visited.add(next.x+','+next.y);position=next;
    // 同じ大型敵の別セルに接触した場合も、その歩ごとに威力・会心を抽選する。
    const eventStart=c.events.length;
-   for(const enemy of s.enemyStates)if(enemy.hp>0&&occupied(enemy).some(p=>same(p,next))){
+   for(const enemy of s.enemyStates.filter(e=>e.hp>0&&occupied(e).some(p=>same(p,next)))){
     const multiplier=1+c.rng.next()*.3,critical=c.rng.next()<criticalChance(s.playerState,enemy,d.attribute);
     dealAttributeHit(enemy,power*multiplier*(critical?s.playerState.criticalMultiplier:1),d.attribute,s.playerActionCount,s.enemyStates,c.damage,c.events,()=>c.rng.next(),critical);
+    // 各歩の進行方向へ押す。大型・固定敵は無効、壁や他のキャラを押しのけない。
+    if(enemy.hp>0&&enemy.cells.length===1&&!enemy.immobile){
+     const destination={x:enemy.position.x+travel.x,y:enemy.position.y+travel.y};
+     if(canStand(s.mapState,enemy,destination,[s.playerState,...s.allyStates,...s.enemyStates])){
+      const from={...enemy.position};enemy.position=destination;
+      c.events.push({type:'trap',actorId:enemy.id,position:from,target:{...destination},displacement:true,durationMs:120});
+     }
+    }
    }
    for(const installation of [...s.mapState.installations??[],...targetableCrystals(s.mapState,s.playerActionCount)])if(same(installation.position,next))hitInstallation(s,installation.id,c);
    for(const event of c.events.slice(eventStart))event.delayMs=(event.delayMs??0)+delay+120;

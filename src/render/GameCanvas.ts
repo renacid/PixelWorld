@@ -1,4 +1,4 @@
-import { drawCrystal } from './CrystalSprites';
+import { drawCrystal, drawCrystalFlight } from './CrystalSprites';
 import { drawStatusIcons } from './StatusIcons';
 import { itemFieldColor } from '../data/items';
 import { drawInstallation } from './InstallationSprites';
@@ -149,6 +149,8 @@ export class GameCanvas {
         ctx.save();ctx.fillStyle='rgba(23,38,56,0.07)';for(let i=0;i<8;i++){const spread=i*1.5;ctx.beginPath();ctx.rect(0,0,VIEW_SIZE,VIEW_SIZE);ctx.rect(top.x-spread,top.y-spread,size+spread*2,size+spread*2);ctx.fill('evenodd');}ctx.restore();
       }
     }
+    // 予告は床の上・キャラの下へ。全域予告でもキャラの色や状態表示を覆わない。
+    for(const hazard of state.mapState.bossHazards??[])for(const cell of hazard.cells){if(!visible(cell))continue;const q=screen(cell);ctx.fillStyle=hazard.kind==='gust'?'#9deddc38':'#583b5680';ctx.fillRect(q.x+2,q.y+2,28,28);ctx.strokeStyle=hazard.kind==='gust'?'#e8fff4aa':'#dbab70';ctx.strokeRect(q.x+5,q.y+5,22,22);}
     // 予告済みセルは旅人が移動しても固定。次の予告時だけ配置し直す。
     for(const storm of state.mapState.thunderPrisons??[])for(const cell of storm.cells)if(visible(cell)){
       const p=screen(cell);ctx.fillStyle='#33264e88';ctx.beginPath();ctx.ellipse(p.x+16,p.y+19,12,7,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#d5b1f3';ctx.lineWidth=1;ctx.stroke();
@@ -240,7 +242,7 @@ export class GameCanvas {
     for(const rock of state.mapState.delayedRocks??[]){if(!visible(rock.position))continue;const p=screen(rock.position);ctx.save();ctx.fillStyle='#18212b80';ctx.beginPath();ctx.ellipse(p.x+32,p.y+32,29,22,0,0,Math.PI*2);ctx.fill();ctx.restore();}
     this.effects = this.effects.filter(e => clock - e.born < e.duration);
     for (const e of this.effects) {
-      if (clock < e.born || !e.shown) continue;
+      if (clock < e.born || !e.shown || e.displacement) continue;
       if (!e.played) { e.played = true; this.onSound?.(e); }
       const age = Math.min(1, (clock - e.born) / e.duration), p = screen(e.position), color = e.attribute ? ATTRIBUTE_COLORS[e.attribute] : '#ffc654'; ctx.save();
       // 発動者から上昇する属性色の線。ゲームの乱数には影響しない。
@@ -280,7 +282,7 @@ export class GameCanvas {
     else if (e.enemySkillId === 'fireball') { for (let i=1;i<=5;i++) { const t=Math.max(0, Math.min(1,age*1.5)-i*.055); ctx.fillStyle=i%2?'#f6854288':'#ffc866bb'; ctx.fillRect(from.x+16+(to.x-from.x)*t-3,from.y+16+(to.y-from.y)*t-3,6,6); } ctx.fillStyle = '#fa773e'; ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fill(); ctx.fillStyle = '#ffe59b'; ctx.fillRect(x-3,y-3,6,6); }
     else if (e.visual === 'stone') { ctx.fillStyle = '#5e7359'; ctx.fillRect(x - 4, y - 4, 8, 8); ctx.fillStyle = '#d1d8b7'; ctx.fillRect(x - 3, y - 3, 5, 3); }
     else if(e.crystalAttribute){
-      ctx.fillStyle=e.crystalAttribute==='ice'?'#a5e9ff':'#c08aff';ctx.fillRect(x-4,y-4,8,8);ctx.fillStyle='#fff8dd';ctx.fillRect(x-2,y-2,3,3);
+      drawCrystalFlight(ctx,e.crystalAttribute,from,to,age);
     }
     else if (e.skillId === 'warp') { ctx.strokeStyle = '#a481e8'; ctx.lineWidth = 3; for (const p of [from, to]) { ctx.beginPath(); ctx.ellipse(p.x + 16, p.y + 16, 8 + age * 15, 17 * (1 - age) + 3, age * 5, 0, Math.PI * 2); ctx.stroke(); } }
     else if (e.skillId === 'fireball') { for (let i = 4; i >= 0; i--) { const t = Math.max(0, age * 1.5 - i * .035); ctx.fillStyle = i ? '#ff9868' : '#fff19b'; const size = i ? 4 : 10; ctx.fillRect(from.x + 16 + (to.x - from.x) * Math.min(1, t) - size / 2, from.y + 16 + (to.y - from.y) * Math.min(1, t) - size / 2, size, size); } }

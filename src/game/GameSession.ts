@@ -3,7 +3,8 @@ import { gateCells, placeGate, gateDestinations } from '../skills/TransferGate';
 import { MONSTER_BOOKMARK_POOL } from '../data/loot';
 import { rollCategorizedItem, weighted as chooseWeightedLoot } from './LootSystem';
 import { triggerEarthBlessing } from '../skills/EarthBlessing';
-import { contactBossFire, startBoss, actKing, tickBanners, kingPhases, isGoblin, KING_RULES } from './BossEncounter';
+import { actElder, elderPhases, tickBossHazards } from './ElderTreant';
+import { contactBossFire, startBoss, finishBoss, actKing, tickBanners, kingPhases, isGoblin, KING_RULES } from './BossEncounter';
 import { targetableCrystals } from './CrystalTargets';
 import { startThunderPrison, tickThunderPrisons } from '../skills/ThunderPrison';
 import { afterSwirlCrystals, createCrystal, crystalSource, hitCrystalsAt, tickCrystals } from './CrystalSystem';
@@ -74,8 +75,11 @@ export class GameSession {
       }
     }
     const floor=stageForFloor(this.stage,state.floorNumber??1),layout=typeof floor.layout==='function'?floor.layout(floor,state.floorNumber??1):floor.layout;
-    state.reinforcementKinds=(layout?.enemies.length?layout.enemies.map(e=>e.kind):state.reinforcementKinds??state.enemyStates.map(e=>e.kind)).filter(k=>k!=='player'&&k!=='sprite'&&k!=='greaterSprite'&&k!=='reaper'&&k!=='goblinKing');
+    state.reinforcementKinds=(layout?.enemies.length?layout.enemies.map(e=>e.kind):state.reinforcementKinds??state.enemyStates.map(e=>e.kind)).filter((k):k is import('../data/enemies').EnemyKind=>k!=='player'&&k!=='sprite'&&k!=='greaterSprite'&&k!=='reaper'&&!actorDefinition(k).boss);
     state.allyStates.forEach(a=>{a.remainingLife ??= actorDefinition(a.kind).lifetime ?? 30;});
+    // 旧版の戦闘中セーブにはボスIDがないため、エリア内のボスから補完。
+    const arena=state.mapState.bossArena;
+    if(arena?.started&&!arena.bossId)arena.bossId=state.enemyStates.find(e=>actorDefinition(e.kind).boss&&e.hp>0&&e.position.x>=arena.x&&e.position.y>=arena.y&&e.position.x<arena.x+arena.width&&e.position.y<arena.y+arena.height)?.id;
     state.floorNumber ??= 1; state.floorCount = Math.max(state.floorNumber, this.stage.dungeon?.floors ?? 1); state.nightRevived ??= (state.daylightCount ?? 0) >= 100 ? floorRules(this.stage).nightRevival.min : 0;
     // 旧セーブは過去のスキル使用回数を復元できないため回復カウントを0から開始。
     // 旧セーブの固定ダメージ罠も新しい経過ターン方式へ移行。
@@ -90,10 +94,10 @@ export class GameSession {
     state.mpRecoveryActions ??= 0; state.daylightCount ??= 0; state.defeatedEnemies ??= []; state.skillWear ??= {}; state.pendingGemChoices ??= []; state.mapState.playerTraps ??= []; state.playerState.visionBonus ??= state.playerState.freeCamera ? 2 : 0;
     // 旧セーブで朝まで残っていた死神も補正し、通常の復活候補には入れない。
     if(timeOfDay(state)!=='night')state.enemyStates=state.enemyStates.filter(e=>e.kind!=='reaper');
-    state.defeatedEnemies=state.defeatedEnemies.filter(e=>e.kind!=='reaper'&&e.kind!=='goblinKing');
+    state.defeatedEnemies=state.defeatedEnemies.filter(e=>e.kind!=='reaper'&&!actorDefinition(e.kind).boss);
     // 変更前のセーブと復活待ちの個体にも、大結晶花の通常移動禁止を反映。
     for(const enemy of [...state.enemyStates,...state.defeatedEnemies])if(enemy.kind==='greaterCrystalFlower')enemy.immobile=actorDefinition(enemy.kind).immobile;
-    state.reinforcementKinds=state.reinforcementKinds?.filter(k=>k!=='reaper'&&k!=='goblinKing');
+    state.reinforcementKinds=state.reinforcementKinds?.filter(k=>k!=='reaper'&&!actorDefinition(k).boss);
     // Older saves remain playable; existing hostile enemies do not alert again.
     for (const a of this.actors) {
       a.facing ??= 'down'; a.alertedAt ??= -1; a.hp = Math.floor(a.hp);
@@ -179,7 +183,9 @@ export class GameSession {
     // All damage paths (including reactions and fields) truncate only at this boundary.
     const value = Math.max(0, Math.floor(amount)+(attribute==='fire'?(actorDefinition(target.kind).fireVulnerability??0):0));
     if(value>0)delete target.shadowBoundUntil;
-    target.hp = Math.max(0, Math.floor(target.hp) - value);
+    const received=Math.min(target.hp,value);target.hp = Math.max(0, Math.floor(target.hp) - value);
+    const link=actorDefinition(target.kind).damageLinkRatio;
+    if(link&&received>0){const elder=this.state.enemyStates.find(e=>e.kind==='elderTreant'&&e.hp>0&&e.id===target.summonedBy);if(elder)this.damage(elder,Math.floor(received*link),'neutral',false,null);}
     // 命中自体を敵視のきっかけにする（切り捨てで0ダメージでも反応）。
     // 索敵外からの攻撃や、追跡疲労によるスキップ中の攻撃にも対応します。
     if (attacker && target.hp > 0 && this.state.enemyStates.some(e => e.id === target.id) && (attacker.id === this.state.playerState.id || this.state.allyStates.some(a => a.id === attacker.id))) {
@@ -433,7 +439,7 @@ export class GameSession {
         const enemy=n===0?chainOrigin(s,aim):nextChainTarget(s,origins,hit);if(!enemy)break;
         hit.add(enemy.id); const cells=occupied(enemy), impact={...enemy.position};
         this.events.push({type:'cast',actorId:p.id,position:source,target:impact,skillId:id,attribute:'thunder',sound:n===0?'magicCast':undefined,delayMs:n*160,durationMs:300});
-        if(hitInstallation(s,enemy.id,{rng:this.rng,events:this.events,log:m=>this.log(m)})){origins=cells;source=impact;continue;}
+        if(hitInstallation(s,enemy.id,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)})){origins=cells;source=impact;continue;}
         const critical=this.rng.next()<criticalChance(p,enemy,'thunder');
         const before=this.events.length;
         dealAttributeHit(enemy,attackPower(p)*(1-n*.1)*levelScale*(critical?p.criticalMultiplier:1),'thunder',s.playerActionCount,s.enemyStates,this.damage,this.events,()=>this.rng.next(),critical);
@@ -464,7 +470,7 @@ export class GameSession {
     const level = effectiveLevel(s.skillBag, s.skillLevels, id), multiplier = (1 + (level - 1) * .05) * connectionDamageMultiplier(s.skillBag, id);
     const hitStart = this.events.length; this.groupingDamage = true;
     for (const targetId of targets.targetIds) {
-      if(hitInstallation(s,targetId,{rng:this.rng,events:this.events,log:m=>this.log(m)}))continue;
+      if(hitInstallation(s,targetId,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)}))continue;
       const target = s.enemyStates.find(e => e.id === targetId)!;
       for (let hit = 0; hit < def.hits && target.hp > 0; hit++) {
         const critical = this.rng.next() < criticalChance(p, target, def.attribute);
@@ -510,13 +516,15 @@ export class GameSession {
   }
   reap(): void {
     for (const e of this.state.enemyStates.filter(e => e.hp <= 0)) {
-      if(e.kind!=='reaper'&&e.kind!=='goblinKing')this.state.defeatedEnemies!.push(structuredClone(e));
+      if(e.kind!=='reaper'&&!actorDefinition(e.kind).boss)this.state.defeatedEnemies!.push(structuredClone(e));
       const s = this.state;
       const kills = s.floorKills ??= {}; kills[e.kind as keyof typeof kills] = (kills[e.kind as keyof typeof kills] ?? 0) + 1;
       // 同時撃破も1体ずつ加算。撃破なしの行動を挟むと次の撃破から数え直す。
       if (s.lastKillAction === undefined || s.lastKillAction < s.playerActionCount - 1) s.killCombo = 0;
       s.killCombo = (s.killCombo ?? 0) + 1; s.lastKillAction = s.playerActionCount;
       const definition = actorDefinition(e.kind);
+      // 死亡時のバフ込み攻撃力を確定。以降の攻撃力変化は爆発に影響しない。
+      if(definition.deathExplosion)(s.mapState.installations??=[]).push({id:'death-bomb-'+e.id+'-'+s.playerActionCount,kind:'bombRemnant',position:{...e.position},spawned:0,placedAt:s.playerActionCount,remainingTurns:definition.deathExplosion.turns,burstDamage:Math.floor(attackPower(e)*definition.deathExplosion.ratio)});
       if(this.rng.next()<(definition.bookmarkDropChance??0))s.mapState.objects.push(floorLoot('bookmark-'+e.id,e.position,{type:'item',id:s.mapState.loot?.itemCategories?rollCategorizedItem(s.mapState.loot,this.rng,s.floorNumber):chooseWeightedLoot(MONSTER_BOOKMARK_POOL,this.rng)}));
       // 基礎HPに対する実際の最大HP比を経験値へ反映。被ダメージでは報酬を減らさない。
       // ステージ加算・階層倍率を含め、夜の補正を掛けて切り上げた後に連続撃破ボーナスを適用。
@@ -539,6 +547,8 @@ export class GameSession {
     this.state.enemyStates = this.state.enemyStates.filter(e => e.hp > 0 || newlyFallen.includes(e));
     if(newlyFallen.length)this.reap();
     for(const king of kings)kingPhases(this.state,king,{rng:this.rng,events:this.events,log:m=>this.log(m),hit:(a,b,n,attribute,label)=>this.strike(a,b,n,attribute,label)});
+    for(const elder of this.state.enemyStates)elderPhases(this.state,elder,{rng:this.rng,events:this.events,log:m=>this.log(m),hit:(a,b,n,attribute,label)=>this.strike(a,b,n,attribute,label)});
+    finishBoss(this.state);
     this.state.allyStates = this.state.allyStates.filter(a => a.hp > 0);
   }
   goalReady(): boolean {
@@ -565,7 +575,7 @@ export class GameSession {
     const s = this.state, next = s.floorNumber! + 1;
     const { map, enemies, spawn } = generateMap(STAGES.find(stage => stage.id === s.stageId)!, this.rng, next);
     s.killCombo = 0; s.lastKillAction = undefined;
-    s.floorNumber = next; s.mapState = map; map.playerTraps = []; s.enemyStates = enemies; const definition=this.stage,layout=typeof definition.layout==='function'?definition.layout(definition,next):definition.layout;s.reinforcementKinds=(layout?.enemies.length?layout.enemies:enemies).map(e=>e.kind).filter(k=>k!=='player'&&k!=='sprite'&&k!=='greaterSprite'&&k!=='goblinKing'&&k!=='reaper');
+    s.floorNumber = next; s.mapState = map; map.playerTraps = []; s.enemyStates = enemies; const definition=this.stage,layout=typeof definition.layout==='function'?definition.layout(definition,next):definition.layout;s.reinforcementKinds=(layout?.enemies.length?layout.enemies:enemies).map(e=>e.kind).filter((k):k is import('../data/enemies').EnemyKind=>k!=='player'&&k!=='sprite'&&k!=='greaterSprite'&&!actorDefinition(k).boss&&k!=='reaper');
     s.playerState.position = { ...spawn }; s.objectiveChests = 0; s.floorKills = {}; s.destroyedInstallations = {}; s.fullBagRewardClaimed = false; s.defeatedEnemies = []; s.nightRevived = 0; s.nightWave = undefined; s.nightTarget = undefined;
     s.exploredMap = new Array(map.width * map.height).fill(false);
     const placed: Actor[] = [s.playerState, ...enemies];
@@ -613,8 +623,8 @@ export class GameSession {
     }
     const desired = s.nightTarget ?? rule.min;
     if (s.nightRevived! >= desired || wave===0&&!s.defeatedEnemies?.length) return;
-    const pool=(s.reinforcementKinds ?? []).filter(k=>k!=='reaper'&&k!=='goblinKing');
-    const dead = wave===0 ? (s.defeatedEnemies??[]).filter(e=>e.kind!=='reaper'&&e.kind!=='goblinKing') : Array.from({length:desired-s.nightRevived!},(_,i)=>actor('reinforcement-'+i,pool.length?pool[this.rng.int(0,pool.length-1)]:'slime',{x:0,y:0},s.stageId,s.floorNumber));
+    const pool=(s.reinforcementKinds ?? []).filter(k=>k!=='reaper'&&!actorDefinition(k).boss);
+    const dead = wave===0 ? (s.defeatedEnemies??[]).filter(e=>e.kind!=='reaper'&&!actorDefinition(e.kind).boss) : Array.from({length:desired-s.nightRevived!},(_,i)=>actor('reinforcement-'+i,pool.length?pool[this.rng.int(0,pool.length-1)]:'slime',{x:0,y:0},s.stageId,s.floorNumber));
     while (dead.length && s.nightRevived! < desired) {
       const kinds=pool.filter(k=>dead.some(e=>e.kind===k));
       const kind=kinds.length?kinds[this.rng.int(0,kinds.length-1)]:dead[0].kind;
@@ -647,8 +657,8 @@ export class GameSession {
     for (const a of this.actors) { delete a.shadowBoundUntil; a.buffs = []; a.afflictions = []; if(a.id!==p.id)a.hp=a.maxHp; if(a.maxMp!==undefined)a.mp=a.maxMp; }
     s.allyStates=[];s.mapState.thunderPrisons=[];
     s.enemyStates=s.enemyStates.filter(e=>e.kind!=='reaper');
-    s.defeatedEnemies=s.defeatedEnemies?.filter(e=>e.kind!=='reaper'&&e.kind!=='goblinKing');
-    s.reinforcementKinds=s.reinforcementKinds?.filter(k=>k!=='reaper'&&k!=='goblinKing');
+    s.defeatedEnemies=s.defeatedEnemies?.filter(e=>e.kind!=='reaper'&&!actorDefinition(e.kind).boss);
+    s.reinforcementKinds=s.reinforcementKinds?.filter(k=>k!=='reaper'&&!actorDefinition(k).boss);
     const limit = this.stage.sleepRespawnCount ?? DAY_CYCLE.respawnCount;
     const dead = [...(s.defeatedEnemies ?? [])]; let count = 0;
     while (dead.length && count < limit) {
@@ -741,7 +751,7 @@ export class GameSession {
       const beforePosition = { ...enemy.position };
       const innate = actorDefinition(enemy.kind).innateAttribute;
       if (innate && innate !== 'wind') { enemy.afflictions = enemy.afflictions.filter(f => f.attribute !== innate); if (enemy.afflictions.length >= 2) enemy.afflictions.shift(); enemy.afflictions.push({ attribute: innate, remainingTurns: 10, appliedAt: s.playerActionCount }); }
-      const skillContext = { spawn:(kind:import('../data/enemies').EnemyKind,position:Point,experienceMultiplier:number)=>{const summoned=actor('summoned-'+s.playerActionCount+'-'+s.enemyStates.length,kind,position,s.stageId,s.floorNumber);summoned.experienceMultiplier=experienceMultiplier;summoned.summonedBy=enemy.id;summoned.mode='hostile';summoned.lastSeen={...p.position};summoned.pursuitLeft=summoned.pursuitTurns;summoned.alertedAt=s.playerActionCount;s.enemyStates.push(summoned);return summoned;}, hitInstallation:(id:string)=>hitInstallation(s,id,{rng:this.rng,events:this.events,log:m=>this.log(m)}), action: s.playerActionCount, allies: s.enemyStates, map: s.mapState, actors: this.actors, rng: this.rng, events: this.events, damage: (target: Actor, amount: number, attribute: Attribute, _critical?: boolean, label?: string) => this.strike(enemy, target, amount, attribute, label), log: (message: string) => { if (this.inPlayerScreen(enemy.position) || this.events.at(-1)?.path?.some(p => this.inPlayerScreen(p))) this.log(message); } };
+      const skillContext = { spawn:(kind:import('../data/enemies').EnemyKind,position:Point,experienceMultiplier:number)=>{const summoned=actor('summoned-'+s.playerActionCount+'-'+s.enemyStates.length,kind,position,s.stageId,s.floorNumber);summoned.experienceMultiplier=experienceMultiplier;summoned.summonedBy=enemy.id;summoned.mode='hostile';summoned.lastSeen={...p.position};summoned.pursuitLeft=summoned.pursuitTurns;summoned.alertedAt=s.playerActionCount;s.enemyStates.push(summoned);return summoned;}, hitInstallation:(id:string)=>hitInstallation(s,id,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)}), action: s.playerActionCount, allies: s.enemyStates, map: s.mapState, actors: this.actors, rng: this.rng, events: this.events, damage: (target: Actor, amount: number, attribute: Attribute, _critical?: boolean, label?: string) => this.strike(enemy, target, amount, attribute, label), log: (message: string) => { if (this.inPlayerScreen(enemy.position) || this.events.at(-1)?.path?.some(p => this.inPlayerScreen(p))) this.log(message); } };
       // 支援は敵を見つけていなくても使用可能。攻撃スキルは通常AIの索敵後に試す。
       Object.assign(skillContext,{allowSkills:canRollSkills});
       enemy.enemyCooldownUntil ??= {};
@@ -749,7 +759,7 @@ export class GameSession {
       if (canRollSkills && tryEnemySkill(support, [], skillContext)) { enemy.mp = support.mp; continue; }
       const chargeIds=(enemy.enemySkillIds??[]).filter(id=>ENEMY_SKILLS[id]?.effect.type==='charge');
       const charged=chargeIds.length>0&&(()=>{const ids=enemy.enemySkillIds;enemy.enemySkillIds=chargeIds;try{return tryEnemySkill(enemy,[p,...s.allyStates],skillContext);}finally{enemy.enemySkillIds=ids;}})();
-      if (!charged && !actKing(s,enemy,{rng:this.rng,events:this.events,log:m=>this.log(m),hit:(a,b,n,attribute,label)=>this.strike(a,b,n,attribute,label)})) actEnemy(s.mapState, enemy, [p, ...s.allyStates], this.actors, this.rng, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, s.playerActionCount, (caster, targets) => { const ids = caster.enemySkillIds; caster.enemySkillIds = (ids ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type !== 'allyBuff'); try { return tryEnemySkill(caster, targets, skillContext); } finally { caster.enemySkillIds = ids; } });
+      if (!charged && !actElder(s,enemy,{rng:this.rng,events:this.events,log:m=>this.log(m),hit:(a,b,n,attribute,label)=>this.strike(a,b,n,attribute,label)}) && !(enemy.kind==='treantTentacle'&&(tryEnemySkill(enemy,[p,...s.allyStates],skillContext),true)) && !actKing(s,enemy,{rng:this.rng,events:this.events,log:m=>this.log(m),hit:(a,b,n,attribute,label)=>this.strike(a,b,n,attribute,label)})) actEnemy(s.mapState, enemy, [p, ...s.allyStates], this.actors, this.rng, (a, b) => { this.events.push({ type: 'attack', actorId: a.id, position: { ...a.position }, target: { ...b.position }, attribute: a.attribute }); this.strike(a, b); }, s.playerActionCount, (caster, targets) => { const ids = caster.enemySkillIds; caster.enemySkillIds = (ids ?? []).filter(id => ENEMY_SKILLS[id]?.effect.type !== 'allyBuff'); try { return tryEnemySkill(caster, targets, skillContext); } finally { caster.enemySkillIds = ids; } });
       // 移動先のダメージで倒れる場合も、到着した姿を先に描画できるよう保存。
       if(actorDefinition(enemy.kind).rootAfterMove&&!same(beforePosition,enemy.position))enemy.movementLockedUntil=s.playerActionCount+2;
       const arrivalActors = !same(beforePosition, enemy.position) ? structuredClone(this.actors) : null;
@@ -776,6 +786,7 @@ export class GameSession {
       if(actionCount>1)this.capture('enemy');
       }
     }
+    tickBossHazards(s,{rng:this.rng,events:this.events,log:m=>this.log(m),hit:(a,b,n,attribute,label)=>this.strike(a,b,n,attribute,label)});
     tickDelayedRocks(s,{rng:this.rng,events:this.events,damage:(t,n,a,c)=>this.damage(t,n,a,c,null),log:m=>this.log(m)});
     tickCrystals(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});
     tickInstallations(s,{rng:this.rng,events:this.events,damage:this.damage,log:m=>this.log(m)});

@@ -33,6 +33,15 @@ export function hitInstallation(state:SaveData,id:string,context:Context):boolea
  const map=state.mapState,i=map.installations?.find(i=>i.id===id);if(!i)return false;
  map.installations=map.installations!.filter(o=>o.id!==id);
  const counts=state.destroyedInstallations??={};counts[i.kind]=(counts[i.kind]??0)+1;
+ if(i.kind==='bombRemnant'){
+  const cells:Point[]=[];for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)if(dx||dy)cells.push({x:i.position.x+dx,y:i.position.y+dy});
+  context.events.push({type:'trap',position:{...i.position},path:cells,visual:'fireBlast',sound:'explosion',durationMs:600});
+  const start=context.events.length,actors=[state.playerState,...state.allyStates,...state.enemyStates];
+  const damage:DamageHandler=context.damage??((a,n,attribute)=>{const amount=Math.max(0,Math.floor(n));a.hp=Math.max(0,a.hp-amount);context.events.push({type:'damage',actorId:a.id,position:{...a.position},amount,attribute});});
+  for(const target of actors)if(target.hp>0&&occupied(target).some(p=>cells.some(c=>same(c,p))))dealAttributeHit(target,i.burstDamage??0,'fire',state.playerActionCount,actors,damage,context.events,()=>context.rng.next());
+  for(const event of context.events.slice(start))event.delayMs=(event.delayMs??0)+180;
+  context.log('ボムストーンが爆発した！');return true;
+ }
  const def=installationDefinition(i);
  const bossReward=i.kind==='goblinBanner'&&(i.bossReward??i.id.startsWith('king-'));
  if(bossReward)for(const itemId of ['healingPotion','etherMedium'] as const)map.objects.push({id:'drop-'+i.id+'-'+itemId,type:'item',position:{...i.position},itemId});

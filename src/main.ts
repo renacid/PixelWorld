@@ -102,7 +102,7 @@ function home(): void {
 function stages(regionId?: string): void {
   stopRenderer(); closeModal(); screen = 'stages'; const progress = saves.progress();
   if (!regionId) {
-    app.innerHTML = `<main class="stage-shell">${header('地域を選ぶ')}<div class="stage-list">${REGIONS.map(r => `<button class="stage-card" data-region="${r.id}"><span class="stage-number">${r.number}</span><span class="stage-details"><strong>${r.name}</strong><span>${r.description}</span><small>${STAGES.filter(s => s.regionId === r.id).length}/${r.plannedStages}ステージ公開</small></span><span>→</span></button>`).join('')}</div></main>`;
+    app.innerHTML = `<main class="stage-shell">${header('地域を選ぶ')}<div class="stage-list">${REGIONS.map(r => `<button class="stage-card" data-region="${r.id}"><span class="stage-number">${r.id==='test'?'T':r.number}</span><span class="stage-details"><strong>${r.name}</strong><span>${r.description}</span><small>${STAGES.filter(s => s.regionId === r.id).length}/${r.plannedStages}ステージ公開</small></span><span>→</span></button>`).join('')}</div></main>`;
     on('back', home); app.querySelectorAll<HTMLElement>('[data-region]').forEach(b => b.addEventListener('click', () => stages(b.dataset.region))); return;
   }
   const region = REGIONS.find(r => r.id === regionId)!;
@@ -272,7 +272,7 @@ function update(): void {
   if (screen !== 'game' || !session) return;
   const s = session.state, p = s.playerState;
   const text = (id: string, value: string) => { const el = document.getElementById(id); if (el) el.textContent = value; };
-  const boss=s.enemyStates.find(a=>a.kind==='goblinKing'&&a.hp>0),hud=document.getElementById('boss-hud');
+  const boss=s.enemyStates.find(a=>a.id===s.mapState.bossArena?.bossId&&a.hp>0),hud=document.getElementById('boss-hud');
   if(hud){hud.hidden=!boss||!s.mapState.bossArena?.started;hud.parentElement?.classList.toggle('has-boss',!hud.hidden);if(boss){text('boss-name',boss.name);text('boss-hp',boss.hp+' / '+boss.maxHp);const bar=document.getElementById('boss-health') as HTMLProgressElement;bar.max=boss.maxHp;bar.value=boss.hp;}}
   text('day-label', `${s.dayCount ?? 1}日目`);
   text('hp-label', `${Math.ceil(p.hp)} / ${p.maxHp}`); text('mp-label', `${p.mp} / ${p.maxMp}`); text('turn-label', String(s.playerActionCount).padStart(2, '0'));

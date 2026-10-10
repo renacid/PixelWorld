@@ -22,6 +22,9 @@ export function actorEffectDescriptions(actor: Actor, action: number): string[] 
   if ((actor.stunnedUntil ?? 0) > action) effects.push(`行動不可（残り${actor.stunnedUntil! - action}ターン）`);
   if ((actor.shadowBoundUntil??0)>action) effects.push('影縫い：ダメージを受けると解除');
   if (actor.frostErosion) effects.push('霜蝕：' + (actor.frostErosion.spent ? '追加ダメージ消費済み' : '次の属性反応で追加ダメージ'));
+  if(actor.immobile)effects.push('移動禁止（永久）');
+  if(actorDefinition(actor.kind).damageLinkRatio)effects.push('根の絆：受けたダメージの50％をエルダー・トレントにも与える');
+  if(actorDefinition(actor.kind).deathExplosion)effects.push('死亡時、爆発直前の岩に変化する');
   const weakness = actorDefinition(actor.kind).fireVulnerability;
   if (weakness) effects.push(`炎耐性低下：受ける炎ダメージ＋${weakness}（永久）`);
   if ((actor.bossLinkUntil ?? 0) > action) effects.push(`ゴブリンの絆：周囲11×11内のゴブリンが倒れると5ダメージ（残り${actor.bossLinkUntil! - action}ターン）`);

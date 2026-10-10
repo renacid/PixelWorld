@@ -31,17 +31,29 @@ export class TurnAnimation {
         const moveProgress = step.events.some(e => e.type === 'trap') ? Math.min(1, (elapsed - step.start) / 230) : progress;
         a.position = { x: interpolate(prev.position.x, next.position.x, moveProgress), y: interpolate(prev.position.y, next.position.y, moveProgress) };
         if (step.events.some(e => e.skillId === 'warp' && e.actorId === id)) a.position = { ...(progress < .5 ? prev.position : next.position) };
+        const forced=step.events.find(e=>e.actorId===id&&(e.enemySkillId==='elderTransfer'||e.enemySkillId==='elderGust'));
+        if(forced){const t=Math.max(0,Math.min(1,(elapsed-step.start-(forced.delayMs??0))/(forced.durationMs??400)));a.position=forced.enemySkillId==='elderTransfer'?{...(t<.5?prev.position:next.position)}:{x:interpolate(prev.position.x,next.position.x,t),y:interpolate(prev.position.y,next.position.y,t)};}
         if(step.events.some(e=>e.bossJump&&e.actorId===id)){
           const jump=step.events.find(e=>e.bossJump&&e.actorId===id)!;
           const t=Math.max(0,Math.min(1,(elapsed-step.start-(jump.delayMs??0))/750));
           a.position={x:interpolate(prev.position.x,next.position.x,t),y:interpolate(prev.position.y,next.position.y,t)-Math.sin(t*Math.PI)*2.5};
         }
         if(step.events.some(e=>e.visual==='fallingStrike'&&e.actorId===id)){const t=Math.min(1,(elapsed-step.start)/300);a.position={x:interpolate(prev.position.x,next.position.x,t),y:interpolate(prev.position.y,next.position.y,t)-Math.sin(t*Math.PI)*1.3};}
+        // 連続して押される敵も、竜巻が各マスへ到着するまで元の場所で待つ。
+        const displacements=step.events.filter(e=>e.displacement&&e.actorId===id&&e.target);
+        if(displacements.length){
+          a.position={...displacements[0].position};
+          for(const move of displacements){
+            const time=elapsed-step.start-(move.delayMs??0);if(time<0)break;
+            const t=time/(move.durationMs??120);
+            a.position={x:interpolate(move.position.x,move.target!.x,t),y:interpolate(move.position.y,move.target!.y,t)};
+          }
+        }
         if (progress < .55) { a.hp = prev.hp; a.afflictions = prev.afflictions; }
       }
       if(!prev&&next&&step.events.some(e=>e.actorId===id&&e.visual==='fallingStrike'))a.position={x:next.position.x,y:next.position.y-(1-Math.min(1,(elapsed-step.start)/400))*2};
       const attack = step.events.find(e => (e.type === 'attack' || e.type === 'cast') && e.actorId === id);
-      if (attack?.target && !attack.bossJump && attack.skillId !== 'warp' && attack.enemySkillId !== 'dash') {
+      if (attack?.target && !attack.bossJump && attack.skillId !== 'warp' && attack.enemySkillId !== 'dash' && attack.enemySkillId !== 'elderGust') {
         const dx = attack.target.x - attack.position.x, dy = attack.target.y - attack.position.y, len = Math.hypot(dx, dy) || 1;
         const lunge = Math.sin(Math.min(1, progress / .7) * Math.PI) * .22;
         a.position = { x: a.position.x + dx / len * lunge, y: a.position.y + dy / len * lunge };

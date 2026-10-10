@@ -694,6 +694,13 @@ export const stage: Stage = {
               "x": 35,
               "y": 34
             }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 34,
+              "y": 34
+            }
           }
         ],
         "traps": [
@@ -1392,6 +1399,20 @@ export const stage: Stage = {
               "x": 42,
               "y": 31
             }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 44,
+              "y": 14
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 65,
+              "y": 26
+            }
           }
         ],
         "traps": [],
@@ -1875,6 +1896,27 @@ export const stage: Stage = {
             "position": {
               "x": 20,
               "y": 42
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 14,
+              "y": 13
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 5,
+              "y": 27
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 26,
+              "y": 35
             }
           }
         ],

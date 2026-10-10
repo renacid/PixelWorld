@@ -3,8 +3,10 @@ import { ENEMY_SKILLS } from './enemySkills';
 import type { DropEntry } from './loot';
 
 /** 絵の種類は敵の種類から独立。新しい敵でも既存の絵を再利用できます。 */
-export type SpriteId = 'greaterCrystalFlower' | 'thunderButterfly' | 'stoneSlime' | 'earthFlower' | 'frostBoar' | 'reaper' | 'fighter' | 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'sprite' | 'greaterSprite' | 'treant';
+export type SpriteId = 'bombStone' | 'elderTreant' | 'treantTentacle' | 'greaterCrystalFlower' | 'thunderButterfly' | 'stoneSlime' | 'earthFlower' | 'frostBoar' | 'reaper' | 'fighter' | 'archer' | 'mage' | 'player' | 'slime' | 'goblin' | 'wolf' | 'golem' | 'sprite' | 'greaterSprite' | 'treant';
 export type ActorDefinition = {
+  /** ボス表示・復活除外を種類名に依存させない。 */ boss?: boolean;
+  deathExplosion?: {ratio:number;turns:number}; damageLinkRatio?:number;
   /** 永続の炎被ダメージ加算。 */ fireVulnerability?: number;
   rootAfterMove?: boolean;
   /** 基礎HP30以上は標準10%。0で無効化可能。 */ bookmarkDropChance?: number;
@@ -39,13 +41,16 @@ function define(config: Pick<ActorDefinition, 'name' | 'hp' | 'attack' | 'sprite
 
 /** 敵の追加はこの一覧から。IDの型もこのキーから自動生成されます。 */
 export const ENEMIES = {
+  bombStone:define({name:'ボムストーン',hp:20,hpPerStage:0,mp:10,attack:4,detectionRange:4,experience:6,sprite:'bombStone',skills:['lunge','earthStrike'],deathExplosion:{ratio:1.5,turns:1}}),
+  elderTreant:define({name:'エルダー・トレント',hp:500,hpPerStage:0,mp:100,attack:5,detectionRange:30,experience:100,size:2,boss:true,immobile:true,innateAttribute:'earth',fireVulnerability:3,sprite:'elderTreant',renderScale:2,renderHeight:88,bookmarkDropChance:0}),
+  treantTentacle:define({name:'トレントの触手',hp:30,hpPerStage:0,mp:10,attack:4,detectionRange:30,experience:5,immobile:true,innateAttribute:'earth',fireVulnerability:1,sprite:'treantTentacle',damageLinkRatio:.5,skillSelection:'exclusive',skills:['bindingVine','sweepingStrike'],skillChances:{bindingVine:.3,sweepingStrike:.3},bookmarkDropChance:0,drops:[{loot:{type:'item',id:'potion'},chance:1},{loot:{type:'item',id:'potion'},chance:.5},{loot:{type:'item',id:'ether'},chance:.3}]}),
   // 通常の追跡・巡回では動かず、専用の転移スキルだけで場所を変える。
   greaterCrystalFlower:define({name:'大結晶花',hp:75,hpPerStage:0,attack:6,mp:30,experience:20,size:2,immobile:true,detectionRange:3,sprite:'greaterCrystalFlower',renderHeight:72,renderLift:2,fireVulnerability:3,skills:['summonFlower','approachTeleport','earthPollen','delayedBoulder','bindingVine'],skillChances:{summonFlower:.1,approachTeleport:.05,earthPollen:.3,delayedBoulder:.15,bindingVine:.05}}),
   thunderButterfly:define({name:'大雷蝶',hp:35,attack:3,mp:25,experience:11,detectionRange:4,sprite:'thunderButterfly',renderHeight:36,bob:true,skills:['windStrike','dash','strongThunderArmor','thunderBall','randomBolt'],drops:[{loot:{type:'skill',id:'thunder'},chance:.015},{loot:{type:'skill',id:'chainLightning'},chance:.015},{loot:{type:'skill',id:'tornado'},chance:.015},{loot:{type:'skill',id:'vacuumSlash'},chance:.015}]}),
   stoneSlime:define({   name:'ストーンスライム',hp:14,attack:2,mp:5,experience:3,detectionRange:3,sprite:'stoneSlime',innateAttribute:'earth',skills:['stoneThrow','fallingStrike'],skillChances:{stoneThrow:.2,fallingStrike:.2},bob:true}),
   earthFlower:define({  name:'地晶花',hp:30,attack:3,mp:15,experience:8,detectionRange:4,sprite:'earthFlower',renderHeight:40,fireVulnerability:1,rootAfterMove:true,skills:['stoneThrow','earthPollen'],skillChances:{stoneThrow:.2,earthPollen:.3}}),
   frostBoar: define({   name:'フロストボア',hp:23,attack:5,mp:10,detectionRange:4,sprite:'frostBoar',experience:5,skills:['chargingStrike','iceArmor','sweepingStrike']}),
-  goblinKing: define({  name:'ゴブリン・キング',hp:300,hpPerStage:0,attack:6,mp:50,sprite:'fighter',experience:30,detectionRange:15,chaseMoveLimit:99999}),
+  goblinKing: define({boss:true,  name:'ゴブリン・キング',hp:300,hpPerStage:0,attack:6,mp:50,sprite:'fighter',experience:30,detectionRange:15,chaseMoveLimit:99999}),
   reaper:define({       name:'死神',hp:13,mp:40,attack:4,detectionRange:7,experience:0,sprite:'reaper',bob:true,skills:['flowAcceleration','sweepingStrike']}),
   goblinFighter:define({name:'ゴブリン・ファイター',hp:35,mp:15,attack:5,  detectionRange:4, experience:8, sprite:'fighter',skills:['dash','heavyStrike']}),
   goblinArcher: define({name:'ゴブリン・アーチャー', hp: 16, attack: 2,  detectionRange: 4, mp: 3, experience: 3, criticalRate: .1, sprite: 'archer', skills: ['arrowShot'] }),

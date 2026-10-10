@@ -54,7 +54,7 @@ function generateBaseMap(stage: Stage, rng: Random, floor = 1): { map: MapState;
   if (layout) {
     if (layout.rows.length !== height || layout.rows.some(row => row.length !== width)) throw new Error(`${stage.name}: 地形の行数・列数がステージサイズと一致しません`);
     const tiles = layout.rows.flatMap(row => [...row].map(char => { const id = layout.legend[char]; if (!(id in TERRAIN)) throw new Error(`未定義の地形文字: ${char}`); return id; }));
-    const map: MapState = { bossArena: structuredClone(layout.bossArena), loot: stage.loot, width, height, tiles, objects: structuredClone(layout.objects), fields: structuredClone(layout.fields ?? []), traps: structuredClone(layout.traps ?? []), installations: structuredClone(layout.installations ?? []) };
+    const map: MapState = { bossArena: structuredClone(layout.bossArena), bossRooms: structuredClone(layout.bossRooms), loot: stage.loot, width, height, tiles, objects: structuredClone(layout.objects), fields: structuredClone(layout.fields ?? []), traps: structuredClone(layout.traps ?? []), installations: structuredClone(layout.installations ?? []) };
     // ステージ側で skillId / skillIds / itemId / contents を書いた箱は固定報酬として扱う。
     // とくに開始地点の隣の箱をカスタマイズした場合、後段の共通初期報酬で上書きしない。
     for (const object of map.objects) if (object.type === 'chest' && (object.contents !== undefined || object.skillId !== undefined || object.skillIds !== undefined || object.itemId !== undefined)) object.fixedContents = true;

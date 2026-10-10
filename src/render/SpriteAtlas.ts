@@ -1,9 +1,11 @@
 /** 文字配列から4方向のドット絵を生成。パレットと各キャラの形をここで編集。 */
 import type { Direction } from '../game/types';
 import type { SpriteId } from '../data/enemies';
+import { caveMonsterSprite } from './CaveMonsters';
 import { detailSprite, DETAIL_COLORS } from './SpriteDetail';
 export const PIXEL_COLORS: Record<string, string> = { '.': '', v:'#a971e8', V:'#653d92', N:'#252034', r: '#fa775e', R: '#c34b54', s: '#ffe6b0', w: '#fff9e6', b: '#4a9ed9', B: '#306da2', k: '#29445f', y: '#ffd05f', g: '#75d982', G: '#42ab70', p: '#b7f4a0', o: '#d8b987', O: '#ac9067', t: '#67e7d1', a: '#485557', c: '#7f8b87', C: '#b9bcb0', d: '#303e40', m: '#536d39', M: '#8ca659' };
 function make(kind: SpriteId, facing: 'down' | 'up' | 'left'): string[] {
+  if(kind==='bombStone'||kind==='elderTreant'||kind==='treantTentacle')return caveMonsterSprite(kind,facing);
   if(kind==='greaterCrystalFlower')return makeCrystalFlower(facing);
   if(kind==='stoneSlime')return make('slime',facing).map(row=>row.replaceAll('g','o').replaceAll('G','O').replaceAll('p','C'));
   if (kind === 'golem') return makeGolem(facing);

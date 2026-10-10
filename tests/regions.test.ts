@@ -11,7 +11,7 @@ import { actEnemy } from '../src/ai/EnemyAI';
 
 describe('地域・階層設定とゴーレム', () => {
  it('全公開ステージ・全階層で目標が配置され、石板と出口へ到達できる', () => {
-  expect(REGIONS.map(r => r.id)).toEqual(['plains', 'forest', 'cave']);
+  expect(REGIONS.map(r => r.id)).toEqual(['plains', 'forest', 'cave', 'test']);
   for (const base of STAGES) for(let floor=1;floor<=(base.dungeon?.floors??1);floor++) for(const seed of [3, 29]) {
    const stage=stageForFloor(base,floor), {map,enemies,spawn}=generateMap(base,new Random(seed),floor);
    const queue=[spawn], seen=new Set([spawn.x+','+spawn.y]);

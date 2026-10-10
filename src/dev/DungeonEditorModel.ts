@@ -3,7 +3,7 @@ import type { Stage, StageLayout, FloorSettings, ClearCondition, GroundObject, P
 import { TERRAIN } from '../data/terrain';
 import { ENEMIES } from '../data/enemies';
 export type EditorFloor = {
-  bossArena?: StageLayout['bossArena'];
+  bossArena?: StageLayout['bossArena']; bossRooms?: StageLayout['bossRooms'];
   name:string; width:number; height:number; tiles:number[]; spawn:Point;
   objects:GroundObject[]; enemies:StageLayout['enemies']; traps:NonNullable<StageLayout['traps']>;
   installations:NonNullable<StageLayout['installations']>;
@@ -30,7 +30,7 @@ export function projectFromJson(input: unknown): EditorProject {
     }));
     const floorSettings = { ...settings }; delete floorSettings.layout; delete floorSettings.width; delete floorSettings.height; delete floorSettings.clearCondition;
     floors.push({
-      bossArena: structuredClone(layout.bossArena), name: settings.name ?? `${key}層`, width, height, tiles,
+      bossArena: structuredClone(layout.bossArena), bossRooms: structuredClone(layout.bossRooms), name: settings.name ?? `${key}層`, width, height, tiles,
       spawn: { ...layout.spawn }, objects: structuredClone(layout.objects ?? []), enemies: structuredClone(layout.enemies ?? []),
       traps: structuredClone(layout.traps ?? []), installations: structuredClone(layout.installations ?? []),
       clearCondition: structuredClone(settings.clearCondition ?? { type: 'exit' }),
@@ -53,7 +53,7 @@ export function exportStage(project:EditorProject):Stage {
   const legend=Object.fromEntries(tileIds.map((id,i)=>[symbols[i],id]));
   for(const [i,f] of project.floors.entries()){
     const rows=Array.from({length:f.height},(_,y)=>f.tiles.slice(y*f.width,(y+1)*f.width).map(id=>symbols[tileIds.indexOf(id)]).join(''));
-    floorSettings[i+1]={...structuredClone(f.settings??{}),width:f.width,height:f.height,clearCondition:structuredClone(f.clearCondition),layout:{bossArena:structuredClone(f.bossArena),rows,legend,spawn:{...f.spawn},objects:structuredClone(f.objects),enemies:structuredClone(f.enemies),traps:structuredClone(f.traps),installations:structuredClone(f.installations),randomChests:Math.max(0,Math.floor(Number(f.randomChests)||0)),gemCount:Math.min(5,Math.max(0,Math.floor(Number(f.gemCount)||0))),randomEnemies:[],trapPlacements:[]}};
+    floorSettings[i+1]={...structuredClone(f.settings??{}),width:f.width,height:f.height,clearCondition:structuredClone(f.clearCondition),layout:{bossArena:structuredClone(f.bossArena),bossRooms:structuredClone(f.bossRooms),rows,legend,spawn:{...f.spawn},objects:structuredClone(f.objects),enemies:structuredClone(f.enemies),traps:structuredClone(f.traps),installations:structuredClone(f.installations),randomChests:Math.max(0,Math.floor(Number(f.randomChests)||0)),gemCount:Math.min(5,Math.max(0,Math.floor(Number(f.gemCount)||0))),randomEnemies:[],trapPlacements:[]}};
   }
   const first=project.floors[0];
   const dungeon=project.stage.dungeon??{gemCount:0,extraPassages:0,enemyVariance:0,nightRevival:{min:1,max:2}};
@@ -83,7 +83,7 @@ export function validateProject(project:EditorProject):string[] {
     for(const enemy of f.enemies){const definition=ENEMIES[enemy.kind];if(!definition){fail('未定義の敵');continue;}
       for(let y=0;y<definition.size;y++)for(let x=0;x<definition.size;x++){const p={x:enemy.position.x+x,y:enemy.position.y+y};if(!pass(p)||used.has(key(p)))fail('敵の占有マスが壁・配置物と重なります ('+key(p)+')');used.add(key(p));}
     }
-    if(f.bossArena){const a=f.bossArena;
+    for(const a of [f.bossArena,...(f.bossRooms??[])].filter(a=>!!a)){
       if(![a.x,a.y,a.width,a.height].every(Number.isInteger)||a.x<0||a.y<0||a.width<1||a.height<1||a.x+a.width>f.width||a.y+a.height>f.height)fail('ボス戦エリアが範囲外です');
       if(a.wallTile!==undefined&&!TERRAIN[a.wallTile]?.solid)fail('封鎖用の地形には壁を指定してください');
       for(const p of a.sealTiles??[])if(!Number.isInteger(p.x)||!Number.isInteger(p.y)||p.x<0||p.y<0||p.x>=f.width||p.y>=f.height)fail('封鎖マスが範囲外です');

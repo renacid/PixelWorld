@@ -11,7 +11,7 @@ type PreparedAction = { installationId?:string; position: Point; facing: Directi
 /** 効果ごとの事前検証。新効果はここに分岐を追加し、抽選前に実行可能性を確定します。 */
 function prepare(skill: EnemySkillDefinition, caster: Actor, target: Actor, context: Context): PreparedAction | null {
   if (skill.effect.type === 'melee') {
-    const hit = occupied(target).find(p => occupied(caster).some(c => Math.max(Math.abs(c.x - p.x), Math.abs(c.y - p.y)) <= skill.maxRange));
+    const hit = occupied(target).find(p => occupied(caster).some(c => Math.max(Math.abs(c.x - p.x), Math.abs(c.y - p.y)) <= skill.maxRange && (!skill.cardinalOnly || c.x===p.x || c.y===p.y)));
     if (!hit) return null;
     const dx = hit.x - caster.position.x, dy = hit.y - caster.position.y;
     return { position: { ...caster.position }, impact: hit, facing: Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up' };

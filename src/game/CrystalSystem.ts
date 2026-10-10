@@ -1,4 +1,5 @@
 import { targetableCrystals } from './CrystalTargets';
+import { CRYSTAL_FLIGHT_MS, CRYSTAL_BURST_MS } from './CrystalTiming';
 import type { Actor, Crystal, CrystalSource, GameEvent, Point, SaveData } from './types';
 import type { Random } from './Random';
 import { canStand, occupied, same } from './MapState';
@@ -39,18 +40,26 @@ export function hitCrystal(s:SaveData,id:string,c:CrystalContext):boolean{
  s.mapState.crystals=s.mapState.crystals!.filter(i=>!ids.has(i.id));
  for(const crystal of group){
   const near=(p:Point)=>Math.max(Math.abs(p.x-crystal.position.x),Math.abs(p.y-crystal.position.y))<=1;
-  const targets=(crystal.source.team==='enemy'?[s.playerState,...s.allyStates]:s.enemyStates).filter(a=>a.hp>0&&occupied(a).some(near));
+  const opponents=crystal.source.team==='enemy'?[s.playerState,...s.allyStates]:s.enemyStates;
+  const targets=opponents.filter(a=>a.hp>0&&occupied(a).some(near));
   const objects=(s.mapState.installations??[]).filter(i=>near(i.position));
   const otherCrystals=targetableCrystals(s.mapState,s.playerActionCount).filter(i=>near(i.position));
-  c.events.push({type:'reaction',position:{...crystal.position},attribute:crystal.attribute,text:crystal.attribute==='ice'?'氷結晶破裂':'雷結晶破裂',sound:crystal.attribute==='ice'?'ice':'magicCast'});
-  for(const target of targets){
-   c.events.push({type:'cast',position:{...crystal.position},target:{...target.position},crystalAttribute:crystal.attribute,attribute:crystal.attribute,durationMs:320});
-   const hitStart=c.events.length;
-   dealReactionHit(target,crystal.damage,crystal.attribute,s.playerActionCount,crystal.source.team==='enemy'?[s.playerState,...s.allyStates]:s.enemyStates,c.damage,c.events,()=>c.rng.next(),crystal.source);
-   for(const event of c.events.slice(hitStart))event.delayMs=(event.delayMs??0)+250;
+  // 対象数ではなく「対象がいるマス」で抽選。大型敵の範囲外の中心へ飛ばさない。
+  const cells=new Map<string,Point>();
+  for(const target of targets)for(const p of occupied(target).filter(near))cells.set(p.x+','+p.y,p);
+  for(const object of [...objects,...otherCrystals])cells.set(object.position.x+','+object.position.y,object.position);
+  const choices=[...cells.values()],destination=choices.length?choices[c.rng.int(0,choices.length-1)]:crystal.position;
+  c.events.push({type:'cast',position:{...crystal.position},target:{...destination},crystalAttribute:crystal.attribute,attribute:crystal.attribute,delayMs:0,durationMs:CRYSTAL_FLIGHT_MS+CRYSTAL_BURST_MS});
+  const hitStart=c.events.length;
+  c.events.push({type:'reaction',position:{...destination},attribute:crystal.attribute,text:crystal.attribute==='ice'?'氷結晶破裂':'雷結晶破裂',delayMs:0,durationMs:CRYSTAL_BURST_MS,sound:crystal.attribute==='ice'?'ice':'magicCast'});
+  if(choices.length){
+   for(const target of targets)if(occupied(target).some(p=>same(p,destination)))dealReactionHit(target,crystal.damage,crystal.attribute,s.playerActionCount,opponents,c.damage,c.events,()=>c.rng.next(),crystal.source);
+   for(const object of objects)if(same(object.position,destination))hitInstallation(s,object.id,c);
+   // 周囲を一括連鎖させず、選ばれたマスの結晶だけに命中する。
+   for(const other of otherCrystals)if(same(other.position,destination))hitCrystal(s,other.id,c);
   }
-  for(const object of objects){c.events.push({type:'cast',position:{...crystal.position},target:{...object.position},crystalAttribute:crystal.attribute,durationMs:320});hitInstallation(s,object.id,c);}
-  for(const other of otherCrystals)hitCrystal(s,other.id,c);
+  // 命中・破壊・派生反応はすべて飛行後。連鎖時は次の飛行もその後に始める。
+  for(const event of c.events.slice(hitStart))event.delayMs=(event.delayMs??0)+CRYSTAL_FLIGHT_MS;
  }
  return true;
 }

@@ -7,7 +7,7 @@
 
 - `src/data/enemies.ts`: HP300・攻撃6・MP50などの基礎値。
 - `src/game/BossEncounter.ts`: スキルの確率・MP・HP段階・召喚数・戦旗・連帯責任。
-- `src/stages/plains/test-dungeon.ts`: 部屋の形と王の配置。
+- `src/stages/test/test-dungeon.ts`: 部屋の形と王の配置。
 - `src/render/InstallationSprites.ts`: 戦旗のドット絵。
 
 通常攻撃は上下左右の隣接対象を最優先。非隣接時は落石20%、火炎瓶20%、突撃号令10%の排他的抽選です。

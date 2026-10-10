@@ -7,7 +7,17 @@ export function drawTrapEffect(ctx: CanvasRenderingContext2D, event: GameEvent, 
   for (const cell of event.path ?? [event.position]) {
     const visualCell=event.visual==='windVortex'&&event.target?{x:cell.x+(event.target.x-cell.x)*Math.min(1,age*2),y:cell.y+(event.target.y-cell.y)*Math.min(1,age*2)}:cell;
     const p = screen(visualCell), x = p.x + 16, y = p.y + 16;
-    if(event.visual==='largeRock'){
+    // 全域演出も画面外のセルは描かない。ゲームの範囲・命中結果は変えない。
+    if(p.x < -80 || p.y < -100 || p.x > ctx.canvas.width+80 || p.y > ctx.canvas.height+100)continue;
+    if(event.visual==='vineStrike'){
+      const rise=Math.sin(Math.min(1,age*1.6)*Math.PI)*22;
+      ctx.strokeStyle='#244f3b';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(x-11,y+12);ctx.quadraticCurveTo(x+13,y-rise-8,x+3,y-rise);ctx.stroke();
+      ctx.strokeStyle='#72a260';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#acd47a';ctx.fillRect(x+1,y-rise,5,3);
+    }else if(event.visual==='gale'){
+      ctx.strokeStyle='#d5ffdf';ctx.lineWidth=2;
+      for(let i=0;i<3;i++){const shift=(age*80+i*11)%40;ctx.beginPath();ctx.moveTo(p.x+i*9-4,p.y+shift-12);ctx.lineTo(p.x+i*9+4,p.y+shift+3);ctx.stroke();}
+      ctx.fillStyle='#719d60';ctx.fillRect(x+Math.sin(age*13+cell.x)*12,y+((age*45+cell.y)%32)-16,4,2);
+    }else if(event.visual==='largeRock'){
       ctx.fillStyle='#20202c66';ctx.beginPath();ctx.ellipse(x+16,y+16,28,20,0,0,Math.PI*2);ctx.fill();
       const fall=Math.max(0,1-age*2)*65;ctx.fillStyle='#646c78';ctx.beginPath();ctx.ellipse(x+16,y+8-fall,27,25,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#a1a7ad';ctx.fillRect(x+2,y-8-fall,18,8);
     }else if(event.visual==='blueBloom'){

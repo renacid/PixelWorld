@@ -1,5 +1,6 @@
 import { SKILLS } from '../../data/skills';
 import type { Stage, StageLayout } from '../../game/types';
+import { stage as cave5 } from '../cave/3-5';
 
 // 開発用テストダンジョン。初期スキルとレベルはここだけ編集すれば変更できます。
 const rows = Array.from({ length: 30 }, (_, y) => {
@@ -42,20 +43,37 @@ const layout: StageLayout = {
   trapPlacements: [],
 };
 
+// 上側に3-5と同じ祭壇を接続。既存の30×30検証室と王の部屋は下へ平行移動。
+const shrine=cave5.floorSettings![4].layout as StageLayout;
+const offset=34,width=44,height=64;
+const expanded=Array.from({length:height},()=>Array(width).fill('#'));
+for(let y=0;y<34;y++)for(let x=0;x<width;x++)expanded[y][x]=shrine.rows[y][x];
+for(let y=0;y<30;y++)for(let x=0;x<30;x++)expanded[y+offset][x]=rows[y][x]==='#'?'X':'G';
+for(let x=2;x<=22;x++)expanded[33][x]='g';
+for(let y=31;y<=33;y++)expanded[y][22]='g';
+for(let y=33;y<=36;y++)expanded[y][2]='g';
+layout.rows=expanded.map(row=>row.join(''));layout.legend={...shrine.legend,'X':1};
+layout.spawn.y+=offset;
+for(const o of layout.objects)o.position.y+=offset;
+for(const e of layout.enemies)e.position.y+=offset;
+const kingRoom=layout.bossArena!;kingRoom.y+=offset;for(const p of kingRoom.sealTiles??[])p.y+=offset;
+layout.bossRooms=[kingRoom,structuredClone(shrine.bossArena!)];
+layout.enemies.push({kind:'elderTreant',position:{x:21,y:5}},{kind:'bombStone',position:{x:15,y:42}});
+
 export const stage: Stage = {
   id: 10,
   code: 'test-1',
   name: '開発テストダンジョン',
   subtitle: '全スキル検証室',
   description: '全スキルを初期所持して動作を確認できます。',
-  objective: 'ゴブリン・キングを倒して出口へ',
+  objective: '北の古木・南東の王を検証しよう',
   vision: 6,
-  width: 30,
-  height: 30,
+  width,
+  height,
   enemyCount: 0,
-  regionId: 'plains',
+  regionId: 'test',
   dungeon: { floors: 1, gemCount: 1, extraPassages: 0, enemyVariance: 0, nightRevival: { min: 0, max: 0 } },
-  clearCondition: { type: 'defeat', kind: 'goblinKing', count: 1 },
+  clearCondition: { type: 'exit' },
   layout,
   initialBagSize: 9,
   // テスト中に全スキルを連続使用できるようMPを大きく設定。

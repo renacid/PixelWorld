@@ -250,6 +250,20 @@ export const stage: Stage = {
               "x": 28,
               "y": 37
             }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 35,
+              "y": 16
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 42,
+              "y": 29
+            }
           }
         ],
         "installations": [
@@ -573,6 +587,27 @@ export const stage: Stage = {
             "position": {
               "x": 26,
               "y": 32
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 15,
+              "y": 12
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 37,
+              "y": 23
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 21,
+              "y": 33
             }
           }
         ],
@@ -906,6 +941,34 @@ export const stage: Stage = {
             "position": {
               "x": 32,
               "y": 40
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 21,
+              "y": 11
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 24,
+              "y": 21
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 10,
+              "y": 26
+            }
+          },
+          {
+            "kind": "bombStone",
+            "position": {
+              "x": 36,
+              "y": 34
             }
           }
         ],

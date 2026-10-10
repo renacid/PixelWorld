@@ -11,7 +11,8 @@ export function rectangle(width: number, height: number): Point[] { if (width !=
 export function actor(id: string, kind: Actor['kind'], position: Point, stage = 1, floor = 1): Actor {
   const d = actorDefinition(kind);
   // 固定配置・召喚・再出現すべて同じ階層倍率。味方は対象外。
-  const multiplier = kind !== 'player' && kind !== 'sprite' && kind !== 'greaterSprite' ? enemyFloorMultiplier(STAGES.find(s => s.id === stage), floor) : 1;
+  // エルダーはHP350/150の固定フェーズに合わせて指定のHP500を使用。他の敵は従来どおり。
+  const multiplier = kind !== 'elderTreant' && kind !== 'player' && kind !== 'sprite' && kind !== 'greaterSprite' ? enemyFloorMultiplier(STAGES.find(s => s.id === stage), floor) : 1;
   const hp = Math.floor((d.hp + stage * d.hpPerStage) * multiplier), mp = Math.floor(d.mp * multiplier);
   // 配列は複製し、プレイ中の変更が共通定義や別の敵へ漏れないようにします。
   return {
